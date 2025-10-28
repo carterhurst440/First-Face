@@ -1,6 +1,7 @@
 const STEP_PAYS = [4, 6, 14, 100];
 const NUMBER_RANKS = [2, 3, 4, 5, 6, 7, 8, 9, 10];
 const DENOMINATIONS = [1, 5, 10, 25, 100];
+const INITIAL_BANKROLL = 1000;
 const SUITS = [
   { symbol: "♠", color: "black" },
   { symbol: "♥", color: "red" },
@@ -11,7 +12,8 @@ const SUITS = [
 const bankrollEl = document.getElementById("bankroll");
 const betsBody = document.getElementById("bets-body");
 const dealButton = document.getElementById("deal-button");
-const nextHandButton = document.getElementById("next-hand");
+const tableReadyButton = document.getElementById("table-ready");
+const rebetButton = document.getElementById("rebet-button");
 const clearBetsButton = document.getElementById("clear-bets");
 const drawsContainer = document.getElementById("draws");
 const statusEl = document.getElementById("status");
@@ -35,16 +37,19 @@ const holdEl = document.getElementById("hold");
 const houseEdgeEl = document.getElementById("house-edge");
 const historyList = document.getElementById("history-list");
 const cardTemplate = document.getElementById("card-template");
+const resetAccountButton = document.getElementById("reset-account");
 
-let bankroll = 1000;
+let bankroll = INITIAL_BANKROLL;
 let bets = [];
 let dealing = false;
 let selectedChip = DENOMINATIONS[0];
+let bettingOpen = true;
 let stats = {
   hands: 0,
   wagered: 0,
   paid: 0
 };
+let lastBetLayout = [];
 
 function createDeck() {
   const deck = [];
@@ -135,6 +140,7 @@ function clearChipStacks() {
 }
 
 function setBettingEnabled(enabled) {
+  bettingOpen = enabled;
   chipSelectorEl.classList.toggle("selector-disabled", !enabled);
   chipButtons.forEach((button) => {
     button.disabled = !enabled;
@@ -144,6 +150,7 @@ function setBettingEnabled(enabled) {
     button.disabled = !enabled;
     button.setAttribute("aria-disabled", String(!enabled));
   });
+  clearBetsButton.disabled = !enabled || bets.length === 0;
 }
 
 function updateChipSelectionUI() {
@@ -188,8 +195,8 @@ function renderBets() {
     `;
     betsBody.appendChild(row);
   });
-  dealButton.disabled = false;
-  clearBetsButton.disabled = dealing;
+  dealButton.disabled = dealing || !bettingOpen;
+  clearBetsButton.disabled = !bettingOpen;
   updateBetSpotTotals();
 }
 
@@ -203,8 +210,9 @@ function addBet(rank, units) {
   let bet = bets.find((b) => b.rank === rank);
   if (bet) {
     bet.units += units;
+    bet.chips.push(units);
   } else {
-    bet = { rank, units, hits: 0, paid: 0 };
+    bet = { rank, units, hits: 0, paid: 0, chips: [units] };
     bets.push(bet);
   }
   bankroll -= units;
@@ -269,6 +277,22 @@ function formatStopper({ label, suit }) {
   return label === "Joker" ? "Joker" : `${label}${suit}`;
 }
 
+function layoutTotalUnits(layout) {
+  return layout.reduce((sum, entry) => {
+    const chips = entry.chips ?? [];
+    return sum + chips.reduce((inner, value) => inner + value, 0);
+  }, 0);
+}
+
+function applyBetLayout(layout) {
+  bets = [];
+  clearChipStacks();
+  renderBets();
+  layout.forEach(({ rank, chips = [] }) => {
+    chips.forEach((value) => addBet(rank, value));
+  });
+}
+
 function addHistoryEntry(result) {
   const item = document.createElement("li");
   const hitsDescription = result.betSummaries.length
@@ -284,14 +308,18 @@ function addHistoryEntry(result) {
   }
 }
 
-function resetTable() {
+function resetTable(message = "Select a chip and place your bets.") {
   drawsContainer.innerHTML = "";
-  statusEl.textContent = "Select a chip and place your bets.";
+  statusEl.textContent = message;
   dealing = false;
   dealButton.hidden = false;
-  dealButton.disabled = bets.length === 0;
-  nextHandButton.hidden = true;
+  tableReadyButton.hidden = true;
+  tableReadyButton.disabled = true;
+  const hasLayout = lastBetLayout.length > 0;
+  rebetButton.hidden = !hasLayout;
+  rebetButton.disabled = !hasLayout;
   setBettingEnabled(true);
+  dealButton.disabled = bets.length === 0;
 }
 
 function renderDraw(card) {
@@ -324,8 +352,17 @@ function endHand(stopperCard) {
     )
   });
 
-  nextHandButton.hidden = false;
+  lastBetLayout = bets
+    .filter((bet) => bet.units > 0)
+    .map((bet) => ({ rank: bet.rank, chips: [...bet.chips] }));
+  const hasLayout = lastBetLayout.length > 0;
+  tableReadyButton.hidden = false;
+  tableReadyButton.disabled = false;
+  rebetButton.hidden = !hasLayout;
+  rebetButton.disabled = !hasLayout;
   dealButton.hidden = true;
+  dealButton.disabled = true;
+  setBettingEnabled(false);
   dealing = false;
 }
 
@@ -368,6 +405,9 @@ async function dealHand() {
   dealing = true;
   setBettingEnabled(false);
   dealButton.disabled = true;
+  tableReadyButton.hidden = true;
+  tableReadyButton.disabled = true;
+  rebetButton.hidden = true;
   resetBetCounters();
   drawsContainer.innerHTML = "";
   statusEl.textContent = "Dealing...";
@@ -419,7 +459,7 @@ betSpotButtons.forEach((button) => {
 });
 
 clearBetsButton.addEventListener("click", () => {
-  if (dealing || bets.length === 0) return;
+  if (dealing || !bettingOpen || bets.length === 0) return;
   const totalUnits = bets.reduce((sum, bet) => sum + bet.units, 0);
   restoreUnits(totalUnits);
   resetBets();
@@ -431,9 +471,46 @@ dealButton.addEventListener("click", () => {
   dealHand();
 });
 
-nextHandButton.addEventListener("click", () => {
-  resetBets();
+tableReadyButton.addEventListener("click", () => {
+  bets = [];
+  clearChipStacks();
+  renderBets();
   resetTable();
+});
+
+rebetButton.addEventListener("click", () => {
+  if (dealing || lastBetLayout.length === 0) return;
+  const totalNeeded = layoutTotalUnits(lastBetLayout);
+  if (totalNeeded === 0) {
+    statusEl.textContent = "No prior wagers to rebet.";
+    return;
+  }
+  if (totalNeeded > bankroll) {
+    statusEl.textContent = `Not enough bankroll to rebet ${formatCurrency(
+      totalNeeded
+    )} units. Reset your account or place smaller bets.`;
+    return;
+  }
+  rebetButton.disabled = true;
+  applyBetLayout(lastBetLayout);
+  resetTable("Rebetting previous wagers...");
+  rebetButton.hidden = true;
+  rebetButton.disabled = true;
+  dealHand();
+});
+
+resetAccountButton.addEventListener("click", () => {
+  if (dealing) return;
+  bankroll = INITIAL_BANKROLL;
+  updateBankroll();
+  stats = { hands: 0, wagered: 0, paid: 0 };
+  updateStatsUI();
+  lastBetLayout = [];
+  historyList.innerHTML = "";
+  bets = [];
+  clearChipStacks();
+  renderBets();
+  resetTable("Account reset. Select a chip and place your bets.");
 });
 
 setSelectedChip(selectedChip, false);
