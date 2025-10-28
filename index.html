@@ -22,50 +22,80 @@
       </header>
 
       <main class="layout">
-        <section class="controls">
-          <h2>Place Your Bets</h2>
-          <form id="bet-form" class="bet-form">
-            <label>
-              Number
-              <select id="rank-select">
-                <option value="2">2</option>
-                <option value="3">3</option>
-                <option value="4">4</option>
-                <option value="5">5</option>
-                <option value="6">6</option>
-                <option value="7">7</option>
-                <option value="8">8</option>
-                <option value="9">9</option>
-                <option value="10">10</option>
-              </select>
-            </label>
-            <label>
-              Units
-              <input
-                type="number"
-                id="unit-input"
-                min="1"
-                max="500"
-                value="1"
-                step="1"
-                required
-              />
-            </label>
-            <button type="submit" class="primary">Add Bet</button>
+        <section class="controls" aria-label="Bet controls">
+          <h2>Chip Rack</h2>
+          <p class="instructions">
+            Select a chip denomination, then click the playmat to place bets on
+            numbers 2 through 10.
+          </p>
+          <div
+            class="chip-selector"
+            id="chip-selector"
+            role="radiogroup"
+            aria-label="Choose chip denomination"
+          >
+            <button
+              class="chip-choice"
+              type="button"
+              data-value="1"
+              role="radio"
+              aria-checked="true"
+            >
+              1
+            </button>
+            <button
+              class="chip-choice"
+              type="button"
+              data-value="5"
+              role="radio"
+              aria-checked="false"
+            >
+              5
+            </button>
+            <button
+              class="chip-choice"
+              type="button"
+              data-value="10"
+              role="radio"
+              aria-checked="false"
+            >
+              10
+            </button>
+            <button
+              class="chip-choice"
+              type="button"
+              data-value="25"
+              role="radio"
+              aria-checked="false"
+            >
+              25
+            </button>
+            <button
+              class="chip-choice"
+              type="button"
+              data-value="100"
+              role="radio"
+              aria-checked="false"
+            >
+              100
+            </button>
+          </div>
+
+          <div class="control-actions">
             <button type="button" id="clear-bets" class="secondary">
               Clear Bets
             </button>
-          </form>
+          </div>
 
-          <div class="bets-panel">
+          <div class="bets-panel" aria-live="polite">
             <h3>Active Bets</h3>
             <table>
               <thead>
                 <tr>
-                  <th>Number</th>
-                  <th>Units</th>
-                  <th>Hits</th>
-                  <th>Paid</th>
+                  <th scope="col">Number</th>
+                  <th scope="col">Units</th>
+                  <th scope="col">Hits</th>
+                  <th scope="col">Paid</th>
                 </tr>
               </thead>
               <tbody id="bets-body">
@@ -82,10 +112,107 @@
           </div>
         </section>
 
-        <section class="game">
+        <section class="game" aria-label="Game play area">
           <div class="felt">
-            <div class="draws" id="draws"></div>
-            <div class="status" id="status">Place your bets and deal.</div>
+            <div class="draws-panel" aria-live="polite">
+              <h3 class="draws-title">Cards Dealt</h3>
+              <div class="draws" id="draws" aria-label="Cards dealt this hand"></div>
+            </div>
+            <div class="playmat" role="group" aria-label="Number bet spots">
+              <button
+                class="bet-spot"
+                type="button"
+                data-rank="2"
+                aria-label="Bet on number 2"
+              >
+                <span class="bet-label">2</span>
+                <span class="bet-total" aria-live="polite" aria-atomic="true">0</span>
+                <div class="chip-stack" aria-hidden="true"></div>
+              </button>
+              <button
+                class="bet-spot"
+                type="button"
+                data-rank="3"
+                aria-label="Bet on number 3"
+              >
+                <span class="bet-label">3</span>
+                <span class="bet-total" aria-live="polite" aria-atomic="true">0</span>
+                <div class="chip-stack" aria-hidden="true"></div>
+              </button>
+              <button
+                class="bet-spot"
+                type="button"
+                data-rank="4"
+                aria-label="Bet on number 4"
+              >
+                <span class="bet-label">4</span>
+                <span class="bet-total" aria-live="polite" aria-atomic="true">0</span>
+                <div class="chip-stack" aria-hidden="true"></div>
+              </button>
+              <button
+                class="bet-spot"
+                type="button"
+                data-rank="5"
+                aria-label="Bet on number 5"
+              >
+                <span class="bet-label">5</span>
+                <span class="bet-total" aria-live="polite" aria-atomic="true">0</span>
+                <div class="chip-stack" aria-hidden="true"></div>
+              </button>
+              <button
+                class="bet-spot"
+                type="button"
+                data-rank="6"
+                aria-label="Bet on number 6"
+              >
+                <span class="bet-label">6</span>
+                <span class="bet-total" aria-live="polite" aria-atomic="true">0</span>
+                <div class="chip-stack" aria-hidden="true"></div>
+              </button>
+              <button
+                class="bet-spot"
+                type="button"
+                data-rank="7"
+                aria-label="Bet on number 7"
+              >
+                <span class="bet-label">7</span>
+                <span class="bet-total" aria-live="polite" aria-atomic="true">0</span>
+                <div class="chip-stack" aria-hidden="true"></div>
+              </button>
+              <button
+                class="bet-spot"
+                type="button"
+                data-rank="8"
+                aria-label="Bet on number 8"
+              >
+                <span class="bet-label">8</span>
+                <span class="bet-total" aria-live="polite" aria-atomic="true">0</span>
+                <div class="chip-stack" aria-hidden="true"></div>
+              </button>
+              <button
+                class="bet-spot"
+                type="button"
+                data-rank="9"
+                aria-label="Bet on number 9"
+              >
+                <span class="bet-label">9</span>
+                <span class="bet-total" aria-live="polite" aria-atomic="true">0</span>
+                <div class="chip-stack" aria-hidden="true"></div>
+              </button>
+              <button
+                class="bet-spot"
+                type="button"
+                data-rank="10"
+                aria-label="Bet on number 10"
+              >
+                <span class="bet-label">10</span>
+                <span class="bet-total" aria-live="polite" aria-atomic="true">0</span>
+                <div class="chip-stack" aria-hidden="true"></div>
+              </button>
+            </div>
+            <div class="status" id="status" aria-live="assertive">
+              Select a chip and place your bets.
+            </div>
           </div>
           <div class="legend">
             <h3>Payout Ladder</h3>
