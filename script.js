@@ -38,6 +38,10 @@ const houseEdgeEl = document.getElementById("house-edge");
 const historyList = document.getElementById("history-list");
 const cardTemplate = document.getElementById("card-template");
 const resetAccountButton = document.getElementById("reset-account");
+const menuToggle = document.getElementById("menu-toggle");
+const utilityPanel = document.getElementById("utility-panel");
+const utilityClose = document.getElementById("utility-close");
+const panelScrim = document.getElementById("panel-scrim");
 
 let bankroll = INITIAL_BANKROLL;
 let bets = [];
@@ -511,7 +515,50 @@ resetAccountButton.addEventListener("click", () => {
   clearChipStacks();
   renderBets();
   resetTable("Account reset. Select a chip and place your bets.");
+  closeUtilityPanel();
 });
+
+function openUtilityPanel() {
+  if (!utilityPanel || !menuToggle || !panelScrim) return;
+  utilityPanel.classList.add("is-open");
+  utilityPanel.setAttribute("aria-hidden", "false");
+  menuToggle.setAttribute("aria-expanded", "true");
+  panelScrim.hidden = false;
+}
+
+function closeUtilityPanel() {
+  if (!utilityPanel || !menuToggle || !panelScrim) return;
+  utilityPanel.classList.remove("is-open");
+  utilityPanel.setAttribute("aria-hidden", "true");
+  menuToggle.setAttribute("aria-expanded", "false");
+  panelScrim.hidden = true;
+}
+
+if (menuToggle && utilityPanel && utilityClose && panelScrim) {
+  menuToggle.addEventListener("click", () => {
+    const isOpen = utilityPanel.classList.contains("is-open");
+    if (isOpen) {
+      closeUtilityPanel();
+    } else {
+      openUtilityPanel();
+    }
+  });
+
+  utilityClose.addEventListener("click", () => {
+    closeUtilityPanel();
+  });
+
+  panelScrim.addEventListener("click", () => {
+    closeUtilityPanel();
+  });
+
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && utilityPanel.classList.contains("is-open")) {
+      closeUtilityPanel();
+      menuToggle.focus();
+    }
+  });
+}
 
 setSelectedChip(selectedChip, false);
 renderBets();
