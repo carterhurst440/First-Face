@@ -26,7 +26,7 @@ body {
 }
 
 .table {
-  width: min(1200px, 100%);
+  width: min(1300px, 100%);
   background: linear-gradient(145deg, #143f2d, #0a2f22);
   border-radius: 20px;
   box-shadow: 0 25px 50px rgba(0, 0, 0, 0.4);
@@ -59,7 +59,7 @@ body {
 
 .layout {
   display: grid;
-  grid-template-columns: 320px 1fr 260px;
+  grid-template-columns: 280px minmax(0, 1fr) 240px;
   gap: 1.5rem;
   padding: 1.5rem 2rem 2rem;
 }
@@ -501,9 +501,9 @@ button:disabled {
 }
 .playmat {
   display: grid;
-  grid-template-columns: repeat(9, minmax(80px, 1fr));
-  gap: 0.85rem;
-  padding: 1rem;
+  grid-template-columns: repeat(9, minmax(70px, 1fr));
+  gap: 0.7rem;
+  padding: 0.9rem 1rem;
   background: rgba(0, 0, 0, 0.18);
   border-radius: 18px;
   border: 1px solid rgba(225, 183, 82, 0.3);
@@ -522,7 +522,7 @@ button:disabled {
   flex-direction: column;
   align-items: center;
   justify-content: flex-start;
-  padding: 0.75rem 0.6rem 1.25rem;
+  padding: 0.75rem 0.6rem 2.1rem;
   color: var(--text-light);
   text-transform: none;
   gap: 0.35rem;
@@ -576,7 +576,7 @@ button:disabled {
 
 .chip-stack {
   position: absolute;
-  bottom: 0.4rem;
+  bottom: -0.4rem;
   left: 50%;
   width: 72px;
   height: 120px;
@@ -587,9 +587,9 @@ button:disabled {
 .chip {
   position: absolute;
   left: 50%;
-  width: 48px;
-  height: 48px;
-  margin-left: -24px;
+  width: 44px;
+  height: 44px;
+  margin-left: -22px;
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -599,7 +599,7 @@ button:disabled {
   color: #1a1a1a;
   border: 3px solid rgba(255, 255, 255, 0.7);
   box-shadow: 0 8px 14px rgba(0, 0, 0, 0.45);
-  transform: translateY(calc(var(--stack-index, 0) * -12px));
+  transform: translateY(calc(var(--stack-index, 0) * -10px));
   opacity: 0;
 }
 
@@ -632,15 +632,15 @@ button:disabled {
 
 @keyframes chip-drop {
   from {
-    transform: translateY(calc(var(--stack-index, 0) * -12px - 80px));
+    transform: translateY(calc(var(--stack-index, 0) * -10px - 80px));
     opacity: 0;
   }
   70% {
-    transform: translateY(calc(var(--stack-index, 0) * -12px + 6px));
+    transform: translateY(calc(var(--stack-index, 0) * -10px + 6px));
     opacity: 1;
   }
   to {
-    transform: translateY(calc(var(--stack-index, 0) * -12px));
+    transform: translateY(calc(var(--stack-index, 0) * -10px));
     opacity: 1;
   }
 }
