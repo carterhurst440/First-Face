@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>First Face Casino Simulator</title>
+    <link rel="stylesheet" href="styles.css" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Play:wght@400;700&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body>
+    <div class="table">
+      <header class="header">
+        <h1>First Face</h1>
+        <div class="bankroll">
+          Bankroll: <span id="bankroll">1000</span> units
+        </div>
+      </header>
+
+      <main class="layout">
+        <section class="controls">
+          <h2>Place Your Bets</h2>
+          <form id="bet-form" class="bet-form">
+            <label>
+              Number
+              <select id="rank-select">
+                <option value="2">2</option>
+                <option value="3">3</option>
+                <option value="4">4</option>
+                <option value="5">5</option>
+                <option value="6">6</option>
+                <option value="7">7</option>
+                <option value="8">8</option>
+                <option value="9">9</option>
+                <option value="10">10</option>
+              </select>
+            </label>
+            <label>
+              Units
+              <input
+                type="number"
+                id="unit-input"
+                min="1"
+                max="500"
+                value="1"
+                step="1"
+                required
+              />
+            </label>
+            <button type="submit" class="primary">Add Bet</button>
+            <button type="button" id="clear-bets" class="secondary">
+              Clear Bets
+            </button>
+          </form>
+
+          <div class="bets-panel">
+            <h3>Active Bets</h3>
+            <table>
+              <thead>
+                <tr>
+                  <th>Number</th>
+                  <th>Units</th>
+                  <th>Hits</th>
+                  <th>Paid</th>
+                </tr>
+              </thead>
+              <tbody id="bets-body">
+                <tr class="empty">
+                  <td colspan="4">No bets placed.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="actions">
+            <button id="deal-button" class="deal" disabled>Deal Hand</button>
+            <button id="next-hand" class="secondary" hidden>New Hand</button>
+          </div>
+        </section>
+
+        <section class="game">
+          <div class="felt">
+            <div class="draws" id="draws"></div>
+            <div class="status" id="status">Place your bets and deal.</div>
+          </div>
+          <div class="legend">
+            <h3>Payout Ladder</h3>
+            <ol>
+              <li>1st hit: 4× units</li>
+              <li>2nd hit: 6× units</li>
+              <li>3rd hit: 14× units</li>
+              <li>4th hit: 100× units</li>
+            </ol>
+          </div>
+        </section>
+
+        <section class="stats">
+          <h2>Game Stats</h2>
+          <div class="stat-grid">
+            <div class="stat">
+              <span class="label">Hands Played</span>
+              <span id="hands-played" class="value">0</span>
+            </div>
+            <div class="stat">
+              <span class="label">Total Wagered</span>
+              <span id="total-wagered" class="value">0</span>
+            </div>
+            <div class="stat">
+              <span class="label">Total Paid</span>
+              <span id="total-paid" class="value">0</span>
+            </div>
+            <div class="stat">
+              <span class="label">Hold</span>
+              <span id="hold" class="value">0</span>
+            </div>
+            <div class="stat">
+              <span class="label">House Edge</span>
+              <span id="house-edge" class="value">0%</span>
+            </div>
+          </div>
+          <div class="history">
+            <h3>Recent Hands</h3>
+            <ul id="history-list"></ul>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <template id="card-template">
+      <div class="card">
+        <div class="corner corner-top"></div>
+        <div class="card-rank"></div>
+        <div class="card-suit"></div>
+        <div class="corner corner-bottom"></div>
+      </div>
+    </template>
+
+    <script src="script.js" defer></script>
+  </body>
+</html>
