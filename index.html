@@ -271,12 +271,7 @@
       </section>
 
       <div class="chip-bar" aria-label="Bet controls">
-        <div class="chip-bar-inner">
-          <div class="chip-left">
-            <button type="button" id="clear-bets" class="secondary">
-              Clear Bets
-            </button>
-          </div>
+        <div class="chip-row chip-select-row">
           <div
             class="chip-selector"
             id="chip-selector"
@@ -320,7 +315,12 @@
               100
             </button>
           </div>
-          <div class="chip-right">
+        </div>
+        <div class="chip-row chip-action-row">
+          <button type="button" id="clear-bets" class="secondary">
+            Clear Bets
+          </button>
+          <div class="chip-actions">
             <button type="button" id="table-ready" class="secondary" hidden>
               Table Ready
             </button>
