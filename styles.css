@@ -6,6 +6,8 @@
   --muted: #c8c2b8;
   --danger: #ff6b6b;
   --success: #6bffb0;
+  --card-width: clamp(52px, 10vw, 68px);
+  --card-height: clamp(74px, 15vw, 96px);
   font-size: 16px;
 }
 
@@ -43,6 +45,10 @@ body {
   display: flex;
   flex-direction: column;
   gap: 1.25rem;
+  position: sticky;
+  top: 0;
+  z-index: 12;
+  backdrop-filter: blur(6px);
 }
 
 .header-top {
@@ -82,8 +88,75 @@ body {
 }
 
 .bankroll {
-  font-size: 1.15rem;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+  font-size: 1.1rem;
   font-weight: 700;
+  position: relative;
+  font-variant-numeric: tabular-nums;
+}
+
+.bankroll-label,
+.bankroll-units {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.bankroll-value {
+  display: inline-flex;
+  align-items: baseline;
+  min-width: 3.5ch;
+  transition: color 0.3s ease;
+}
+
+.bankroll-delta {
+  position: absolute;
+  left: 100%;
+  margin-left: 0.55rem;
+  bottom: -0.1rem;
+  font-size: 0.9rem;
+  font-weight: 700;
+  opacity: 0;
+  transform: translateY(0.35rem);
+  transition: opacity 0.3s ease, transform 0.3s ease;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.bankroll-delta.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.bankroll-positive {
+  color: var(--success);
+}
+
+.bankroll-negative {
+  color: var(--danger);
+}
+
+.bankroll-neutral {
+  color: var(--text-light);
+}
+
+.bankroll-pulse {
+  animation: bankrollPulse 0.9s ease;
+}
+
+@keyframes bankrollPulse {
+  0% {
+    transform: scale(1);
+  }
+  40% {
+    transform: scale(1.08);
+  }
+  100% {
+    transform: scale(1);
+  }
 }
 
 .menu-toggle {
@@ -233,19 +306,28 @@ body {
 
 .draws {
   display: flex;
-  gap: 0.75rem;
-  overflow-x: auto;
-  padding-bottom: 0.5rem;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  padding-bottom: 0.25rem;
+  min-height: calc(var(--card-height) + 0.5rem);
+  max-height: calc(var(--card-height) * 2 + 1.1rem);
+  overflow-y: auto;
+  overflow-x: hidden;
+  align-content: flex-start;
   scrollbar-width: thin;
-  scrollbar-color: rgba(225, 183, 82, 0.4) rgba(0, 0, 0, 0.3);
+  scrollbar-color: rgba(225, 183, 82, 0.4) rgba(0, 0, 0, 0.25);
+}
+
+.draws .card {
+  flex: 0 0 var(--card-width);
 }
 
 .draws::-webkit-scrollbar {
-  height: 8px;
+  width: 8px;
 }
 
 .draws::-webkit-scrollbar-thumb {
-  background: rgba(225, 183, 82, 0.4);
+  background: rgba(225, 183, 82, 0.45);
   border-radius: 999px;
 }
 
@@ -571,8 +653,8 @@ button:disabled {
 }
 
 .card {
-  width: 70px;
-  height: 100px;
+  width: var(--card-width);
+  height: var(--card-height);
   border-radius: 10px;
   background: #fff;
   color: #111;
@@ -582,7 +664,7 @@ button:disabled {
   justify-content: center;
   align-items: center;
   font-weight: 700;
-  font-size: 1.5rem;
+  font-size: clamp(1.1rem, 3vw, 1.4rem);
   box-shadow: 0 12px 20px rgba(0, 0, 0, 0.4);
   transform: translateY(20px);
   opacity: 0;
@@ -590,11 +672,11 @@ button:disabled {
 }
 
 .card-rank {
-  font-size: 1.8rem;
+  font-size: clamp(1.3rem, 3.6vw, 1.7rem);
 }
 
 .card-suit {
-  font-size: 1.4rem;
+  font-size: clamp(1rem, 3vw, 1.3rem);
   margin-top: 0.1rem;
 }
 
@@ -623,7 +705,7 @@ button:disabled {
 
 .card .corner {
   position: absolute;
-  font-size: 0.9rem;
+  font-size: clamp(0.65rem, 2vw, 0.85rem);
   font-weight: 400;
 }
 
@@ -716,7 +798,7 @@ button:disabled {
   position: fixed;
   inset: 0;
   background: rgba(0, 0, 0, 0.55);
-  z-index: 12;
+  z-index: 14;
 }
 
 .utility-panel {

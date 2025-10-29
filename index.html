@@ -18,8 +18,11 @@
         <div class="header-top">
           <h1>First Face</h1>
           <div class="header-controls">
-            <div class="bankroll">
-              Bankroll: <span id="bankroll">1000</span> units
+            <div class="bankroll" role="status" aria-live="polite">
+              <span class="bankroll-label">Bankroll:</span>
+              <span id="bankroll" class="bankroll-value">1000</span>
+              <span class="bankroll-units">units</span>
+              <span id="bankroll-delta" class="bankroll-delta" aria-hidden="true"></span>
             </div>
             <button type="button" id="reset-account" class="secondary">
               Reset Account

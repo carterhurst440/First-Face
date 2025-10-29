@@ -17,6 +17,7 @@ function describeRank(rank) {
 }
 
 const bankrollEl = document.getElementById("bankroll");
+const bankrollDeltaEl = document.getElementById("bankroll-delta");
 const betsBody = document.getElementById("bets-body");
 const dealButton = document.getElementById("deal-button");
 const tableReadyButton = document.getElementById("table-ready");
@@ -61,6 +62,9 @@ let stats = {
   paid: 0
 };
 let lastBetLayout = [];
+let bankrollAnimating = false;
+let bankrollAnimationFrame = null;
+let bankrollDeltaTimeout = null;
 
 function createDeck() {
   const deck = [];
@@ -107,7 +111,10 @@ function shuffle(deck) {
 }
 
 function updateBankroll() {
-  bankrollEl.textContent = bankroll.toString();
+  if (bankrollAnimating) {
+    stopBankrollAnimation();
+  }
+  bankrollEl.textContent = formatCurrency(bankroll);
 }
 
 function updateBetSpotTotals() {
@@ -177,9 +184,7 @@ function setSelectedChip(value, announce = true) {
   selectedChip = value;
   updateChipSelectionUI();
   if (announce && !dealing) {
-    statusEl.textContent = `Selected ${formatCurrency(
-      value
-    )}-unit chip. Click Ace or a number to bet.`;
+    statusEl.textContent = `Selected ${formatCurrency(value)}-unit chip. Click Ace or a number to bet.`;
   }
 }
 
@@ -277,6 +282,123 @@ function formatCurrency(value) {
   return value.toLocaleString(undefined, { maximumFractionDigits: 0 });
 }
 
+function easeOutCubic(x) {
+  return 1 - Math.pow(1 - x, 3);
+}
+
+function stopBankrollAnimation(restoreDisplay = true) {
+  if (bankrollAnimationFrame !== null) {
+    cancelAnimationFrame(bankrollAnimationFrame);
+    bankrollAnimationFrame = null;
+  }
+  if (bankrollDeltaTimeout !== null) {
+    clearTimeout(bankrollDeltaTimeout);
+    bankrollDeltaTimeout = null;
+  }
+  bankrollAnimating = false;
+  if (bankrollEl) {
+    bankrollEl.classList.remove(
+      "bankroll-positive",
+      "bankroll-negative",
+      "bankroll-neutral",
+      "bankroll-pulse"
+    );
+  }
+  if (bankrollDeltaEl) {
+    bankrollDeltaEl.classList.remove(
+      "visible",
+      "bankroll-positive",
+      "bankroll-negative",
+      "bankroll-neutral"
+    );
+    bankrollDeltaEl.textContent = "";
+  }
+  if (restoreDisplay && bankrollEl) {
+    bankrollEl.textContent = formatCurrency(bankroll);
+  }
+}
+
+function animateBankrollOutcome(delta) {
+  if (!bankrollEl) return;
+
+  stopBankrollAnimation(false);
+
+  if (!Number.isFinite(delta)) {
+    bankrollEl.textContent = formatCurrency(bankroll);
+    return;
+  }
+
+  if (delta === 0) {
+    bankrollAnimating = true;
+    bankrollEl.classList.add("bankroll-neutral", "bankroll-pulse");
+    if (bankrollDeltaEl) {
+      bankrollDeltaEl.textContent = "±0";
+      bankrollDeltaEl.classList.add("visible", "bankroll-neutral");
+    }
+    bankrollDeltaTimeout = window.setTimeout(() => {
+      bankrollEl.classList.remove("bankroll-neutral", "bankroll-pulse");
+      if (bankrollDeltaEl) {
+        bankrollDeltaEl.classList.remove("visible", "bankroll-neutral");
+        bankrollDeltaEl.textContent = "";
+      }
+      bankrollAnimating = false;
+      bankrollDeltaTimeout = null;
+    }, 1200);
+    return;
+  }
+
+  const finalValue = bankroll;
+  const startValue = finalValue - delta;
+  const directionClass = delta > 0 ? "bankroll-positive" : "bankroll-negative";
+  const deltaText = `${delta > 0 ? "+" : "−"}${formatCurrency(Math.abs(delta))}`;
+
+  bankrollAnimating = true;
+  bankrollEl.classList.add(directionClass, "bankroll-pulse");
+  bankrollEl.classList.remove(
+    delta > 0 ? "bankroll-negative" : "bankroll-positive",
+    "bankroll-neutral"
+  );
+
+  if (bankrollDeltaEl) {
+    bankrollDeltaEl.classList.remove(
+      delta > 0 ? "bankroll-negative" : "bankroll-positive",
+      "bankroll-neutral"
+    );
+    bankrollDeltaEl.classList.add("visible", directionClass);
+    bankrollDeltaEl.textContent = deltaText;
+  }
+
+  bankrollEl.textContent = formatCurrency(startValue);
+
+  const duration = 900;
+  const startTime = performance.now();
+
+  function step(timestamp) {
+    const elapsed = timestamp - startTime;
+    const progress = Math.min(elapsed / duration, 1);
+    const eased = easeOutCubic(progress);
+    const currentValue = Math.round(startValue + (finalValue - startValue) * eased);
+    bankrollEl.textContent = formatCurrency(currentValue);
+    if (progress < 1) {
+      bankrollAnimationFrame = requestAnimationFrame(step);
+    } else {
+      bankrollEl.textContent = formatCurrency(finalValue);
+      bankrollAnimationFrame = null;
+      bankrollAnimating = false;
+      bankrollDeltaTimeout = window.setTimeout(() => {
+        bankrollEl.classList.remove(directionClass, "bankroll-pulse");
+        if (bankrollDeltaEl) {
+          bankrollDeltaEl.classList.remove("visible", directionClass);
+          bankrollDeltaEl.textContent = "";
+        }
+        bankrollDeltaTimeout = null;
+      }, 1400);
+    }
+  }
+
+  bankrollAnimationFrame = requestAnimationFrame(step);
+}
+
 function updateStatsUI() {
   handsPlayedEl.textContent = stats.hands.toString();
   totalWageredEl.textContent = formatCurrency(stats.wagered);
@@ -339,12 +461,13 @@ function resetTable(message = "Select a chip and place your bets.") {
 function renderDraw(card) {
   const cardEl = makeCardElement(card);
   drawsContainer.appendChild(cardEl);
-  drawsContainer.scrollTo({ left: drawsContainer.scrollWidth, behavior: "smooth" });
+  cardEl.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "end" });
 }
 
 function endHand(stopperCard) {
   const totalWagerThisHand = bets.reduce((sum, bet) => sum + bet.units, 0);
   const totalPaidThisHand = bets.reduce((sum, bet) => sum + bet.paid, 0);
+  const netThisHand = totalPaidThisHand - totalWagerThisHand;
 
   stats.hands += 1;
   stats.wagered += totalWagerThisHand;
@@ -379,6 +502,7 @@ function endHand(stopperCard) {
   dealButton.disabled = true;
   setBettingEnabled(false);
   dealing = false;
+  animateBankrollOutcome(netThisHand);
 }
 
 function processCard(card) {
@@ -577,5 +701,6 @@ if (menuToggle && utilityPanel && utilityClose && panelScrim) {
 
 setSelectedChip(selectedChip, false);
 renderBets();
+updateBankroll();
 resetTable();
 updateStatsUI();
