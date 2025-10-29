@@ -121,11 +121,16 @@ body {
 
 .title-frame {
   position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   padding: clamp(0.4rem, 1.4vw, 0.75rem) clamp(2rem, 8vw, 5.2rem);
   border-radius: 999px;
   background: linear-gradient(135deg, rgba(31, 241, 255, 0.12), rgba(255, 99, 224, 0.12));
   box-shadow: 0 0 40px rgba(31, 241, 255, 0.18), 0 0 60px rgba(255, 61, 243, 0.12);
   overflow: hidden;
+  width: min(100%, 560px);
+  margin: 0 auto;
 }
 
 .title-frame::before,
@@ -151,8 +156,8 @@ body {
 .title-text {
   margin: 0;
   font-family: "Audiowide", "Play", sans-serif;
-  font-size: clamp(1.65rem, 6.5vw, 3.4rem);
-  letter-spacing: clamp(0.2rem, 1vw, 0.65rem);
+  font-size: clamp(1.55rem, 8vw, 3.4rem);
+  letter-spacing: clamp(0.18rem, 4vw, 0.65rem);
   text-transform: uppercase;
   position: relative;
   z-index: 1;
@@ -161,6 +166,7 @@ body {
   background: linear-gradient(90deg, #1ff1ff 0%, #ff3df3 45%, #8b6dff 100%);
   -webkit-background-clip: text;
   background-clip: text;
+  text-align: center;
 }
 
 @supports (-webkit-background-clip: text) or (background-clip: text) {
@@ -455,13 +461,28 @@ body {
   border-radius: 999px;
 }
 
+.bets-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: clamp(0.4rem, 1.3vw, 0.6rem);
+}
+
 .bets-heading {
   margin: 0;
   text-transform: uppercase;
   letter-spacing: 0.16rem;
   font-size: clamp(0.92rem, 1.8vw, 1.08rem);
   color: var(--neon-magenta);
-  text-align: center;
+}
+
+.clear-bets {
+  padding: 0.45rem 0.95rem;
+  font-size: 0.74rem;
+  letter-spacing: 0.08rem;
+  white-space: nowrap;
+  margin-left: auto;
 }
 
 .playmat {
@@ -679,11 +700,17 @@ button:disabled {
   padding: clamp(0.45rem, 1.2vw, 0.75rem) clamp(1.1rem, 4vw, 1.9rem);
   box-shadow: 0 -20px 40px rgba(3, 3, 15, 0.6);
   z-index: 8;
-  display: flex;
+  display: grid;
+  grid-template-columns:
+    minmax(clamp(120px, 26vw, 220px), 1fr)
+    auto
+    minmax(clamp(120px, 26vw, 220px), 1fr);
   align-items: center;
-  justify-content: center;
   gap: clamp(0.45rem, 1.8vw, 1rem);
-  flex-wrap: wrap;
+}
+
+.chip-bar::before {
+  content: "";
 }
 
 .chip-bar .secondary,
@@ -698,30 +725,25 @@ button:disabled {
   padding-inline: clamp(1rem, 3vw, 1.3rem);
 }
 
-.chip-clear {
-  flex: 0 0 auto;
-  min-width: clamp(92px, 16vw, 120px);
-  margin-right: auto;
-}
-
 .chip-selector {
   display: flex;
   align-items: center;
   justify-content: center;
   gap: clamp(0.45rem, 2vw, 0.9rem);
-  flex: 1 0 auto;
   min-width: clamp(220px, 38vw, 480px);
   margin-inline: auto;
+  grid-column: 2;
+  justify-self: center;
 }
 
 .chip-actions {
   display: flex;
   align-items: center;
   gap: clamp(0.4rem, 1.5vw, 0.85rem);
-  flex: 0 0 auto;
   justify-content: flex-end;
   min-width: clamp(120px, 26vw, 220px);
-  margin-left: auto;
+  grid-column: 3;
+  justify-self: end;
 }
 
 .chip-choice {
@@ -957,35 +979,45 @@ button:disabled {
   }
 
   .chip-bar {
-    justify-content: space-between;
+    grid-template-columns: 1fr;
     row-gap: clamp(0.35rem, 2vw, 0.6rem);
     padding-inline: clamp(0.75rem, 5vw, 1.2rem);
   }
 
-  .chip-clear {
-    order: 0;
-    flex: 1 1 44%;
-    min-width: min(140px, 44%);
-    margin-right: 0;
+  .chip-bar::before {
+    display: none;
   }
 
   .chip-selector {
-    order: 1;
-    flex: 1 0 100%;
-    min-width: 100%;
-    margin-inline: 0;
+    grid-column: 1;
+    width: 100%;
     justify-content: center;
   }
 
   .chip-actions {
-    order: 2;
-    flex: 1 1 44%;
-    min-width: min(160px, 44%);
-    margin-left: 0;
+    grid-column: 1;
+    justify-content: center;
+    min-width: auto;
+    width: 100%;
+    justify-self: center;
   }
 }
 
 @media (max-width: 560px) {
+  .title-banner {
+    margin: clamp(0.9rem, 4vw, 1.4rem) auto clamp(1rem, 5vw, 1.6rem);
+  }
+
+  .title-frame {
+    padding: 0.5rem clamp(1.2rem, 12vw, 2.1rem);
+    border-radius: 48px;
+  }
+
+  .title-text {
+    font-size: clamp(1.45rem, 11vw, 2.5rem);
+    letter-spacing: clamp(0.16rem, 6vw, 0.4rem);
+  }
+
   .header {
     padding: 0.65rem clamp(0.8rem, 5vw, 1.2rem);
   }
@@ -1013,6 +1045,22 @@ button:disabled {
     padding: 0.25rem 0.5rem;
     font-size: 0.7rem;
   }
+
+  .bets-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.5rem;
+  }
+
+  .bets-heading {
+    text-align: center;
+  }
+
+  .clear-bets {
+    align-self: center;
+    min-width: min(180px, 70%);
+    margin-left: 0;
+  }
 }
 
 @media (max-width: 540px) {
@@ -1026,11 +1074,8 @@ button:disabled {
     font-size: 0.72rem;
   }
 
-  .chip-clear,
   .chip-actions {
-    flex: 1 1 48%;
-    min-width: min(150px, 48%);
-    margin: 0;
+    width: 100%;
   }
 }
 

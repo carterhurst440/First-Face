@@ -6,8 +6,8 @@ A lightweight web-based simulator for the Run the Numbers casino game. Place num
 
 1. Open `index.html` in any modern browser.
 2. The compact header stays pinned to the top of the screen with your bankroll readout, a small reset button, and the hamburger menu. Watch the bankroll total flash green or red (and count up or down) after each hand to see the exact impact of the round.
-3. Use the pinned chip rack bar along the bottom edge: **Clear Bets** anchors the left, the round chip buttons stay centered, and the action cluster (**Rebet & Deal** or **Deal Hand**) hugs the right. Wide screens keep everything on a single line; smaller viewports automatically wrap so the chip selector remains on the top row and the buttons glide to the row beneath.
-4. Click the Ace or any numbered spot (2–10) on the playmat to stack chips and place bets. Squares will wrap to a second row on smaller screens so nothing overlaps.
+3. Use the pinned chip rack bar along the bottom edge: the round chip buttons stay centered while the action cluster (**Rebet & Deal** or **Deal Hand**) hugs the right. Wide screens keep everything on a single line; smaller viewports automatically wrap so the chip selector remains on the top row and the buttons glide to the row beneath.
+4. Click the Ace or any numbered spot (2–10) on the playmat to stack chips and place bets. Squares will wrap to a second row on smaller screens so nothing overlaps. Need to wipe the felt? Tap **Clear Bets** in the Bets header on the right side of the layout.
 5. Press **Deal Hand** to play out a shoe until the first face card (J/Q/K) or the Joker appears.
 6. Hits on your chosen Ace/number wager pay according to the four-step ladder (3×, 4×, 15×, 50×). Each chip remains in place and is forfeited when the hand stops.
 7. After the hand resolves, choose **Table Ready** (bottom row, left) to clear the felt for fresh wagers or **Rebet & Deal** (bottom row, right cluster) to automatically restack and fire the previous layout. If your bankroll runs dry, use **Reset Account** near the bankroll display to refill to 1,000 units, wipe stats, and clear the history log.

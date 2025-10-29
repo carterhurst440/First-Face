@@ -42,7 +42,6 @@
           <h1 id="game-title" class="title-text">RUN THE NUMBERS</h1>
           <span class="title-accent" aria-hidden="true"></span>
         </div>
-        <p class="title-sub">Retro First Face table experience</p>
       </section>
 
       <aside
@@ -143,7 +142,16 @@
               <h3 class="draws-title">Cards Dealt</h3>
               <div class="draws" id="draws" aria-label="Cards dealt this hand"></div>
             </div>
-            <h2 class="bets-heading">Bets</h2>
+            <div class="bets-header">
+              <h2 class="bets-heading">Bets</h2>
+              <button
+                type="button"
+                id="clear-bets"
+                class="clear-bets secondary"
+              >
+                Clear Bets
+              </button>
+            </div>
             <div class="playmat" role="group" aria-label="Number bet spots">
               <button
                 class="bet-spot"
@@ -291,9 +299,6 @@
       </main>
 
       <div class="chip-bar" aria-label="Bet controls">
-        <button type="button" id="clear-bets" class="chip-clear secondary">
-          Clear Bets
-        </button>
         <div
           class="chip-selector"
           id="chip-selector"
