@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Run the Numbers Simulator</title>
+    <link rel="stylesheet" href="styles.css" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Play:wght@400;700&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body>
+    <div class="table">
+      <header class="header" role="banner">
+        <div class="header-bar">
+          <div class="bankroll" role="status" aria-live="polite">
+            <span class="bankroll-label">Bank:</span>
+            <span id="bankroll" class="bankroll-value">1000</span>
+            <span class="bankroll-units">units</span>
+            <span id="bankroll-delta" class="bankroll-delta" aria-hidden="true"></span>
+          </div>
+          <button type="button" id="reset-account" class="reset-button" aria-label="Reset account">
+            Reset
+          </button>
+          <button
+            type="button"
+            class="menu-toggle"
+            id="menu-toggle"
+            aria-expanded="false"
+            aria-controls="utility-panel"
+          >
+            <span class="sr-only">Open menu</span>
+            <span class="menu-icon" aria-hidden="true"></span>
+          </button>
+        </div>
+      </header>
+      <h1 class="sr-only">Run the Numbers Simulator</h1>
+
+      <aside
+        class="utility-panel"
+        id="utility-panel"
+        aria-hidden="true"
+        aria-labelledby="utility-title"
+      >
+        <div class="utility-header">
+          <h2 id="utility-title">Table Menu</h2>
+          <button type="button" class="utility-close" id="utility-close">
+            <span class="sr-only">Close menu</span>
+            <span aria-hidden="true">×</span>
+          </button>
+        </div>
+        <section class="utility-section" aria-labelledby="how-to-title">
+          <h3 id="how-to-title">How to Play</h3>
+          <ol class="how-to-list">
+            <li>Choose a chip value from the rack.</li>
+            <li>
+              Click Ace or any number from 2 through 10 on the felt to stack
+              chips on that wager.
+            </li>
+            <li>
+              Press <strong>Deal Hand</strong> to reveal cards until a face
+              card (J, Q, or K) or the Joker appears.
+            </li>
+            <li>
+              Each time your number hits before the first face card or Joker,
+              you earn the next step payout. Once a face card or Joker appears,
+              the hand ends and all wagers are forfeited.
+            </li>
+            <li>
+              Use <strong>Rebet &amp; Deal</strong> to replay your previous chip
+              layout or <strong>Clear Bets</strong> to start fresh.
+            </li>
+          </ol>
+          <div class="rules-summary">
+            <p>
+              The game uses a fresh 53-card deck each hand (standard 52 cards
+              plus one Joker). Face cards (J, Q, K) and the Joker stop the deal
+              immediately; Ace and numbers 2–10 keep the action going.
+            </p>
+            <p>
+              Each hit on your number pays the next step on the ladder:
+              <strong>3×</strong>, <strong>4×</strong>, <strong>15×</strong>,
+              then <strong>50×</strong> your wagered units for the fourth hit.
+              Your original chips remain on the felt and are collected when the
+              hand stops.
+            </p>
+          </div>
+        </section>
+        <section class="utility-section" aria-labelledby="recent-hands-title">
+          <div class="section-heading">
+            <h3 id="recent-hands-title">Recent Hands</h3>
+            <p class="section-sub">Most recent results appear first.</p>
+          </div>
+          <ul id="history-list" class="history-list" aria-live="polite"></ul>
+        </section>
+      </aside>
+      <div class="panel-scrim" id="panel-scrim" hidden></div>
+
+      <main class="layout">
+        <section class="stats-strip" aria-label="Game statistics">
+          <div class="stat">
+            <span class="label">Hands Played</span>
+            <span id="hands-played" class="value">0</span>
+          </div>
+          <div class="stat">
+            <span class="label">Total Wagered</span>
+            <span id="total-wagered" class="value">0</span>
+          </div>
+          <div class="stat">
+            <span class="label">Total Paid</span>
+            <span id="total-paid" class="value">0</span>
+          </div>
+          <div class="stat">
+            <span class="label">Hold</span>
+            <span id="hold" class="value">0</span>
+          </div>
+          <div class="stat">
+            <span class="label">House Edge</span>
+            <span id="house-edge" class="value">0%</span>
+          </div>
+        </section>
+        <section class="paytable" aria-label="Payout ladder">
+          <h2>Paytable</h2>
+          <ol>
+            <li>1st hit on a number: 3× wager</li>
+            <li>2nd hit on same number: 4× wager</li>
+            <li>3rd hit on same number: 15× wager</li>
+            <li>4th hit on same number: 50× wager</li>
+          </ol>
+        </section>
+        <section class="game" aria-label="Game play area">
+          <div class="felt">
+            <div class="draws-panel" aria-live="polite">
+              <h3 class="draws-title">Cards Dealt</h3>
+              <div class="draws" id="draws" aria-label="Cards dealt this hand"></div>
+            </div>
+            <div class="playmat" role="group" aria-label="Number bet spots">
+              <button
+                class="bet-spot"
+                type="button"
+                data-rank="A"
+                aria-label="Bet on Ace"
+              >
+                <span class="bet-label">A</span>
+                <span class="bet-total" aria-live="polite" aria-atomic="true">0</span>
+                <div class="chip-stack" aria-hidden="true"></div>
+              </button>
+              <button
+                class="bet-spot"
+                type="button"
+                data-rank="2"
+                aria-label="Bet on number 2"
+              >
+                <span class="bet-label">2</span>
+                <span class="bet-total" aria-live="polite" aria-atomic="true">0</span>
+                <div class="chip-stack" aria-hidden="true"></div>
+              </button>
+              <button
+                class="bet-spot"
+                type="button"
+                data-rank="3"
+                aria-label="Bet on number 3"
+              >
+                <span class="bet-label">3</span>
+                <span class="bet-total" aria-live="polite" aria-atomic="true">0</span>
+                <div class="chip-stack" aria-hidden="true"></div>
+              </button>
+              <button
+                class="bet-spot"
+                type="button"
+                data-rank="4"
+                aria-label="Bet on number 4"
+              >
+                <span class="bet-label">4</span>
+                <span class="bet-total" aria-live="polite" aria-atomic="true">0</span>
+                <div class="chip-stack" aria-hidden="true"></div>
+              </button>
+              <button
+                class="bet-spot"
+                type="button"
+                data-rank="5"
+                aria-label="Bet on number 5"
+              >
+                <span class="bet-label">5</span>
+                <span class="bet-total" aria-live="polite" aria-atomic="true">0</span>
+                <div class="chip-stack" aria-hidden="true"></div>
+              </button>
+              <button
+                class="bet-spot"
+                type="button"
+                data-rank="6"
+                aria-label="Bet on number 6"
+              >
+                <span class="bet-label">6</span>
+                <span class="bet-total" aria-live="polite" aria-atomic="true">0</span>
+                <div class="chip-stack" aria-hidden="true"></div>
+              </button>
+              <button
+                class="bet-spot"
+                type="button"
+                data-rank="7"
+                aria-label="Bet on number 7"
+              >
+                <span class="bet-label">7</span>
+                <span class="bet-total" aria-live="polite" aria-atomic="true">0</span>
+                <div class="chip-stack" aria-hidden="true"></div>
+              </button>
+              <button
+                class="bet-spot"
+                type="button"
+                data-rank="8"
+                aria-label="Bet on number 8"
+              >
+                <span class="bet-label">8</span>
+                <span class="bet-total" aria-live="polite" aria-atomic="true">0</span>
+                <div class="chip-stack" aria-hidden="true"></div>
+              </button>
+              <button
+                class="bet-spot"
+                type="button"
+                data-rank="9"
+                aria-label="Bet on number 9"
+              >
+                <span class="bet-label">9</span>
+                <span class="bet-total" aria-live="polite" aria-atomic="true">0</span>
+                <div class="chip-stack" aria-hidden="true"></div>
+              </button>
+              <button
+                class="bet-spot"
+                type="button"
+                data-rank="10"
+                aria-label="Bet on number 10"
+              >
+                <span class="bet-label">10</span>
+                <span class="bet-total" aria-live="polite" aria-atomic="true">0</span>
+                <div class="chip-stack" aria-hidden="true"></div>
+              </button>
+            </div>
+            <div class="status" id="status" aria-live="assertive">
+              Select a chip and place your bets.
+            </div>
+          </div>
+        </section>
+      </main>
+
+      <section
+        class="bets-panel"
+        aria-live="polite"
+        aria-label="Active bets"
+        role="region"
+      >
+        <h3>Active Bets</h3>
+        <table>
+          <thead>
+            <tr>
+              <th scope="col">Number</th>
+              <th scope="col">Units</th>
+              <th scope="col">Hits</th>
+              <th scope="col">Paid</th>
+            </tr>
+          </thead>
+          <tbody id="bets-body">
+            <tr class="empty">
+              <td colspan="4">No bets placed.</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <div class="chip-bar" aria-label="Bet controls">
+        <div class="chip-bar-inner">
+          <div class="chip-left">
+            <button type="button" id="clear-bets" class="secondary">
+              Clear Bets
+            </button>
+          </div>
+          <div
+            class="chip-selector"
+            id="chip-selector"
+            role="radiogroup"
+            aria-label="Choose chip denomination"
+          >
+            <button
+              class="chip-choice"
+              type="button"
+              data-value="1"
+              role="radio"
+              aria-checked="true"
+            >
+              1
+            </button>
+            <button
+              class="chip-choice"
+              type="button"
+              data-value="5"
+              role="radio"
+              aria-checked="false"
+            >
+              5
+            </button>
+            <button
+              class="chip-choice"
+              type="button"
+              data-value="10"
+              role="radio"
+              aria-checked="false"
+            >
+              10
+            </button>
+            <button
+              class="chip-choice"
+              type="button"
+              data-value="25"
+              role="radio"
+              aria-checked="false"
+            >
+              25
+            </button>
+            <button
+              class="chip-choice"
+              type="button"
+              data-value="100"
+              role="radio"
+              aria-checked="false"
+            >
+              100
+            </button>
+          </div>
+          <div class="chip-right">
+            <button type="button" id="table-ready" class="secondary" hidden>
+              Table Ready
+            </button>
+            <button type="button" id="rebet-button" class="secondary" hidden>
+              Rebet &amp; Deal
+            </button>
+            <button id="deal-button" class="deal" disabled>Deal Hand</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <template id="card-template">
+      <div class="card">
+        <div class="corner corner-top"></div>
+        <div class="card-rank"></div>
+        <div class="card-suit"></div>
+        <div class="corner corner-bottom"></div>
+      </div>
+    </template>
+
+    <script src="script.js" defer></script>
+  </body>
+</html>
