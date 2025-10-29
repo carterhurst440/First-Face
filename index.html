@@ -103,8 +103,8 @@
             </p>
             <p>
               Each hit on your number pays the next step on the ladder:
-              <strong>2×</strong>, <strong>6×</strong>, <strong>36×</strong>,
-              then <strong>100×</strong> your wagered units for the fourth hit.
+              <strong>3×</strong>, <strong>4×</strong>, <strong>15×</strong>,
+              then <strong>50×</strong> your wagered units for the fourth hit.
               Your original chips remain on the felt and are collected when the
               hand stops.
             </p>
@@ -124,10 +124,10 @@
         <section class="paytable" aria-label="Payout ladder">
           <h2>Paytable</h2>
           <ol>
-            <li>1st hit on a number: 2× wager</li>
-            <li>2nd hit on same number: 6× wager</li>
-            <li>3rd hit on same number: 36× wager</li>
-            <li>4th hit on same number: 100× wager</li>
+            <li>1st hit on a number: 3× wager</li>
+            <li>2nd hit on same number: 4× wager</li>
+            <li>3rd hit on same number: 15× wager</li>
+            <li>4th hit on same number: 50× wager</li>
           </ol>
         </section>
         <section class="game" aria-label="Game play area">
@@ -245,6 +245,30 @@
         </section>
       </main>
 
+      <section
+        class="bets-panel"
+        aria-live="polite"
+        aria-label="Active bets"
+        role="region"
+      >
+        <h3>Active Bets</h3>
+        <table>
+          <thead>
+            <tr>
+              <th scope="col">Number</th>
+              <th scope="col">Units</th>
+              <th scope="col">Hits</th>
+              <th scope="col">Paid</th>
+            </tr>
+          </thead>
+          <tbody id="bets-body">
+            <tr class="empty">
+              <td colspan="4">No bets placed.</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
       <div class="chip-bar" aria-label="Bet controls">
         <div class="chip-bar-inner">
           <div class="chip-left">
@@ -312,24 +336,6 @@
               Rebet &amp; Deal
             </button>
             <button id="deal-button" class="deal" disabled>Deal Hand</button>
-          </div>
-          <div class="bets-panel" aria-live="polite">
-            <h3>Active Bets</h3>
-            <table>
-              <thead>
-                <tr>
-                  <th scope="col">Number</th>
-                  <th scope="col">Units</th>
-                  <th scope="col">Hits</th>
-                  <th scope="col">Paid</th>
-                </tr>
-              </thead>
-              <tbody id="bets-body">
-                <tr class="empty">
-                  <td colspan="4">No bets placed.</td>
-                </tr>
-              </tbody>
-            </table>
           </div>
         </div>
       </div>
