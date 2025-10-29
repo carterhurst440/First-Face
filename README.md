@@ -1,6 +1,6 @@
 # Run the Numbers Simulator
 
-A lightweight web-based simulator for the Run the Numbers casino game. Place number bets, watch the shoe reveal cards, and track payouts and long-term house edge in real time.
+A lightweight web-based simulator for the Run the Numbers casino game. Place number bets, watch the shoe reveal cards, and track payouts and long-term house edge in real time. A neon marquee just below the sticky header proudly displays “RUN THE NUMBERS,” setting the retro-futuristic tone before you scroll into the felt.
 
 ## Getting Started
 

@@ -109,6 +109,86 @@ body {
 }
 
 
+.title-banner {
+  margin: clamp(1.2rem, 3vw, 1.9rem) auto clamp(1.4rem, 4vw, 2.2rem);
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: clamp(0.4rem, 1vw, 0.6rem);
+  padding: 0 clamp(0.5rem, 3vw, 2rem);
+}
+
+.title-frame {
+  position: relative;
+  padding: clamp(0.4rem, 1.4vw, 0.75rem) clamp(2rem, 8vw, 5.2rem);
+  border-radius: 999px;
+  background: linear-gradient(135deg, rgba(31, 241, 255, 0.12), rgba(255, 99, 224, 0.12));
+  box-shadow: 0 0 40px rgba(31, 241, 255, 0.18), 0 0 60px rgba(255, 61, 243, 0.12);
+  overflow: hidden;
+}
+
+.title-frame::before,
+.title-frame::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+}
+
+.title-frame::before {
+  border: 1px solid rgba(31, 241, 255, 0.55);
+  filter: drop-shadow(0 0 18px rgba(31, 241, 255, 0.55));
+}
+
+.title-frame::after {
+  border: 1px solid rgba(255, 61, 243, 0.35);
+  mix-blend-mode: screen;
+  transform: scale(0.96);
+}
+
+.title-text {
+  margin: 0;
+  font-family: "Audiowide", "Play", sans-serif;
+  font-size: clamp(1.65rem, 6.5vw, 3.4rem);
+  letter-spacing: clamp(0.2rem, 1vw, 0.65rem);
+  text-transform: uppercase;
+  position: relative;
+  z-index: 1;
+  text-shadow: 0 0 18px rgba(31, 241, 255, 0.6), 0 0 28px rgba(255, 61, 243, 0.45);
+  color: #ffffff;
+  background: linear-gradient(90deg, #1ff1ff 0%, #ff3df3 45%, #8b6dff 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+}
+
+@supports (-webkit-background-clip: text) or (background-clip: text) {
+  .title-text {
+    color: transparent;
+  }
+}
+
+.title-accent {
+  position: absolute;
+  left: 50%;
+  bottom: clamp(-0.55rem, -1vw, -0.35rem);
+  transform: translateX(-50%);
+  width: clamp(160px, 45vw, 320px);
+  height: 2px;
+  background: linear-gradient(90deg, transparent, rgba(31, 241, 255, 0.8), transparent);
+  box-shadow: 0 0 14px rgba(31, 241, 255, 0.75);
+}
+
+.title-sub {
+  margin: 0;
+  font-size: clamp(0.75rem, 2.4vw, 1rem);
+  letter-spacing: 0.38em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.72);
+}
+
+
 .bankroll {
   display: inline-flex;
   align-items: baseline;
