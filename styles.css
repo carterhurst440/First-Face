@@ -342,6 +342,15 @@ body {
   border-radius: 999px;
 }
 
+.bets-heading {
+  margin: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.12rem;
+  font-size: clamp(0.92rem, 1.8vw, 1.08rem);
+  color: var(--gold);
+  text-align: center;
+}
+
 .playmat {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(92px, 1fr));
@@ -529,19 +538,6 @@ button:disabled {
   box-shadow: 0 18px 34px rgba(39, 174, 96, 0.4);
 }
 
-.chip-bar .secondary,
-.chip-bar .deal {
-  padding: 0.45rem 0.8rem;
-  font-size: 0.78rem;
-  letter-spacing: 0.06rem;
-}
-
-.chip-bar .deal {
-  font-size: 0.88rem;
-  padding-inline: clamp(0.9rem, 3vw, 1.1rem);
-}
-
-
 .chip-bar {
   position: sticky;
   bottom: 0;
@@ -550,61 +546,58 @@ button:disabled {
   align-self: stretch;
   background: #05271c;
   border-top: 2px solid #0f513c;
-  padding: clamp(0.45rem, 1.2vw, 0.75rem) clamp(0.8rem, 3vw, 1.6rem);
+  padding: clamp(0.45rem, 1.2vw, 0.75rem) clamp(1rem, 4vw, 1.8rem);
   box-shadow: 0 -18px 30px rgba(0, 0, 0, 0.35);
   z-index: 8;
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
   justify-content: center;
-  gap: clamp(0.35rem, 1.2vw, 0.65rem);
-  row-gap: clamp(0.35rem, 1.2vw, 0.6rem);
-}
-
-.chip-row {
-  display: flex;
-  align-items: center;
-  flex: 1 1 clamp(220px, 45vw, 420px);
-  min-width: min(260px, 100%);
-}
-
-.chip-select-row {
-  justify-content: center;
-  flex: 2 1 clamp(260px, 55vw, 620px);
-}
-
-.chip-action-row {
-  justify-content: flex-end;
-  gap: clamp(0.35rem, 1.5vw, 0.8rem);
+  gap: clamp(0.45rem, 1.8vw, 1rem);
   flex-wrap: wrap;
-  flex: 1 1 clamp(220px, 40vw, 420px);
 }
 
-.chip-actions {
-  display: flex;
-  align-items: center;
-  gap: clamp(0.35rem, 1.5vw, 0.75rem);
-  flex-wrap: wrap;
-  justify-content: flex-end;
+.chip-bar .secondary,
+.chip-bar .deal {
+  padding: 0.42rem 0.9rem;
+  font-size: 0.78rem;
+  letter-spacing: 0.06rem;
 }
 
-.chip-action-row > #clear-bets {
+.chip-bar .deal {
+  font-size: 0.86rem;
+  padding-inline: clamp(1rem, 3vw, 1.3rem);
+}
+
+.chip-clear {
+  flex: 0 0 auto;
+  min-width: clamp(92px, 16vw, 120px);
   margin-right: auto;
 }
 
 .chip-selector {
   display: flex;
-  flex: 1 1 auto;
+  align-items: center;
   justify-content: center;
-  gap: 0.35rem;
-  flex-wrap: nowrap;
-  min-width: 0;
+  gap: clamp(0.45rem, 2vw, 0.9rem);
+  flex: 1 0 auto;
+  min-width: clamp(220px, 38vw, 480px);
+  margin-inline: auto;
+}
+
+.chip-actions {
+  display: flex;
+  align-items: center;
+  gap: clamp(0.4rem, 1.5vw, 0.85rem);
+  flex: 0 0 auto;
+  justify-content: flex-end;
+  min-width: clamp(120px, 26vw, 220px);
+  margin-left: auto;
 }
 
 .chip-choice {
   flex: 0 0 auto;
-  width: clamp(36px, 5.5vw, 46px);
-  height: clamp(36px, 5.5vw, 46px);
+  width: clamp(36px, 5.2vw, 44px);
+  height: clamp(36px, 5.2vw, 44px);
   border-radius: 50%;
   border: 2px solid rgba(255, 255, 255, 0.28);
   background: radial-gradient(circle at 30% 30%, #ffffff, #d0d0d0);
@@ -678,6 +671,35 @@ button:disabled {
 .bets-panel .empty td {
   color: var(--muted);
   padding: 1rem 0;
+}
+
+.bankroll-history {
+  background: rgba(0, 0, 0, 0.22);
+  border-radius: 18px;
+  border: 1px solid rgba(0, 255, 214, 0.28);
+  padding: clamp(1rem, 3vw, 1.6rem);
+  width: min(100%, 900px);
+  margin: clamp(1rem, 4vw, 1.8rem) auto clamp(3rem, 8vw, 3.8rem);
+  backdrop-filter: blur(6px);
+  box-shadow: 0 18px 45px rgba(0, 0, 0, 0.28);
+  display: grid;
+  gap: clamp(0.75rem, 2vw, 1.2rem);
+}
+
+.bankroll-history h3 {
+  margin: 0;
+  color: #7dfdff;
+  text-transform: uppercase;
+  letter-spacing: 0.1rem;
+}
+
+.bankroll-chart {
+  width: 100%;
+  height: clamp(200px, 32vw, 280px);
+  border-radius: 14px;
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid rgba(0, 255, 214, 0.35);
+  box-shadow: inset 0 0 35px rgba(0, 0, 0, 0.45);
 }
 
 .card {
@@ -775,12 +797,12 @@ button:disabled {
 }
 
 @media (max-width: 960px) {
-  .chip-action-row {
-    justify-content: space-between;
+  .chip-bar {
+    gap: clamp(0.5rem, 2.5vw, 1.3rem);
   }
 
   .chip-actions {
-    flex: 1 1 auto;
+    min-width: clamp(140px, 32vw, 240px);
   }
 }
 
@@ -799,16 +821,31 @@ button:disabled {
   }
 
   .chip-bar {
+    justify-content: space-between;
+    row-gap: clamp(0.35rem, 2vw, 0.6rem);
+    padding-inline: clamp(0.75rem, 5vw, 1.2rem);
+  }
+
+  .chip-clear {
+    order: 0;
+    flex: 1 1 44%;
+    min-width: min(140px, 44%);
+    margin-right: 0;
+  }
+
+  .chip-selector {
+    order: 1;
+    flex: 1 0 100%;
+    min-width: 100%;
+    margin-inline: 0;
     justify-content: center;
   }
 
-  .chip-row {
-    flex: 1 1 100%;
-    min-width: 100%;
-  }
-
-  .chip-action-row {
-    justify-content: space-between;
+  .chip-actions {
+    order: 2;
+    flex: 1 1 44%;
+    min-width: min(160px, 44%);
+    margin-left: 0;
   }
 }
 
@@ -843,15 +880,21 @@ button:disabled {
 }
 
 @media (max-width: 540px) {
-  .chip-bar .secondary,
-  .chip-bar .deal {
-    padding: 0.45rem 0.75rem;
-    font-size: 0.75rem;
-    letter-spacing: 0.06em;
+  .chip-bar {
+    padding-inline: clamp(0.65rem, 6vw, 1rem);
   }
 
-  .chip-action-row {
-    justify-content: space-between;
+  .chip-bar .secondary,
+  .chip-bar .deal {
+    padding: 0.42rem 0.7rem;
+    font-size: 0.72rem;
+  }
+
+  .chip-clear,
+  .chip-actions {
+    flex: 1 1 48%;
+    min-width: min(150px, 48%);
+    margin: 0;
   }
 }
 

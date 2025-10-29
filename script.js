@@ -50,6 +50,11 @@ const menuToggle = document.getElementById("menu-toggle");
 const utilityPanel = document.getElementById("utility-panel");
 const utilityClose = document.getElementById("utility-close");
 const panelScrim = document.getElementById("panel-scrim");
+const bankrollChartCanvas = document.getElementById("bankroll-chart");
+const bankrollChartCtx =
+  bankrollChartCanvas instanceof HTMLCanvasElement
+    ? bankrollChartCanvas.getContext("2d")
+    : null;
 
 let bankroll = INITIAL_BANKROLL;
 let bets = [];
@@ -65,6 +70,9 @@ let lastBetLayout = [];
 let bankrollAnimating = false;
 let bankrollAnimationFrame = null;
 let bankrollDeltaTimeout = null;
+let bankrollHistory = [];
+
+const MAX_HISTORY_POINTS = 60;
 
 function createDeck() {
   const deck = [];
@@ -286,6 +294,139 @@ function easeOutCubic(x) {
   return 1 - Math.pow(1 - x, 3);
 }
 
+function drawBankrollChart() {
+  if (!bankrollChartCanvas || !bankrollChartCtx) return;
+  const rect = bankrollChartCanvas.getBoundingClientRect();
+  if (rect.width === 0 || rect.height === 0) return;
+
+  const dpr = window.devicePixelRatio || 1;
+  bankrollChartCanvas.width = rect.width * dpr;
+  bankrollChartCanvas.height = rect.height * dpr;
+
+  const ctx = bankrollChartCtx;
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.clearRect(0, 0, bankrollChartCanvas.width, bankrollChartCanvas.height);
+  ctx.scale(dpr, dpr);
+
+  const width = rect.width;
+  const height = rect.height;
+  const padding = 28;
+  const values = bankrollHistory.length ? bankrollHistory : [bankroll];
+  const maxVal = Math.max(...values);
+  const minVal = Math.min(...values);
+  const range = maxVal - minVal || 1;
+
+  ctx.fillStyle = "rgba(5, 21, 18, 0.9)";
+  ctx.fillRect(0, 0, width, height);
+
+  const backgroundGradient = ctx.createLinearGradient(0, 0, width, height);
+  backgroundGradient.addColorStop(0, "rgba(0, 255, 214, 0.18)");
+  backgroundGradient.addColorStop(1, "rgba(0, 146, 255, 0.12)");
+  ctx.fillStyle = backgroundGradient;
+  ctx.fillRect(0, 0, width, height);
+
+  const chartWidth = width - padding * 2;
+  const chartHeight = height - padding * 2;
+
+  ctx.strokeStyle = "rgba(0, 255, 214, 0.2)";
+  ctx.lineWidth = 1;
+  ctx.setLineDash([6, 10]);
+  for (let i = 0; i <= 4; i += 1) {
+    const y = padding + (chartHeight * i) / 4;
+    ctx.beginPath();
+    ctx.moveTo(padding, y);
+    ctx.lineTo(width - padding, y);
+    ctx.stroke();
+  }
+  ctx.setLineDash([]);
+
+  const points = values.map((value, index) => {
+    const x =
+      values.length === 1
+        ? padding + chartWidth / 2
+        : padding + (chartWidth * index) / (values.length - 1);
+    const y = padding + chartHeight * (1 - (value - minVal) / range);
+    return { x, y };
+  });
+
+  if (points.length >= 2) {
+    const fillGradient = ctx.createLinearGradient(0, padding, 0, height - padding);
+    fillGradient.addColorStop(0, "rgba(0, 245, 255, 0.32)");
+    fillGradient.addColorStop(1, "rgba(0, 245, 255, 0)");
+    ctx.beginPath();
+    ctx.moveTo(points[0].x, points[0].y);
+    for (let i = 1; i < points.length; i += 1) {
+      ctx.lineTo(points[i].x, points[i].y);
+    }
+    ctx.lineTo(points[points.length - 1].x, height - padding);
+    ctx.lineTo(points[0].x, height - padding);
+    ctx.closePath();
+    ctx.fillStyle = fillGradient;
+    ctx.fill();
+  }
+
+  ctx.beginPath();
+  if (points.length === 1) {
+    const point = points[0];
+    ctx.fillStyle = "#00f5ff";
+    ctx.shadowColor = "rgba(0, 255, 255, 0.6)";
+    ctx.shadowBlur = 12;
+    ctx.arc(point.x, point.y, 6, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+  } else {
+    points.forEach((point, index) => {
+      if (index === 0) {
+        ctx.moveTo(point.x, point.y);
+      } else {
+        ctx.lineTo(point.x, point.y);
+      }
+    });
+    ctx.strokeStyle = "#00f5ff";
+    ctx.lineWidth = 2.6;
+    ctx.shadowColor = "rgba(0, 255, 255, 0.5)";
+    ctx.shadowBlur = 14;
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+  }
+
+  if (points.length > 0) {
+    const lastPoint = points[points.length - 1];
+    ctx.beginPath();
+    ctx.fillStyle = "#ff4dff";
+    ctx.strokeStyle = "#ffffff";
+    ctx.lineWidth = 2;
+    ctx.arc(lastPoint.x, lastPoint.y, 5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+  }
+
+  ctx.strokeStyle = "rgba(0, 200, 255, 0.4)";
+  ctx.lineWidth = 1.6;
+  ctx.beginPath();
+  ctx.moveTo(padding, height - padding);
+  ctx.lineTo(width - padding, height - padding);
+  ctx.stroke();
+
+  ctx.font = "600 12px 'Play', 'Segoe UI', sans-serif";
+  ctx.fillStyle = "rgba(125, 255, 240, 0.9)";
+  ctx.textBaseline = "bottom";
+  ctx.fillText(`Hands: ${Math.max(0, values.length - 1)}`, padding, height - padding - 8);
+}
+
+function recordBankrollHistoryPoint() {
+  bankrollHistory.push(bankroll);
+  if (bankrollHistory.length > MAX_HISTORY_POINTS) {
+    bankrollHistory = bankrollHistory.slice(-MAX_HISTORY_POINTS);
+  }
+  drawBankrollChart();
+}
+
+function resetBankrollHistory() {
+  bankrollHistory = [bankroll];
+  drawBankrollChart();
+}
+
 function stopBankrollAnimation(restoreDisplay = true) {
   if (bankrollAnimationFrame !== null) {
     cancelAnimationFrame(bankrollAnimationFrame);
@@ -444,7 +585,7 @@ function addHistoryEntry(result) {
   }
 }
 
-function resetTable(message = "Select a chip and place your bets.") {
+function resetTable(message = "Select a chip and place your bet on the regions above.") {
   drawsContainer.innerHTML = "";
   statusEl.textContent = message;
   dealing = false;
@@ -503,6 +644,7 @@ function endHand(stopperCard) {
   setBettingEnabled(false);
   dealing = false;
   animateBankrollOutcome(netThisHand);
+  recordBankrollHistoryPoint();
 }
 
 function processCard(card) {
@@ -653,7 +795,8 @@ resetAccountButton.addEventListener("click", () => {
   bets = [];
   clearChipStacks();
   renderBets();
-  resetTable("Account reset. Select a chip and place your bets.");
+  resetTable("Account reset. Select a chip and place your bet on the regions above.");
+  resetBankrollHistory();
   closeUtilityPanel();
 });
 
@@ -704,3 +847,5 @@ renderBets();
 updateBankroll();
 resetTable();
 updateStatsUI();
+resetBankrollHistory();
+window.addEventListener("resize", drawBankrollChart);
