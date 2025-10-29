@@ -1,6 +1,6 @@
 const STEP_PAYS = [3, 4, 15, 50];
 const NUMBER_RANKS = ["A", "2", "3", "4", "5", "6", "7", "8", "9", "10"];
-const DENOMINATIONS = [1, 5, 10, 25, 100];
+const DENOMINATIONS = [5, 10, 25, 100];
 const INITIAL_BANKROLL = 1000;
 const SUITS = [
   { symbol: "♠", color: "black" },
@@ -704,4 +704,3 @@ renderBets();
 updateBankroll();
 resetTable();
 updateStatsUI();
-updateRiskMetrics();
