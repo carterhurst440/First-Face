@@ -316,19 +316,19 @@ function drawBankrollChart() {
   const minVal = Math.min(...values);
   const range = maxVal - minVal || 1;
 
-  ctx.fillStyle = "rgba(5, 21, 18, 0.9)";
+  ctx.fillStyle = "rgba(6, 8, 26, 0.92)";
   ctx.fillRect(0, 0, width, height);
 
   const backgroundGradient = ctx.createLinearGradient(0, 0, width, height);
-  backgroundGradient.addColorStop(0, "rgba(0, 255, 214, 0.18)");
-  backgroundGradient.addColorStop(1, "rgba(0, 146, 255, 0.12)");
+  backgroundGradient.addColorStop(0, "rgba(255, 99, 224, 0.18)");
+  backgroundGradient.addColorStop(1, "rgba(31, 241, 255, 0.16)");
   ctx.fillStyle = backgroundGradient;
   ctx.fillRect(0, 0, width, height);
 
   const chartWidth = width - padding * 2;
   const chartHeight = height - padding * 2;
 
-  ctx.strokeStyle = "rgba(0, 255, 214, 0.2)";
+  ctx.strokeStyle = "rgba(139, 109, 255, 0.22)";
   ctx.lineWidth = 1;
   ctx.setLineDash([6, 10]);
   for (let i = 0; i <= 4; i += 1) {
@@ -351,8 +351,8 @@ function drawBankrollChart() {
 
   if (points.length >= 2) {
     const fillGradient = ctx.createLinearGradient(0, padding, 0, height - padding);
-    fillGradient.addColorStop(0, "rgba(0, 245, 255, 0.32)");
-    fillGradient.addColorStop(1, "rgba(0, 245, 255, 0)");
+    fillGradient.addColorStop(0, "rgba(255, 99, 224, 0.26)");
+    fillGradient.addColorStop(1, "rgba(31, 241, 255, 0)");
     ctx.beginPath();
     ctx.moveTo(points[0].x, points[0].y);
     for (let i = 1; i < points.length; i += 1) {
@@ -368,8 +368,8 @@ function drawBankrollChart() {
   ctx.beginPath();
   if (points.length === 1) {
     const point = points[0];
-    ctx.fillStyle = "#00f5ff";
-    ctx.shadowColor = "rgba(0, 255, 255, 0.6)";
+    ctx.fillStyle = "#1ff1ff";
+    ctx.shadowColor = "rgba(31, 241, 255, 0.6)";
     ctx.shadowBlur = 12;
     ctx.arc(point.x, point.y, 6, 0, Math.PI * 2);
     ctx.fill();
@@ -382,10 +382,10 @@ function drawBankrollChart() {
         ctx.lineTo(point.x, point.y);
       }
     });
-    ctx.strokeStyle = "#00f5ff";
-    ctx.lineWidth = 2.6;
-    ctx.shadowColor = "rgba(0, 255, 255, 0.5)";
-    ctx.shadowBlur = 14;
+    ctx.strokeStyle = "#8b6dff";
+    ctx.lineWidth = 2.8;
+    ctx.shadowColor = "rgba(139, 109, 255, 0.45)";
+    ctx.shadowBlur = 16;
     ctx.stroke();
     ctx.shadowBlur = 0;
   }
@@ -393,15 +393,15 @@ function drawBankrollChart() {
   if (points.length > 0) {
     const lastPoint = points[points.length - 1];
     ctx.beginPath();
-    ctx.fillStyle = "#ff4dff";
-    ctx.strokeStyle = "#ffffff";
-    ctx.lineWidth = 2;
+    ctx.fillStyle = "#ff63e0";
+    ctx.strokeStyle = "rgba(248, 249, 255, 0.85)";
+    ctx.lineWidth = 2.2;
     ctx.arc(lastPoint.x, lastPoint.y, 5, 0, Math.PI * 2);
     ctx.fill();
     ctx.stroke();
   }
 
-  ctx.strokeStyle = "rgba(0, 200, 255, 0.4)";
+  ctx.strokeStyle = "rgba(31, 241, 255, 0.35)";
   ctx.lineWidth = 1.6;
   ctx.beginPath();
   ctx.moveTo(padding, height - padding);
@@ -409,7 +409,7 @@ function drawBankrollChart() {
   ctx.stroke();
 
   ctx.font = "600 12px 'Play', 'Segoe UI', sans-serif";
-  ctx.fillStyle = "rgba(125, 255, 240, 0.9)";
+  ctx.fillStyle = "rgba(248, 249, 255, 0.85)";
   ctx.textBaseline = "bottom";
   ctx.fillText(`Hands: ${Math.max(0, values.length - 1)}`, padding, height - padding - 8);
 }
