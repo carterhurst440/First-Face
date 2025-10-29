@@ -871,6 +871,7 @@ button:disabled {
   flex-direction: column;
   justify-content: center;
   align-items: center;
+  gap: 0.15rem;
   font-weight: 700;
   font-size: clamp(1.1rem, 3vw, 1.4rem);
   box-shadow: 0 12px 20px rgba(0, 0, 0, 0.4);
@@ -896,36 +897,17 @@ button:disabled {
   color: #1d1d1d;
 }
 
-.card.card-red .card-suit,
-.card.card-red .corner {
+.card.card-red .card-suit {
   color: #c0392b;
 }
 
-.card.card-black .card-suit,
-.card.card-black .corner {
+.card.card-black .card-suit {
   color: #1d1d1d;
 }
 
 .card.stopper {
   background: linear-gradient(160deg, #ffe8e8, #ffdada);
   color: #c0392b;
-}
-
-.card .corner {
-  position: absolute;
-  font-size: clamp(0.65rem, 2vw, 0.85rem);
-  font-weight: 400;
-}
-
-.corner-top {
-  top: 8px;
-  left: 10px;
-}
-
-.corner-bottom {
-  bottom: 8px;
-  right: 10px;
-  transform: rotate(180deg);
 }
 
 @keyframes slide-up {

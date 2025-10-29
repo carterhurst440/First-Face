@@ -266,18 +266,12 @@ function makeCardElement(card) {
   const node = cardTemplate.content.firstElementChild.cloneNode(true);
   const rankEl = node.querySelector(".card-rank");
   const suitEl = node.querySelector(".card-suit");
-  const corners = node.querySelectorAll(".corner");
-
   rankEl.textContent = card.label;
   suitEl.textContent = card.suit;
   node.dataset.rank = card.label;
 
   const colorClass = card.color === "red" ? "card-red" : "card-black";
   node.classList.add(colorClass);
-
-  corners.forEach((corner) => {
-    corner.textContent = `${card.label}\n${card.suit}`;
-  });
 
   if (card.stopper) {
     node.classList.add("stopper");
