@@ -440,13 +440,13 @@ function scheduleRiskUpdate() {
   }
 }
 
-function simulateNetOutcome(layout, totalWager) {
+function simulateNetOutcome(layout) {
   if (layout.length === 0) {
     return 0;
   }
   const deck = createDeck();
   shuffle(deck);
-  const state = layout.map((bet) => ({ rank: bet.rank, units: bet.units, hits: 0 }));
+  const state = layout.map((bet) => ({ rank: bet.rank, weight: bet.weight, hits: 0 }));
   let totalPaid = 0;
   for (const card of deck) {
     if (card.stopper) {
@@ -454,12 +454,12 @@ function simulateNetOutcome(layout, totalWager) {
     }
     for (const bet of state) {
       if (bet.rank === card.rank && bet.hits < STEP_PAYS.length) {
-        totalPaid += STEP_PAYS[bet.hits] * bet.units;
+        totalPaid += STEP_PAYS[bet.hits] * bet.weight;
         bet.hits += 1;
       }
     }
   }
-  return totalPaid - totalWager;
+  return totalPaid - 1;
 }
 
 function describeBetaLevel(beta) {
@@ -505,6 +505,11 @@ function updateRiskMetrics() {
     return;
   }
 
+  const normalizedLayout = layout.map((bet) => ({
+    rank: bet.rank,
+    weight: bet.units / totalWager
+  }));
+
   const iterations = Math.min(
     MAX_SIMULATIONS,
     Math.max(MIN_SIMULATIONS, totalWager * SIMULATIONS_PER_UNIT)
@@ -514,7 +519,7 @@ function updateRiskMetrics() {
   let netSumSq = 0;
 
   for (let i = 0; i < iterations; i += 1) {
-    const net = simulateNetOutcome(layout, totalWager);
+    const net = simulateNetOutcome(normalizedLayout);
     if (net > 0) {
       successCount += 1;
     }
@@ -526,7 +531,7 @@ function updateRiskMetrics() {
   const mean = netSum / iterations;
   const variance = Math.max(netSumSq / iterations - mean * mean, 0);
   const stdDev = Math.sqrt(variance);
-  const beta = stdDev / (totalWager || 1);
+  const beta = stdDev;
   const cappedBeta = Math.min(beta, 1.8);
   const fillPercent = Math.max(0, Math.min(100, (cappedBeta / 1.8) * 100));
   const { label: betaLabel, className } = describeBetaLevel(beta);
