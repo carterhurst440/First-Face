@@ -78,17 +78,17 @@
           <ol class="how-to-list">
             <li>Choose a chip value from the rack.</li>
             <li>
-              Click any number from 2 through 10 on the felt to stack chips on
-              that wager.
+              Click Ace or any number from 2 through 10 on the felt to stack
+              chips on that wager.
             </li>
             <li>
               Press <strong>Deal Hand</strong> to reveal cards until a face
-              card or Joker appears.
+              card (J, Q, or K) or the Joker appears.
             </li>
             <li>
-              Each time your number hits before the first face card, you earn
-              the next step payout. Once a face card or Joker appears, the hand
-              ends and all wagers are forfeited.
+              Each time your number hits before the first face card or Joker,
+              you earn the next step payout. Once a face card or Joker appears,
+              the hand ends and all wagers are forfeited.
             </li>
             <li>
               Use <strong>Rebet &amp; Deal</strong> to replay your previous chip
@@ -98,12 +98,12 @@
           <div class="rules-summary">
             <p>
               The game uses a fresh 53-card deck each hand (standard 52 cards
-              plus one Joker). Face cards (J, Q, K, A) and the Joker stop the
-              deal immediately; number cards 2–10 keep the action going.
+              plus one Joker). Face cards (J, Q, K) and the Joker stop the deal
+              immediately; Ace and numbers 2–10 keep the action going.
             </p>
             <p>
               Each hit on your number pays the next step on the ladder:
-              <strong>4×</strong>, <strong>6×</strong>, <strong>14×</strong>,
+              <strong>2×</strong>, <strong>6×</strong>, <strong>36×</strong>,
               then <strong>100×</strong> your wagered units for the fourth hit.
               Your original chips remain on the felt and are collected when the
               hand stops.
@@ -124,9 +124,9 @@
         <section class="paytable" aria-label="Payout ladder">
           <h2>Paytable</h2>
           <ol>
-            <li>1st hit on a number: 4× wager</li>
+            <li>1st hit on a number: 2× wager</li>
             <li>2nd hit on same number: 6× wager</li>
-            <li>3rd hit on same number: 14× wager</li>
+            <li>3rd hit on same number: 36× wager</li>
             <li>4th hit on same number: 100× wager</li>
           </ol>
         </section>
@@ -137,6 +137,16 @@
               <div class="draws" id="draws" aria-label="Cards dealt this hand"></div>
             </div>
             <div class="playmat" role="group" aria-label="Number bet spots">
+              <button
+                class="bet-spot"
+                type="button"
+                data-rank="A"
+                aria-label="Bet on Ace"
+              >
+                <span class="bet-label">A</span>
+                <span class="bet-total" aria-live="polite" aria-atomic="true">0</span>
+                <div class="chip-stack" aria-hidden="true"></div>
+              </button>
               <button
                 class="bet-spot"
                 type="button"

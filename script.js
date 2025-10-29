@@ -1,5 +1,5 @@
-const STEP_PAYS = [4, 6, 14, 100];
-const NUMBER_RANKS = [2, 3, 4, 5, 6, 7, 8, 9, 10];
+const STEP_PAYS = [2, 6, 36, 100];
+const NUMBER_RANKS = ["A", "2", "3", "4", "5", "6", "7", "8", "9", "10"];
 const DENOMINATIONS = [1, 5, 10, 25, 100];
 const INITIAL_BANKROLL = 1000;
 const SUITS = [
@@ -8,6 +8,13 @@ const SUITS = [
   { symbol: "♦", color: "red" },
   { symbol: "♣", color: "black" }
 ];
+const RANK_LABELS = {
+  A: "Ace"
+};
+
+function describeRank(rank) {
+  return RANK_LABELS[rank] ?? String(rank);
+}
 
 const bankrollEl = document.getElementById("bankroll");
 const betsBody = document.getElementById("bets-body");
@@ -22,7 +29,7 @@ const chipButtons = Array.from(document.querySelectorAll(".chip-choice"));
 const betSpotButtons = Array.from(document.querySelectorAll(".bet-spot"));
 const betSpots = new Map(
   betSpotButtons.map((button) => [
-    Number(button.dataset.rank),
+    button.dataset.rank,
     {
       button,
       totalEl: button.querySelector(".bet-total"),
@@ -69,7 +76,7 @@ function createDeck() {
     });
   });
 
-  ["J", "Q", "K", "A"].forEach((face) => {
+  ["J", "Q", "K"].forEach((face) => {
     SUITS.forEach((suit) => {
       deck.push({
         rank: face,
@@ -109,10 +116,11 @@ function updateBetSpotTotals() {
     const total = totals.get(rank) ?? 0;
     totalEl.textContent = formatCurrency(total);
     button.classList.toggle("has-bet", total > 0);
+    const spokenRank = describeRank(rank);
     const ariaLabel =
       total > 0
-        ? `Bet on number ${rank}. Total wager ${formatCurrency(total)} units.`
-        : `Bet on number ${rank}. No chips placed.`;
+        ? `Bet on ${spokenRank}. Total wager ${formatCurrency(total)} units.`
+        : `Bet on ${spokenRank}. No chips placed.`;
     button.setAttribute("aria-label", ariaLabel);
   });
 }
@@ -169,7 +177,9 @@ function setSelectedChip(value, announce = true) {
   selectedChip = value;
   updateChipSelectionUI();
   if (announce && !dealing) {
-    statusEl.textContent = `Selected ${formatCurrency(value)}-unit chip. Click a number to bet.`;
+    statusEl.textContent = `Selected ${formatCurrency(
+      value
+    )}-unit chip. Click Ace or a number to bet.`;
   }
 }
 
@@ -347,13 +357,14 @@ function endHand(stopperCard) {
 
   addHistoryEntry({
     stopper: stopperCard,
-    betSummaries: bets.map((bet) =>
-      bet.hits > 0
-        ? `${bet.units}u on ${bet.rank}: <span class="hit">${bet.hits} hits / ${formatCurrency(
+    betSummaries: bets.map((bet) => {
+      const spokenRank = describeRank(bet.rank);
+      return bet.hits > 0
+        ? `${bet.units}u on ${spokenRank}: <span class="hit">${bet.hits} hits / ${formatCurrency(
             bet.paid
           )}</span>`
-        : `${bet.units}u on ${bet.rank}: 0 hits`
-    )
+        : `${bet.units}u on ${spokenRank}: 0 hits`;
+    })
   });
 
   lastBetLayout = bets
@@ -395,11 +406,12 @@ function processCard(card) {
 
   renderBets();
   if (hitsRecorded > 0) {
-    statusEl.textContent = `${rank} hits ${hitsRecorded} bet${
+    const spokenRank = describeRank(rank);
+    statusEl.textContent = `${spokenRank} hits ${hitsRecorded} bet${
       hitsRecorded > 1 ? "s" : ""
     } for ${formatCurrency(totalHitPayout)} units.`;
   } else {
-    statusEl.textContent = `${rank} keeps the action going.`;
+    statusEl.textContent = `${describeRank(rank)} keeps the action going.`;
   }
   return false;
 }
@@ -439,9 +451,12 @@ function placeBet(rank) {
 
   const bet = addBet(rank, selectedChip);
   const totalForRank = formatCurrency(bet.units);
+  const spokenRank = describeRank(rank);
   statusEl.textContent = `Placed ${formatCurrency(selectedChip)} unit${
     selectedChip !== 1 ? "s" : ""
-  } on ${rank}. Total on ${rank}: ${totalForRank} unit${bet.units !== 1 ? "s" : ""}.`;
+  } on ${spokenRank}. Total on ${spokenRank}: ${totalForRank} unit${
+    bet.units !== 1 ? "s" : ""
+  }.`;
 }
 
 chipButtons.forEach((button) => {
@@ -456,8 +471,8 @@ chipButtons.forEach((button) => {
 betSpotButtons.forEach((button) => {
   button.addEventListener("click", () => {
     if (button.disabled) return;
-    const rank = Number(button.dataset.rank);
-    if (!Number.isFinite(rank)) return;
+    const rank = button.dataset.rank;
+    if (!rank) return;
     placeBet(rank);
   });
 });
