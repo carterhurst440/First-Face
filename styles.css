@@ -222,6 +222,13 @@ body {
   min-width: 140px;
 }
 
+.stat-risk {
+  min-width: 180px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
 .label {
   display: block;
   font-size: 0.75rem;
@@ -235,6 +242,48 @@ body {
   margin-top: 0.25rem;
   font-size: 1.35rem;
   font-weight: 700;
+}
+
+.stat-note {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12rem;
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.stat-beta {
+  min-width: clamp(200px, 24vw, 240px);
+}
+
+.stat-beta .value {
+  margin-top: 0.1rem;
+}
+
+.beta-meter {
+  position: relative;
+  height: 0.45rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+  overflow: hidden;
+}
+
+.beta-meter-fill {
+  width: 0%;
+  height: 100%;
+  background: linear-gradient(90deg, #6bffb0, #33cc81);
+  transition: width 0.4s ease, background 0.4s ease;
+}
+
+.beta-meter-fill.beta-moderate {
+  background: linear-gradient(90deg, #ffe066, #ffb347);
+}
+
+.beta-meter-fill.beta-elevated {
+  background: linear-gradient(90deg, #ff9f43, #ff6b6b);
+}
+
+.beta-meter-fill.beta-high {
+  background: linear-gradient(90deg, #ff4d4d, #d21f3c);
 }
 
 .layout {

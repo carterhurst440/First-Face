@@ -14,6 +14,8 @@ A lightweight web-based simulator for the First Face casino game. Place number b
 
 Game stats now sit across the top header for maximum width in the betting area, a compact paytable appears above the felt, and the slide-out menu (hamburger icon in the header) holds the rules plus the recent hand log so the table can stretch across the screen. Cards dealt during a hand shrink slightly and wrap onto a second row when needed so long streaks remain easy to read on mobile.
 
+Alongside the rolling house edge, the header now shows a **Bet Success Rate** for your current layout plus a **Beta gauge** that visualises simulated volatility. These values update automatically (using thousands of quick Monte Carlo runs) whenever you adjust chips so you can gauge how likely a positive result is and how swingy the strategy might feel before you deal.
+
 The active bet summary lives just under the felt, keeping the bottom chip rack slim while still making it easy to review what’s on the layout before you deal.
 
 The simulator always uses a freshly shuffled 53-card deck for each hand with only J/Q/K and the Joker stopping play, matching the updated rules provided.
