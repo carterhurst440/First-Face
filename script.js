@@ -2,9 +2,6 @@ const STEP_PAYS = [3, 4, 15, 50];
 const NUMBER_RANKS = ["A", "2", "3", "4", "5", "6", "7", "8", "9", "10"];
 const DENOMINATIONS = [1, 5, 10, 25, 100];
 const INITIAL_BANKROLL = 1000;
-const MIN_SIMULATIONS = 800;
-const MAX_SIMULATIONS = 4000;
-const SIMULATIONS_PER_UNIT = 20;
 const SUITS = [
   { symbol: "♠", color: "black" },
   { symbol: "♥", color: "red" },
@@ -46,12 +43,6 @@ const totalWageredEl = document.getElementById("total-wagered");
 const totalPaidEl = document.getElementById("total-paid");
 const holdEl = document.getElementById("hold");
 const houseEdgeEl = document.getElementById("house-edge");
-const successRateEl = document.getElementById("success-rate");
-const successRateNoteEl = document.getElementById("success-rate-note");
-const betaValueEl = document.getElementById("beta-value");
-const betaMeterEl = document.getElementById("beta-meter");
-const betaMeterFillEl = document.getElementById("beta-meter-fill");
-const betaLevelEl = document.getElementById("beta-level");
 const historyList = document.getElementById("history-list");
 const cardTemplate = document.getElementById("card-template");
 const resetAccountButton = document.getElementById("reset-account");
@@ -74,7 +65,6 @@ let lastBetLayout = [];
 let bankrollAnimating = false;
 let bankrollAnimationFrame = null;
 let bankrollDeltaTimeout = null;
-let riskUpdateScheduled = false;
 
 function createDeck() {
   const deck = [];
@@ -211,7 +201,6 @@ function renderBets() {
     dealButton.disabled = true;
     clearBetsButton.disabled = true;
     updateBetSpotTotals();
-    scheduleRiskUpdate();
     return;
   }
 
@@ -228,7 +217,6 @@ function renderBets() {
   dealButton.disabled = dealing || !bettingOpen;
   clearBetsButton.disabled = !bettingOpen;
   updateBetSpotTotals();
-  scheduleRiskUpdate();
 }
 
 function resetBets() {
@@ -421,136 +409,6 @@ function updateStatsUI() {
   houseEdgeEl.textContent = `${edge.toFixed(2)}%`;
 }
 
-function scheduleRiskUpdate() {
-  if (dealing) {
-    return;
-  }
-  if (riskUpdateScheduled) {
-    return;
-  }
-  riskUpdateScheduled = true;
-  const runUpdate = () => {
-    riskUpdateScheduled = false;
-    updateRiskMetrics();
-  };
-  if (typeof window.requestIdleCallback === "function") {
-    window.requestIdleCallback(runUpdate, { timeout: 500 });
-  } else {
-    window.setTimeout(runUpdate, 120);
-  }
-}
-
-function simulateNetOutcome(layout) {
-  if (layout.length === 0) {
-    return 0;
-  }
-  const deck = createDeck();
-  shuffle(deck);
-  const state = layout.map((bet) => ({ rank: bet.rank, weight: bet.weight, hits: 0 }));
-  let totalPaid = 0;
-  for (const card of deck) {
-    if (card.stopper) {
-      break;
-    }
-    for (const bet of state) {
-      if (bet.rank === card.rank && bet.hits < STEP_PAYS.length) {
-        totalPaid += STEP_PAYS[bet.hits] * bet.weight;
-        bet.hits += 1;
-      }
-    }
-  }
-  return totalPaid - 1;
-}
-
-function describeBetaLevel(beta) {
-  if (beta <= 0) {
-    return { label: "No bets", className: "" };
-  }
-  if (beta < 0.45) {
-    return { label: "Low risk", className: "" };
-  }
-  if (beta < 0.85) {
-    return { label: "Moderate", className: "beta-moderate" };
-  }
-  if (beta < 1.3) {
-    return { label: "Elevated", className: "beta-elevated" };
-  }
-  return { label: "High risk", className: "beta-high" };
-}
-
-function updateRiskMetrics() {
-  if (
-    !successRateEl ||
-    !betaValueEl ||
-    !betaMeterFillEl ||
-    !betaMeterEl ||
-    !betaLevelEl
-  ) {
-    return;
-  }
-
-  const layout = bets.map((bet) => ({ rank: bet.rank, units: bet.units }));
-  const totalWager = layout.reduce((sum, bet) => sum + bet.units, 0);
-
-  if (totalWager === 0) {
-    successRateEl.textContent = "—";
-    if (successRateNoteEl) {
-      successRateNoteEl.textContent = "Place chips to analyze risk";
-    }
-    betaValueEl.textContent = "—";
-    betaLevelEl.textContent = "No bets placed";
-    betaMeterFillEl.style.width = "0%";
-    betaMeterFillEl.className = "beta-meter-fill";
-    betaMeterEl.setAttribute("aria-label", "Beta gauge: no bets placed");
-    return;
-  }
-
-  const normalizedLayout = layout.map((bet) => ({
-    rank: bet.rank,
-    weight: bet.units / totalWager
-  }));
-
-  const iterations = Math.min(
-    MAX_SIMULATIONS,
-    Math.max(MIN_SIMULATIONS, totalWager * SIMULATIONS_PER_UNIT)
-  );
-  let successCount = 0;
-  let netSum = 0;
-  let netSumSq = 0;
-
-  for (let i = 0; i < iterations; i += 1) {
-    const net = simulateNetOutcome(normalizedLayout);
-    if (net > 0) {
-      successCount += 1;
-    }
-    netSum += net;
-    netSumSq += net * net;
-  }
-
-  const successRate = (successCount / iterations) * 100;
-  const mean = netSum / iterations;
-  const variance = Math.max(netSumSq / iterations - mean * mean, 0);
-  const stdDev = Math.sqrt(variance);
-  const beta = stdDev;
-  const cappedBeta = Math.min(beta, 1.8);
-  const fillPercent = Math.max(0, Math.min(100, (cappedBeta / 1.8) * 100));
-  const { label: betaLabel, className } = describeBetaLevel(beta);
-
-  successRateEl.textContent = `${successRate.toFixed(1)}%`;
-  if (successRateNoteEl) {
-    successRateNoteEl.textContent = "Chance current layout finishes ahead";
-  }
-  betaValueEl.textContent = beta.toFixed(2);
-  betaLevelEl.textContent = betaLabel;
-  betaMeterFillEl.style.width = `${fillPercent.toFixed(1)}%`;
-  betaMeterFillEl.className = "beta-meter-fill";
-  if (className) {
-    betaMeterFillEl.classList.add(className);
-  }
-  const spokenLabel = `${betaLabel} (β ${beta.toFixed(2)})`;
-  betaMeterEl.setAttribute("aria-label", `Beta gauge: ${spokenLabel}`);
-}
-
 function formatStopper({ label, suit }) {
   return label === "Joker" ? "Joker" : `${label}${suit}`;
 }
@@ -645,7 +503,6 @@ function endHand(stopperCard) {
   setBettingEnabled(false);
   dealing = false;
   animateBankrollOutcome(netThisHand);
-  updateRiskMetrics();
 }
 
 function processCard(card) {

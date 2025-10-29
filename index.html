@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>First Face Casino Simulator</title>
+    <title>Run the Numbers Simulator</title>
     <link rel="stylesheet" href="styles.css" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -14,77 +14,28 @@
   </head>
   <body>
     <div class="table">
-      <header class="header">
-        <div class="header-top">
-          <h1>First Face</h1>
-          <div class="header-controls">
-            <div class="bankroll" role="status" aria-live="polite">
-              <span class="bankroll-label">Bankroll:</span>
-              <span id="bankroll" class="bankroll-value">1000</span>
-              <span class="bankroll-units">units</span>
-              <span id="bankroll-delta" class="bankroll-delta" aria-hidden="true"></span>
-            </div>
-            <button type="button" id="reset-account" class="secondary">
-              Reset Account
-            </button>
-            <button
-              type="button"
-              class="menu-toggle"
-              id="menu-toggle"
-              aria-expanded="false"
-              aria-controls="utility-panel"
-            >
-              <span class="sr-only">Open menu</span>
-              <span class="menu-icon" aria-hidden="true"></span>
-            </button>
+      <header class="header" role="banner">
+        <div class="header-bar">
+          <h1 class="brand">Run the Numbers</h1>
+          <div class="bankroll" role="status" aria-live="polite">
+            <span class="bankroll-label">Bank:</span>
+            <span id="bankroll" class="bankroll-value">1000</span>
+            <span class="bankroll-units">units</span>
+            <span id="bankroll-delta" class="bankroll-delta" aria-hidden="true"></span>
           </div>
-        </div>
-        <div class="stats-strip" aria-label="Game statistics">
-          <div class="stat">
-            <span class="label">Hands Played</span>
-            <span id="hands-played" class="value">0</span>
-          </div>
-          <div class="stat">
-            <span class="label">Total Wagered</span>
-            <span id="total-wagered" class="value">0</span>
-          </div>
-          <div class="stat">
-            <span class="label">Total Paid</span>
-            <span id="total-paid" class="value">0</span>
-          </div>
-          <div class="stat">
-            <span class="label">Hold</span>
-            <span id="hold" class="value">0</span>
-          </div>
-          <div class="stat">
-            <span class="label">House Edge</span>
-            <span id="house-edge" class="value">0%</span>
-          </div>
-          <div class="stat stat-risk">
-            <span class="label">Bet Success Rate</span>
-            <span id="success-rate" class="value">—</span>
-            <span id="success-rate-note" class="stat-note"
-              >Chance current layout finishes ahead</span
-            >
-          </div>
-          <div class="stat stat-risk stat-beta">
-            <span class="label">Beta Gauge</span>
-            <span id="beta-value" class="value">—</span>
-            <div
-              class="beta-meter"
-              id="beta-meter"
-              role="img"
-              aria-live="polite"
-              aria-label="Beta gauge: no bets placed"
-            >
-              <div
-                id="beta-meter-fill"
-                class="beta-meter-fill"
-                style="width: 0%"
-              ></div>
-            </div>
-            <span id="beta-level" class="stat-note">No bets placed</span>
-          </div>
+          <button type="button" id="reset-account" class="reset-button" aria-label="Reset account">
+            Reset
+          </button>
+          <button
+            type="button"
+            class="menu-toggle"
+            id="menu-toggle"
+            aria-expanded="false"
+            aria-controls="utility-panel"
+          >
+            <span class="sr-only">Open menu</span>
+            <span class="menu-icon" aria-hidden="true"></span>
+          </button>
         </div>
       </header>
 
@@ -149,6 +100,28 @@
       <div class="panel-scrim" id="panel-scrim" hidden></div>
 
       <main class="layout">
+        <section class="stats-strip" aria-label="Game statistics">
+          <div class="stat">
+            <span class="label">Hands Played</span>
+            <span id="hands-played" class="value">0</span>
+          </div>
+          <div class="stat">
+            <span class="label">Total Wagered</span>
+            <span id="total-wagered" class="value">0</span>
+          </div>
+          <div class="stat">
+            <span class="label">Total Paid</span>
+            <span id="total-paid" class="value">0</span>
+          </div>
+          <div class="stat">
+            <span class="label">Hold</span>
+            <span id="hold" class="value">0</span>
+          </div>
+          <div class="stat">
+            <span class="label">House Edge</span>
+            <span id="house-edge" class="value">0%</span>
+          </div>
+        </section>
         <section class="paytable" aria-label="Payout ladder">
           <h2>Paytable</h2>
           <ol>
