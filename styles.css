@@ -554,25 +554,30 @@ button:disabled {
   box-shadow: 0 -18px 30px rgba(0, 0, 0, 0.35);
   z-index: 8;
   display: flex;
-  flex-direction: column;
-  gap: clamp(0.4rem, 1.2vw, 0.65rem);
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(0.35rem, 1.2vw, 0.65rem);
+  row-gap: clamp(0.35rem, 1.2vw, 0.6rem);
 }
 
 .chip-row {
   display: flex;
   align-items: center;
-  width: 100%;
+  flex: 1 1 clamp(220px, 45vw, 420px);
+  min-width: min(260px, 100%);
 }
 
 .chip-select-row {
   justify-content: center;
+  flex: 2 1 clamp(260px, 55vw, 620px);
 }
 
 .chip-action-row {
-  justify-content: space-between;
+  justify-content: flex-end;
   gap: clamp(0.35rem, 1.5vw, 0.8rem);
   flex-wrap: wrap;
-  row-gap: 0.4rem;
+  flex: 1 1 clamp(220px, 40vw, 420px);
 }
 
 .chip-actions {
@@ -791,6 +796,19 @@ button:disabled {
 
   .playmat {
     grid-template-columns: repeat(auto-fit, minmax(80px, 1fr));
+  }
+
+  .chip-bar {
+    justify-content: center;
+  }
+
+  .chip-row {
+    flex: 1 1 100%;
+    min-width: 100%;
+  }
+
+  .chip-action-row {
+    justify-content: space-between;
   }
 }
 

@@ -6,7 +6,7 @@ A lightweight web-based simulator for the Run the Numbers casino game. Place num
 
 1. Open `index.html` in any modern browser.
 2. The compact header stays pinned to the top of the screen with your bankroll readout, a small reset button, and the hamburger menu. Watch the bankroll total flash green or red (and count up or down) after each hand to see the exact impact of the round.
-3. Use the pinned chip rack bar along the bottom edge: the top row holds the chip denominations, while the bottom row keeps **Clear Bets** on the left and the **Rebet & Deal** / **Deal Hand** controls grouped on the right.
+3. Use the pinned chip rack bar along the bottom edge: on wide screens the chip buttons and action controls share a single row, while smaller viewports automatically wrap the layout so the denominations stay on the upper line and **Clear Bets** plus **Rebet & Deal** / **Deal Hand** settle onto the row beneath.
 4. Click the Ace or any numbered spot (2–10) on the playmat to stack chips and place bets. Squares will wrap to a second row on smaller screens so nothing overlaps.
 5. Press **Deal Hand** to play out a shoe until the first face card (J/Q/K) or the Joker appears.
 6. Hits on your chosen Ace/number wager pay according to the four-step ladder (3×, 4×, 15×, 50×). Each chip remains in place and is forfeited when the hand stops.
