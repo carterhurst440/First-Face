@@ -245,44 +245,44 @@
             </div>
           </div>
         </section>
+
+        <section
+          class="bets-panel"
+          aria-live="polite"
+          aria-label="Active bets"
+          role="region"
+        >
+          <h3>Active Bets</h3>
+          <table>
+            <thead>
+              <tr>
+                <th scope="col">Number</th>
+                <th scope="col">Units</th>
+                <th scope="col">Hits</th>
+                <th scope="col">Paid</th>
+              </tr>
+            </thead>
+            <tbody id="bets-body">
+              <tr class="empty">
+                <td colspan="4">No bets placed.</td>
+              </tr>
+            </tbody>
+          </table>
+        </section>
+
+        <section class="bankroll-history" aria-label="Bankroll history over hands">
+          <div class="section-heading">
+            <h3>Bankroll History</h3>
+            <p class="section-sub">Hand results plotted over time.</p>
+          </div>
+          <canvas
+            id="bankroll-chart"
+            class="bankroll-chart"
+            role="img"
+            aria-label="Line chart showing bankroll value after each hand"
+          ></canvas>
+        </section>
       </main>
-
-      <section
-        class="bets-panel"
-        aria-live="polite"
-        aria-label="Active bets"
-        role="region"
-      >
-        <h3>Active Bets</h3>
-        <table>
-          <thead>
-            <tr>
-              <th scope="col">Number</th>
-              <th scope="col">Units</th>
-              <th scope="col">Hits</th>
-              <th scope="col">Paid</th>
-            </tr>
-          </thead>
-          <tbody id="bets-body">
-            <tr class="empty">
-              <td colspan="4">No bets placed.</td>
-            </tr>
-          </tbody>
-        </table>
-      </section>
-
-      <section class="bankroll-history" aria-label="Bankroll history over hands">
-        <div class="section-heading">
-          <h3>Bankroll History</h3>
-          <p class="section-sub">Hand results plotted over time.</p>
-        </div>
-        <canvas
-          id="bankroll-chart"
-          class="bankroll-chart"
-          role="img"
-          aria-label="Line chart showing bankroll value after each hand"
-        ></canvas>
-      </section>
 
       <div class="chip-bar" aria-label="Bet controls">
         <button type="button" id="clear-bets" class="chip-clear secondary">
