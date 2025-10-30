@@ -24,7 +24,6 @@ body {
   background: linear-gradient(180deg, #02060c 0%, #050b16 55%, #01030a 100%);
   color: var(--text-light);
   min-height: 100vh;
-  background-attachment: fixed;
 }
 
 .table {
@@ -42,8 +41,8 @@ body {
 .header {
   background: linear-gradient(135deg, #090c21, #160c28);
   padding: clamp(0.55rem, 1.6vw, 0.85rem) clamp(1rem, 2.8vw, 1.6rem);
-  border-bottom: 2px solid rgba(31, 241, 255, 0.4);
-  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.45);
+  border-bottom: 2px solid rgba(31, 241, 255, 0.32);
+  box-shadow: 0 12px 26px rgba(0, 0, 0, 0.42);
   position: sticky;
   top: 0;
   z-index: 12;
@@ -653,11 +652,11 @@ body {
 }
 
 .advanced-group {
-  background: rgba(5, 20, 30, 0.72);
-  border: 1px solid rgba(139, 109, 255, 0.32);
+  background: rgba(5, 20, 30, 0.68);
+  border: 1px solid rgba(139, 109, 255, 0.26);
   border-radius: clamp(12px, 3vw, 18px);
   padding: clamp(0.55rem, 1.8vw, 0.95rem);
-  box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.32), 0 0 26px rgba(31, 241, 255, 0.1);
+  box-shadow: 0 16px 32px rgba(4, 12, 22, 0.38);
 }
 
 .advanced-group-header {
@@ -706,17 +705,30 @@ body {
 }
 
 .card-count-grid {
-  grid-template-columns: repeat(auto-fit, minmax(102px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+}
+
+.bust-grid {
+  display: grid;
+  gap: clamp(0.35rem, 1.2vw, 0.6rem);
+  grid-template-columns: repeat(8, minmax(88px, 1fr));
+  align-items: stretch;
+}
+
+@media (max-width: 960px) {
+  .bust-grid {
+    grid-template-columns: repeat(auto-fit, minmax(88px, 1fr));
+  }
 }
 
 .bust-bet,
 .count-bet {
   aspect-ratio: unset;
-  min-height: clamp(74px, 22vw, 104px);
+  min-height: clamp(66px, 18vw, 92px);
   width: 100%;
   justify-content: space-between;
   gap: 0.25rem;
-  padding: clamp(0.42rem, 1.4vw, 0.75rem);
+  padding: clamp(0.36rem, 1.2vw, 0.6rem);
 }
 
 .bust-bet .bet-label,
@@ -756,8 +768,8 @@ body {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 1.6rem;
-  height: 1.6rem;
+  width: 1.5rem;
+  height: 1.5rem;
   border-radius: 0.35rem;
   background: rgba(6, 22, 34, 0.6);
   font-weight: 700;
@@ -775,33 +787,41 @@ body {
   box-shadow: none;
 }
 
+
 .face-icon {
-  font-size: 1rem;
-  letter-spacing: 0.06em;
+  font-size: 1.2rem;
   border: 1px solid rgba(184, 150, 255, 0.65);
   color: rgba(236, 240, 255, 0.95);
 }
 
 .joker-icon {
-  font-size: 1.35rem;
+  font-size: 1.32rem;
   background: none;
-  filter: drop-shadow(0 0 10px rgba(255, 204, 102, 0.6));
+  filter: drop-shadow(0 0 8px rgba(255, 204, 102, 0.55));
 }
 
-.bust-bet.bust-suit {
-  border-color: rgba(255, 164, 200, 0.6);
+.bust-bet {
+  border: 1px solid rgba(139, 109, 255, 0.38);
+  transition: transform 0.18s ease, box-shadow 0.2s ease;
 }
+
+.bust-bet:hover,
+.bust-bet:focus-visible {
+  transform: translateY(-1px);
+  box-shadow: 0 12px 24px rgba(10, 18, 30, 0.45);
+}
+
 
 .bust-bet.bust-hearts,
 .bust-bet.bust-diamonds {
-  background: linear-gradient(135deg, rgba(255, 66, 122, 0.92), rgba(255, 126, 172, 0.88));
+  background: linear-gradient(135deg, rgba(255, 70, 136, 0.92), rgba(255, 138, 180, 0.88));
   border-color: rgba(255, 168, 198, 0.85);
-  color: rgba(255, 244, 249, 0.95);
+  color: rgba(255, 244, 249, 0.96);
 }
 
 .bust-bet.bust-hearts .bet-odds,
 .bust-bet.bust-diamonds .bet-odds {
-  color: rgba(255, 231, 246, 0.88);
+  color: rgba(255, 231, 246, 0.9);
 }
 
 .bust-bet.bust-hearts .suit-icon,
@@ -811,14 +831,14 @@ body {
 
 .bust-bet.bust-clubs,
 .bust-bet.bust-spades {
-  background: linear-gradient(135deg, rgba(10, 12, 20, 0.92), rgba(32, 34, 48, 0.88));
-  border-color: rgba(132, 139, 162, 0.6);
-  color: rgba(240, 244, 255, 0.95);
+  background: linear-gradient(135deg, rgba(16, 20, 30, 0.96), rgba(7, 9, 18, 0.92));
+  border-color: rgba(86, 112, 160, 0.65);
+  color: rgba(248, 249, 255, 0.95);
 }
 
 .bust-bet.bust-clubs .bet-odds,
 .bust-bet.bust-spades .bet-odds {
-  color: rgba(164, 224, 255, 0.82);
+  color: rgba(164, 224, 255, 0.84);
 }
 
 .bust-bet.bust-clubs .suit-icon,
@@ -827,13 +847,13 @@ body {
 }
 
 .bust-bet.bust-face {
-  background: linear-gradient(135deg, rgba(76, 117, 255, 0.35), rgba(167, 75, 255, 0.48));
-  border-color: rgba(167, 75, 255, 0.55);
+  background: linear-gradient(135deg, rgba(70, 44, 120, 0.9), rgba(122, 66, 178, 0.88));
+  border-color: rgba(168, 116, 255, 0.7);
   color: rgba(236, 238, 255, 0.95);
 }
 
 .bust-bet.bust-face .bet-odds {
-  color: rgba(192, 215, 255, 0.85);
+  color: rgba(214, 201, 255, 0.88);
 }
 
 .bust-bet.bust-face .face-icon {
@@ -842,65 +862,72 @@ body {
 }
 
 .bust-bet.bust-joker {
-  background: linear-gradient(135deg, rgba(255, 196, 88, 0.32), rgba(255, 75, 160, 0.45));
-  border-color: rgba(255, 196, 88, 0.58);
-  color: rgba(255, 245, 234, 0.94);
+  background: linear-gradient(135deg, rgba(255, 210, 120, 0.94), rgba(255, 160, 68, 0.88));
+  border-color: rgba(255, 206, 120, 0.9);
+  color: rgba(53, 14, 3, 0.9);
 }
 
 .bust-bet.bust-joker .bet-odds {
-  color: rgba(255, 231, 176, 0.88);
+  color: rgba(90, 35, 0, 0.78);
 }
 
 .count-bet {
-  --count-start: rgba(255, 76, 170, 0.3);
-  --count-end: rgba(165, 88, 255, 0.32);
+  --count-start: rgba(255, 99, 224, 0.22);
+  --count-end: rgba(139, 109, 255, 0.18);
   background: linear-gradient(135deg, var(--count-start), var(--count-end));
-  border-color: rgba(255, 122, 235, 0.45);
-  color: rgba(246, 246, 255, 0.94);
+  border: 1px solid rgba(139, 109, 255, 0.32);
+  color: rgba(248, 249, 255, 0.92);
+  transition: transform 0.18s ease, box-shadow 0.2s ease;
+}
+
+.count-bet:hover,
+.count-bet:focus-visible {
+  transform: translateY(-1px);
+  box-shadow: 0 12px 24px rgba(10, 18, 30, 0.42);
 }
 
 .count-bet .bet-odds {
-  color: rgba(255, 232, 255, 0.82);
+  color: rgba(255, 232, 255, 0.84);
 }
 
 .count-bet[data-tier="1"] {
-  --count-start: rgba(255, 92, 182, 0.32);
-  --count-end: rgba(255, 125, 210, 0.34);
+  --count-start: rgba(255, 99, 224, 0.22);
+  --count-end: rgba(139, 109, 255, 0.18);
 }
 
 .count-bet[data-tier="2"] {
-  --count-start: rgba(255, 86, 198, 0.3);
-  --count-end: rgba(238, 111, 221, 0.34);
+  --count-start: rgba(255, 99, 224, 0.28);
+  --count-end: rgba(139, 109, 255, 0.22);
 }
 
 .count-bet[data-tier="3"] {
-  --count-start: rgba(255, 90, 214, 0.32);
-  --count-end: rgba(220, 104, 236, 0.36);
+  --count-start: rgba(255, 99, 224, 0.34);
+  --count-end: rgba(139, 109, 255, 0.26);
 }
 
 .count-bet[data-tier="4"] {
-  --count-start: rgba(245, 88, 226, 0.34);
-  --count-end: rgba(198, 97, 246, 0.38);
+  --count-start: rgba(255, 99, 224, 0.4);
+  --count-end: rgba(139, 109, 255, 0.3);
 }
 
 .count-bet[data-tier="5"] {
-  --count-start: rgba(225, 86, 232, 0.34);
-  --count-end: rgba(176, 93, 248, 0.4);
+  --count-start: rgba(255, 99, 224, 0.46);
+  --count-end: rgba(139, 109, 255, 0.34);
 }
 
 .count-bet[data-tier="6"] {
-  --count-start: rgba(205, 82, 238, 0.34);
-  --count-end: rgba(156, 88, 250, 0.42);
+  --count-start: rgba(255, 99, 224, 0.5);
+  --count-end: rgba(139, 109, 255, 0.38);
 }
 
 .count-bet[data-tier="7"] {
-  --count-start: rgba(182, 78, 244, 0.34);
-  --count-end: rgba(138, 84, 252, 0.44);
+  --count-start: rgba(255, 99, 224, 0.56);
+  --count-end: rgba(139, 109, 255, 0.42);
 }
 
 .count-bet[data-tier="8"] {
-  --count-start: rgba(164, 72, 248, 0.34);
-  --count-end: rgba(118, 80, 255, 0.46);
+  --count-start: rgba(255, 99, 224, 0.62);
+  --count-end: rgba(139, 109, 255, 0.48);
 }
 
 .bet-spot {

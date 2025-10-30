@@ -2,7 +2,7 @@ const STEP_PAYS = [3, 4, 15, 50];
 const NUMBER_RANKS = ["A", "2", "3", "4", "5", "6", "7", "8", "9", "10"];
 const DENOMINATIONS = [5, 10, 25, 100];
 const INITIAL_BANKROLL = 1000;
-const DEAL_DELAY = 600;
+const DEAL_DELAY = 540;
 const DEAL_DELAY_STEP = 60;
 const SUITS = [
   { symbol: "♠", color: "black", name: "Spades" },
@@ -863,7 +863,11 @@ function summarizeBetResult(bet) {
       : `${bet.units}u on ${spokenRank}: 0 hits`;
   }
 
-  const payoutText = bet.paid > 0 ? `<span class="hit">won ${formatCurrency(bet.paid)}</span>` : "no win";
+  const profit = bet.paid > 0 ? bet.paid - bet.units : 0;
+  const payoutText =
+    bet.paid > 0
+      ? `<span class="hit">won ${formatCurrency(profit)} · stake returned</span>`
+      : "no win";
   return `${bet.label}: ${payoutText}`;
 }
 
@@ -901,15 +905,24 @@ function resetTable(message = "Select a chip and place your bet on the regions a
 
 function renderDraw(card) {
   const cardEl = makeCardElement(card);
-  drawsContainer.appendChild(cardEl);
+  const fragment = document.createDocumentFragment();
+  fragment.appendChild(cardEl);
+  drawsContainer.appendChild(fragment);
   requestAnimationFrame(() => {
     cardEl.classList.add("dealt-in");
   });
-  cardEl.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "end" });
+
+  if (drawsContainer.scrollWidth > drawsContainer.clientWidth) {
+    drawsContainer.scrollTo({
+      left: drawsContainer.scrollWidth,
+      behavior: "smooth"
+    });
+  }
 }
 
 function settleAdvancedBets(stopperCard, context = {}) {
   const nonStopperCount = context.nonStopperCount ?? 0;
+  const totalCards = context.totalCards ?? nonStopperCount;
   bets.forEach((bet) => {
     if (bet.type === "number") return;
     const definition = getBetDefinition(bet.key);
@@ -939,10 +952,10 @@ function settleAdvancedBets(stopperCard, context = {}) {
           const min = metadata.countMin ?? 0;
           const max = metadata.countMax ?? min;
           if (max === Infinity) {
-            if (nonStopperCount >= min) {
+            if (totalCards >= min) {
               payout = definition.payout * bet.units;
             }
-          } else if (nonStopperCount === max) {
+          } else if (totalCards === max) {
             payout = definition.payout * bet.units;
           }
         }
@@ -952,8 +965,9 @@ function settleAdvancedBets(stopperCard, context = {}) {
     }
 
     if (payout > 0) {
-      bet.paid += payout;
-      bankroll += payout;
+      const totalReturn = payout + bet.units;
+      bet.paid += totalReturn;
+      bankroll += totalReturn;
       updateBankroll();
     }
   });
@@ -998,6 +1012,10 @@ function endHand(stopperCard, context = {}) {
 }
 
 function processCard(card, context) {
+  if (context) {
+    context.totalCards = (context.totalCards ?? 0) + 1;
+  }
+
   renderDraw(card);
 
   if (card.stopper) {
@@ -1044,7 +1062,7 @@ async function dealHand() {
   if (bets.length === 0 || dealing) return;
   dealing = true;
   pauseResolvers = [];
-  currentHandContext = { nonStopperCount: 0 };
+  currentHandContext = { nonStopperCount: 0, totalCards: 0 };
   setHandPaused(false);
   setBettingEnabled(false);
   dealButton.disabled = true;
