@@ -127,17 +127,17 @@
             <span id="house-edge" class="value">0%</span>
           </div>
         </section>
-        <section class="paytable" aria-label="Payout ladder">
-          <h2>Paytable</h2>
-          <ol>
-            <li>1st hit on a number: 3× wager</li>
-            <li>2nd hit on same number: 4× wager</li>
-            <li>3rd hit on same number: 15× wager</li>
-            <li>4th hit on same number: 50× wager</li>
-          </ol>
-        </section>
         <section class="game" aria-label="Game play area">
           <div class="felt">
+            <aside class="felt-paytable" aria-label="Paytable">
+              <h2 class="felt-paytable-title">Paytable</h2>
+              <ol class="felt-paytable-list">
+                <li><span class="step">1st hit</span><span class="payout">3×</span></li>
+                <li><span class="step">2nd hit</span><span class="payout">4×</span></li>
+                <li><span class="step">3rd hit</span><span class="payout">15×</span></li>
+                <li><span class="step">4th hit</span><span class="payout">50×</span></li>
+              </ol>
+            </aside>
             <div class="dealer-zone" aria-live="polite">
               <h3 class="draws-title">Cards Dealt</h3>
               <div class="draws" id="draws" aria-label="Cards dealt this hand"></div>

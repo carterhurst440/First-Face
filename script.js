@@ -73,7 +73,7 @@ let bankrollAnimationFrame = null;
 let bankrollDeltaTimeout = null;
 let bankrollHistory = [];
 
-const MAX_HISTORY_POINTS = 60;
+const MAX_HISTORY_POINTS = 500;
 
 function createDeck() {
   const deck = [];
@@ -299,16 +299,25 @@ function drawBankrollChart() {
     bottom: 64,
     left: 84
   };
-  const pointSpacing = 80;
+  const maxPointsWithoutScroll = 100;
+  const scrollSpacing = 70;
+  const minCanvasWidth = 240;
 
   if (bankrollChartWrapper) {
-    const wrapperWidth = bankrollChartWrapper.clientWidth;
-    const segmentCount = Math.max(values.length - 1, 1);
-    const desiredWidth = Math.max(
-      wrapperWidth,
-      padding.left + padding.right + segmentCount * pointSpacing
-    );
-    bankrollChartCanvas.style.width = `${Math.max(240, Math.round(desiredWidth))}px`;
+    const wrapperWidth = bankrollChartWrapper.clientWidth || minCanvasWidth;
+    let targetWidth = wrapperWidth;
+
+    if (values.length > maxPointsWithoutScroll) {
+      const segmentCount = Math.max(values.length - 1, 1);
+      const requiredWidth =
+        padding.left + padding.right + segmentCount * scrollSpacing;
+      targetWidth = Math.max(wrapperWidth, requiredWidth);
+    }
+
+    bankrollChartCanvas.style.width = `${Math.max(
+      minCanvasWidth,
+      Math.round(targetWidth)
+    )}px`;
   }
 
   const rect = bankrollChartCanvas.getBoundingClientRect();
