@@ -515,38 +515,8 @@ body {
   justify-items: center;
   position: relative;
   border-radius: clamp(34px, 8vw, 58px);
-  background:
-    radial-gradient(circle at 50% 0%, rgba(12, 168, 138, 0.24), transparent 68%),
-    linear-gradient(185deg, rgba(5, 37, 38, 0.85), rgba(4, 18, 24, 0.92));
-  box-shadow: inset 0 0 60px rgba(9, 131, 121, 0.22);
-}
-
-.playmat::before {
-  content: "";
-  position: absolute;
-  inset: clamp(0.35rem, 1.2vw, 0.75rem);
-  border-radius: clamp(28px, 6vw, 54px);
-  border: 2px solid rgba(12, 168, 138, 0.26);
-  box-shadow: inset 0 0 30px rgba(12, 168, 138, 0.2);
-  background: linear-gradient(160deg, rgba(5, 32, 32, 0.75), rgba(3, 20, 28, 0.9));
-  z-index: 0;
-}
-
-.playmat::after {
-  content: "";
-  position: absolute;
-  top: clamp(-2.4rem, -6vw, -1.6rem);
-  left: 50%;
-  transform: translateX(-50%);
-  width: min(92%, 520px);
-  height: clamp(90px, 24vw, 140px);
-  border: 2px solid rgba(12, 168, 138, 0.18);
-  border-top: none;
-  border-radius: 0 0 clamp(160px, 36vw, 220px) clamp(160px, 36vw, 220px) /
-    0 0 clamp(90px, 22vw, 150px) clamp(90px, 22vw, 150px);
-  box-shadow: inset 0 0 24px rgba(12, 168, 138, 0.16);
-  pointer-events: none;
-  z-index: 0;
+  background: rgba(5, 37, 38, 0.82);
+  box-shadow: inset 0 0 32px rgba(0, 0, 0, 0.35);
 }
 
 .playmat > * {
@@ -559,12 +529,9 @@ body {
   overflow: hidden;
   width: min(100%, 120px);
   aspect-ratio: 1 / 1;
-  border-radius: clamp(20px, 6vw, 28px);
-  border: 1px solid rgba(248, 249, 255, 0.08);
-  background:
-    radial-gradient(circle at 50% 18%, rgba(54, 245, 199, 0.3), transparent 68%),
-    radial-gradient(circle at 50% 90%, rgba(255, 99, 224, 0.22), transparent 72%),
-    linear-gradient(185deg, rgba(4, 37, 39, 0.92), rgba(4, 16, 24, 0.94));
+  border-radius: clamp(10px, 2.8vw, 14px);
+  border: 2px solid rgba(31, 241, 255, 0.4);
+  background: rgba(4, 28, 33, 0.92);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -574,18 +541,7 @@ body {
   color: var(--text-light);
   gap: 0.35rem;
   transition: transform 0.12s ease, box-shadow 0.2s ease, border-color 0.2s ease;
-  box-shadow: inset 0 0 26px rgba(12, 168, 138, 0.16);
-}
-
-.bet-spot::before {
-  content: "";
-  position: absolute;
-  inset: clamp(0.25rem, 1vw, 0.45rem);
-  border-radius: clamp(16px, 5vw, 24px);
-  border: 1px solid rgba(248, 249, 255, 0.08);
-  box-shadow: inset 0 0 18px rgba(31, 241, 255, 0.18);
-  opacity: 0.75;
-  pointer-events: none;
+  box-shadow: inset 0 0 12px rgba(0, 0, 0, 0.35);
 }
 
 .bet-spot:hover:not(:disabled),
@@ -594,16 +550,6 @@ body {
   box-shadow: 0 24px 42px rgba(0, 0, 0, 0.6);
   border-color: rgba(54, 245, 199, 0.85);
   outline: none;
-}
-
-.bet-spot:focus-visible::after {
-  content: "";
-  position: absolute;
-  inset: 6px;
-  border-radius: clamp(14px, 4vw, 20px);
-  border: 2px solid rgba(54, 245, 199, 0.85);
-  box-shadow: 0 0 18px rgba(54, 245, 199, 0.38);
-  pointer-events: none;
 }
 
 .bet-spot:disabled {
