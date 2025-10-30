@@ -14,6 +14,6 @@ A lightweight web-based simulator for the Run the Numbers casino game. Place num
 
 Game stats now occupy the first section of the scrollable page (just below the sticky header) so the felt can stretch wider, a compact paytable appears above the betting grid, and the slide-out menu (hamburger icon in the header) holds the rules plus the recent hand log so the table can stretch across the screen. Cards dealt during a hand shrink slightly and wrap onto a second row when needed so long streaks remain easy to read on mobile.
 
-The active bet summary lives just under the felt, keeping the bottom chip rack slim while still making it easy to review what’s on the layout before you deal. Beneath that, a neon-styled bankroll history chart plots your balance at the end of each hand so you can track momentum over time.
+The active bet summary lives just under the felt, keeping the bottom chip rack slim while still making it easy to review what’s on the layout before you deal. Beneath that, a neon-styled bankroll history chart plots your balance at the end of each hand so you can track momentum over time. The graph now adds numeric axes (hand numbers along the bottom and bankroll values on the left) and automatically expands horizontally with a scroll bar when a long session stretches beyond the visible width, so you never lose the earlier points.
 
 The simulator always uses a freshly shuffled 53-card deck for each hand with only J/Q/K and the Joker stopping play, matching the updated rules provided.
