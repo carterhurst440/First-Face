@@ -51,6 +51,7 @@ const utilityPanel = document.getElementById("utility-panel");
 const utilityClose = document.getElementById("utility-close");
 const panelScrim = document.getElementById("panel-scrim");
 const bankrollChartCanvas = document.getElementById("bankroll-chart");
+const bankrollChartWrapper = document.getElementById("bankroll-chart-wrapper");
 const bankrollChartCtx =
   bankrollChartCanvas instanceof HTMLCanvasElement
     ? bankrollChartCanvas.getContext("2d")
@@ -290,6 +291,26 @@ function easeOutCubic(x) {
 
 function drawBankrollChart() {
   if (!bankrollChartCanvas || !bankrollChartCtx) return;
+
+  const values = bankrollHistory.length ? bankrollHistory : [bankroll];
+  const padding = {
+    top: 28,
+    right: 48,
+    bottom: 64,
+    left: 84
+  };
+  const pointSpacing = 80;
+
+  if (bankrollChartWrapper) {
+    const wrapperWidth = bankrollChartWrapper.clientWidth;
+    const segmentCount = Math.max(values.length - 1, 1);
+    const desiredWidth = Math.max(
+      wrapperWidth,
+      padding.left + padding.right + segmentCount * pointSpacing
+    );
+    bankrollChartCanvas.style.width = `${Math.max(240, Math.round(desiredWidth))}px`;
+  }
+
   const rect = bankrollChartCanvas.getBoundingClientRect();
   if (rect.width === 0 || rect.height === 0) return;
 
@@ -304,8 +325,10 @@ function drawBankrollChart() {
 
   const width = rect.width;
   const height = rect.height;
-  const padding = 28;
-  const values = bankrollHistory.length ? bankrollHistory : [bankroll];
+  const chartWidth = Math.max(1, width - padding.left - padding.right);
+  const chartHeight = Math.max(1, height - padding.top - padding.bottom);
+  const baseY = padding.top + chartHeight;
+
   const maxVal = Math.max(...values);
   const minVal = Math.min(...values);
   const range = maxVal - minVal || 1;
@@ -319,17 +342,14 @@ function drawBankrollChart() {
   ctx.fillStyle = backgroundGradient;
   ctx.fillRect(0, 0, width, height);
 
-  const chartWidth = width - padding * 2;
-  const chartHeight = height - padding * 2;
-
   ctx.strokeStyle = "rgba(139, 109, 255, 0.22)";
   ctx.lineWidth = 1;
   ctx.setLineDash([6, 10]);
   for (let i = 0; i <= 4; i += 1) {
-    const y = padding + (chartHeight * i) / 4;
+    const y = padding.top + (chartHeight * i) / 4;
     ctx.beginPath();
-    ctx.moveTo(padding, y);
-    ctx.lineTo(width - padding, y);
+    ctx.moveTo(padding.left, y);
+    ctx.lineTo(width - padding.right, y);
     ctx.stroke();
   }
   ctx.setLineDash([]);
@@ -337,14 +357,14 @@ function drawBankrollChart() {
   const points = values.map((value, index) => {
     const x =
       values.length === 1
-        ? padding + chartWidth / 2
-        : padding + (chartWidth * index) / (values.length - 1);
-    const y = padding + chartHeight * (1 - (value - minVal) / range);
+        ? padding.left + chartWidth / 2
+        : padding.left + (chartWidth * index) / (values.length - 1);
+    const y = padding.top + chartHeight * (1 - (value - minVal) / range);
     return { x, y };
   });
 
   if (points.length >= 2) {
-    const fillGradient = ctx.createLinearGradient(0, padding, 0, height - padding);
+    const fillGradient = ctx.createLinearGradient(0, padding.top, 0, baseY);
     fillGradient.addColorStop(0, "rgba(255, 99, 224, 0.26)");
     fillGradient.addColorStop(1, "rgba(31, 241, 255, 0)");
     ctx.beginPath();
@@ -352,8 +372,8 @@ function drawBankrollChart() {
     for (let i = 1; i < points.length; i += 1) {
       ctx.lineTo(points[i].x, points[i].y);
     }
-    ctx.lineTo(points[points.length - 1].x, height - padding);
-    ctx.lineTo(points[0].x, height - padding);
+    ctx.lineTo(points[points.length - 1].x, baseY);
+    ctx.lineTo(points[0].x, baseY);
     ctx.closePath();
     ctx.fillStyle = fillGradient;
     ctx.fill();
@@ -398,14 +418,46 @@ function drawBankrollChart() {
   ctx.strokeStyle = "rgba(31, 241, 255, 0.35)";
   ctx.lineWidth = 1.6;
   ctx.beginPath();
-  ctx.moveTo(padding, height - padding);
-  ctx.lineTo(width - padding, height - padding);
+  ctx.moveTo(padding.left, baseY);
+  ctx.lineTo(width - padding.right, baseY);
   ctx.stroke();
 
   ctx.font = "600 12px 'Play', 'Segoe UI', sans-serif";
   ctx.fillStyle = "rgba(248, 249, 255, 0.85)";
-  ctx.textBaseline = "bottom";
-  ctx.fillText(`Hands: ${Math.max(0, values.length - 1)}`, padding, height - padding - 8);
+  ctx.textAlign = "right";
+  ctx.textBaseline = "middle";
+  for (let i = 0; i <= 4; i += 1) {
+    const y = padding.top + (chartHeight * i) / 4;
+    const valueLabel = minVal + (range * (4 - i)) / 4;
+    ctx.fillText(formatCurrency(Math.round(valueLabel)), padding.left - 12, y);
+  }
+
+  ctx.textAlign = "center";
+  ctx.textBaseline = "top";
+  if (points.length > 0) {
+    const tickIndices = [];
+    if (points.length === 1) {
+      tickIndices.push(0);
+    } else {
+      const maxTicks = Math.min(10, points.length);
+      const step = Math.max(1, Math.floor((points.length - 1) / (maxTicks - 1)));
+      for (let i = 0; i < points.length; i += step) {
+        tickIndices.push(i);
+      }
+      if (tickIndices[tickIndices.length - 1] !== points.length - 1) {
+        tickIndices.push(points.length - 1);
+      }
+    }
+
+    tickIndices.forEach((index) => {
+      const point = points[index];
+      ctx.fillText(String(index + 1), point.x, baseY + 8);
+    });
+  }
+
+  ctx.textAlign = "left";
+  ctx.textBaseline = "top";
+  ctx.fillText(`Hands played: ${Math.max(0, values.length - 1)}`, padding.left, padding.top + 6);
 }
 
 function recordBankrollHistoryPoint() {

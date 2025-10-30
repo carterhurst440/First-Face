@@ -1,19 +1,22 @@
 # Run the Numbers Simulator
 
-A lightweight web-based simulator for the Run the Numbers casino game. Place number bets, watch the shoe reveal cards, and track payouts and long-term house edge in real time. A neon marquee just below the sticky header proudly displays “RUN THE NUMBERS,” setting the retro-futuristic tone before you scroll into the felt.
+Run the Numbers is a web-based simulator for the updated First Face ruleset. Stack chips on Ace or numbers 2–10, watch cards land on a neon felt, and track how each hand affects your bankroll over time.
 
 ## Getting Started
 
 1. Open `index.html` in any modern browser.
-2. The compact header stays pinned to the top of the screen with your bankroll readout, a small reset button, and the hamburger menu. Watch the bankroll total flash green or red (and count up or down) after each hand to see the exact impact of the round.
-3. Use the pinned chip rack bar along the bottom edge: the round chip buttons stay centered while the action cluster (**Rebet & Deal** or **Deal Hand**) hugs the right. Wide screens keep everything on a single line; smaller viewports automatically wrap so the chip selector remains on the top row and the buttons glide to the row beneath.
-4. Click the Ace or any numbered spot (2–10) on the playmat to stack chips and place bets. Squares will wrap to a second row on smaller screens so nothing overlaps. Need to wipe the felt? Tap **Clear Bets** in the Bets header on the right side of the layout.
-5. Press **Deal Hand** to play out a shoe until the first face card (J/Q/K) or the Joker appears.
-6. Hits on your chosen Ace/number wager pay according to the four-step ladder (3×, 4×, 15×, 50×). Each chip remains in place and is forfeited when the hand stops.
-7. After the hand resolves, choose **Table Ready** (bottom row, left) to clear the felt for fresh wagers or **Rebet & Deal** (bottom row, right cluster) to automatically restack and fire the previous layout. If your bankroll runs dry, use **Reset Account** near the bankroll display to refill to 1,000 units, wipe stats, and clear the history log.
+2. The compact header stays pinned to the top of the screen with your bankroll readout, a slim reset button, and the hamburger menu. After each hand the bankroll flashes green or red and counts up or down so you can see the precise result.
+3. Use the pinned chip rack along the bottom edge. Round chip buttons sit in the center while the action cluster (**Rebet & Deal** or **Deal Hand**) hugs the right edge. Wide screens keep everything on a single row; smaller viewports wrap automatically so the chip selector stays on top and the buttons slide underneath without overlapping.
+4. Click the Ace or any numbered square (2–10) on the felt to stack chips. Squares wrap to a second row on small screens so nothing overlaps. To wipe the board, use **Clear Bets** in the Bets header on the top-right of the layout.
+5. Press **Deal Hand** to reveal cards until the first stopper—any Jack, Queen, King, or the Joker. Hits on your wagers use the four-step ladder (3×, 4×, 15×, 50×). Each chip remains in place and is forfeited when the hand stops.
+6. After the hand resolves, choose **Table Ready** (bottom row, left) to clear the felt for fresh wagers or **Rebet & Deal** (bottom row, right cluster) to automatically restack and deal the previous layout. If your bankroll runs dry, use **Reset Account** near the bankroll display to refill to 1,000 units, wipe stats, and clear the history log.
 
-Game stats now occupy the first section of the scrollable page (just below the sticky header) so the felt can stretch wider, a compact paytable appears above the betting grid, and the slide-out menu (hamburger icon in the header) holds the rules plus the recent hand log so the table can stretch across the screen. Cards dealt during a hand shrink slightly and wrap onto a second row when needed so long streaks remain easy to read on mobile.
+## Layout Overview
 
-The active bet summary lives just under the felt, keeping the bottom chip rack slim while still making it easy to review what’s on the layout before you deal. Beneath that, a neon-styled bankroll history chart plots your balance at the end of each hand so you can track momentum over time.
+* A neon marquee reading **RUN THE NUMBERS** anchors the top of the scrollable page beneath the sticky header, setting the retro-futuristic tone.
+* Game stats live in the first section of the page so the felt can stretch wider. The compact paytable sits just above the betting grid.
+* Cards dealt during a hand scale down slightly and wrap onto a second row when needed, keeping long streaks readable on mobile.
+* The active bets summary sits directly beneath the felt and spans the full width of the page, keeping the bottom chip rack slim.
+* A neon-styled bankroll history chart plots the bankroll at the end of every hand with labeled axes. The canvas expands horizontally with a scrollbar whenever a long session extends beyond the initial width.
 
-The simulator always uses a freshly shuffled 53-card deck for each hand with only J/Q/K and the Joker stopping play, matching the updated rules provided.
+The simulator always uses a freshly shuffled 53-card deck for each hand with only J/Q/K and the Joker stopping play, matching the latest rule changes.

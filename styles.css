@@ -1,6 +1,6 @@
 :root {
-  --felt-green: #101735;
-  --felt-shadow: #07081d;
+  --felt-green: #0f3b3d;
+  --felt-shadow: #041b1f;
   --gold: #ff63e0;
   --text-light: #f8f9ff;
   --muted: #91a1d9;
@@ -21,11 +21,7 @@
 body {
   margin: 0;
   font-family: "Play", "Segoe UI", sans-serif;
-  background:
-      radial-gradient(circle at 15% 10%, rgba(255, 61, 243, 0.18), transparent 55%),
-      radial-gradient(circle at 82% 12%, rgba(31, 241, 255, 0.2), transparent 58%),
-      radial-gradient(circle at 50% 120%, rgba(139, 109, 255, 0.22), transparent 60%),
-      linear-gradient(180deg, #050510 0%, #05031a 40%, #010109 100%);
+  background: linear-gradient(180deg, #02060c 0%, #050b16 55%, #01030a 100%);
   color: var(--text-light);
   min-height: 100vh;
   background-attachment: fixed;
@@ -38,20 +34,9 @@ body {
   flex-direction: column;
   position: relative;
   background:
-    repeating-linear-gradient(
-        90deg,
-        rgba(31, 241, 255, 0.06) 0px,
-        rgba(31, 241, 255, 0.06) 1px,
-        transparent 1px,
-        transparent 40px
-      ),
-    repeating-linear-gradient(
-        0deg,
-        rgba(139, 109, 255, 0.05) 0px,
-        rgba(139, 109, 255, 0.05) 1px,
-        transparent 1px,
-        transparent 42px
-      );
+    radial-gradient(circle at 15% 8%, rgba(31, 241, 255, 0.08), transparent 45%),
+    radial-gradient(circle at 85% 12%, rgba(255, 61, 243, 0.08), transparent 48%),
+    radial-gradient(circle at 50% 120%, rgba(139, 109, 255, 0.12), transparent 60%);
 }
 
 .header {
@@ -334,11 +319,11 @@ body {
 
 .stat {
   flex: 1 1 clamp(110px, 26vw, 150px);
-  background: linear-gradient(135deg, rgba(10, 16, 42, 0.85), rgba(26, 12, 46, 0.85));
+  background: linear-gradient(135deg, rgba(6, 24, 32, 0.72), rgba(11, 18, 36, 0.78));
   padding: clamp(0.55rem, 2vw, 0.75rem) clamp(0.6rem, 2.4vw, 0.95rem);
-  border-radius: 12px;
-  border: 1px solid rgba(31, 241, 255, 0.2);
-  box-shadow: inset 0 0 18px rgba(139, 109, 255, 0.12);
+  border-radius: 14px;
+  border: 1px solid rgba(12, 168, 138, 0.22);
+  box-shadow: inset 0 0 22px rgba(12, 168, 138, 0.18);
   min-width: clamp(110px, 28vw, 150px);
 }
 
@@ -364,81 +349,143 @@ body {
 }
 
 .paytable {
-  background: linear-gradient(135deg, rgba(9, 15, 38, 0.9), rgba(14, 7, 28, 0.9));
-  border-radius: 14px;
-  border: 1px solid rgba(255, 99, 224, 0.35);
-  padding: clamp(0.55rem, 2vw, 0.85rem) clamp(0.85rem, 3vw, 1.25rem);
+  background: linear-gradient(135deg, rgba(5, 30, 35, 0.78), rgba(4, 16, 24, 0.88));
+  border-radius: 18px;
+  border: 1px solid rgba(12, 168, 138, 0.22);
+  padding: clamp(0.45rem, 1.8vw, 0.7rem) clamp(0.75rem, 2.6vw, 1.15rem);
   margin-bottom: clamp(0.6rem, 2vw, 0.95rem);
-  box-shadow: 0 16px 32px rgba(5, 5, 16, 0.45);
+  box-shadow: inset 0 0 28px rgba(12, 168, 138, 0.16);
 }
 
 .paytable h2 {
-  margin: 0 0 0.4rem 0;
-  font-size: 0.92rem;
+  margin: 0 0 0.3rem 0;
+  font-size: 0.85rem;
   text-transform: uppercase;
-  letter-spacing: 0.12rem;
-  color: var(--neon-cyan);
+  letter-spacing: 0.14rem;
+  color: rgba(148, 255, 233, 0.92);
 }
 
 .paytable ol {
   margin: 0;
   padding-left: 1rem;
-  color: var(--muted);
-  font-size: 0.82rem;
+  color: rgba(211, 244, 255, 0.8);
+  font-size: 0.78rem;
   display: grid;
-  gap: 0.18rem;
+  gap: 0.15rem;
 }
 
 .game {
   display: flex;
   flex-direction: column;
-  gap: 1.35rem;
+  gap: clamp(1rem, 2vw, 1.35rem);
 }
+
 
 .felt {
-  background:
-      radial-gradient(circle at 20% 20%, rgba(255, 61, 243, 0.22), transparent 60%),
-      radial-gradient(circle at 80% 15%, rgba(31, 241, 255, 0.2), transparent 60%),
-      linear-gradient(160deg, rgba(16, 23, 53, 0.94), rgba(8, 9, 30, 0.94));
-  border: 2px solid rgba(31, 241, 255, 0.35);
-  border-radius: 20px;
-  min-height: 440px;
+  position: relative;
+  overflow: hidden;
+  min-height: clamp(420px, 60vh, 560px);
+  padding: clamp(1.2rem, 3vw, 1.8rem) clamp(1rem, 4vw, 2.4rem)
+    clamp(1.4rem, 4vw, 2.6rem);
   display: flex;
   flex-direction: column;
-  gap: 1.15rem;
-  padding: clamp(1rem, 3vw, 1.5rem);
-  box-shadow: 0 22px 40px rgba(5, 5, 20, 0.6), inset 0 0 40px rgba(255, 99, 224, 0.08);
+  gap: clamp(1.2rem, 3vw, 1.9rem);
+  border-radius: clamp(32px, 9vw, 72px);
+  background:
+    radial-gradient(circle at 50% -20%, rgba(54, 245, 199, 0.18), transparent 60%),
+    radial-gradient(circle at 15% 20%, rgba(0, 212, 255, 0.14), transparent 58%),
+    radial-gradient(circle at 85% 25%, rgba(255, 99, 224, 0.12), transparent 60%),
+    linear-gradient(170deg, #0d3b3a 0%, #052426 55%, #041018 100%);
+  box-shadow: 0 40px 80px rgba(2, 8, 12, 0.75), inset 0 0 90px rgba(12, 168, 138, 0.16);
 }
 
-.draws-panel {
-  background: linear-gradient(135deg, rgba(8, 13, 34, 0.9), rgba(13, 6, 28, 0.9));
-  border: 1px solid rgba(31, 241, 255, 0.18);
-  border-radius: 16px;
-  padding: 0.75rem 1rem;
+.felt::before,
+.felt::after {
+  content: "";
+  position: absolute;
+  inset: -34px;
+  border-radius: clamp(44px, 12vw, 120px);
+  pointer-events: none;
+}
+
+.felt::before {
+  background: linear-gradient(135deg, rgba(2, 9, 12, 0.92), rgba(4, 20, 32, 0.85));
+  box-shadow: 0 0 60px rgba(0, 0, 0, 0.7);
+  z-index: -2;
+}
+
+.felt::after {
+  border: 2px solid rgba(12, 168, 138, 0.28);
+  box-shadow: inset 0 0 50px rgba(54, 245, 199, 0.12);
+  z-index: -1;
+}
+
+.dealer-zone {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
-  box-shadow: inset 0 0 25px rgba(139, 109, 255, 0.12);
+  align-items: center;
+  gap: clamp(0.6rem, 2vw, 1rem);
+  padding: clamp(0.5rem, 1.6vw, 0.9rem) clamp(0.8rem, 3vw, 1.8rem)
+    clamp(0.9rem, 2.2vw, 1.2rem);
+  position: relative;
+}
+
+.dealer-zone > * {
+  position: relative;
+  z-index: 1;
+}
+
+.dealer-zone::after {
+  content: "";
+  position: absolute;
+  bottom: clamp(-1.6rem, -4vw, -1rem);
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(96%, 540px);
+  height: clamp(110px, 24vw, 160px);
+  border: 2px solid rgba(54, 245, 199, 0.22);
+  border-bottom: none;
+  border-radius: clamp(120px, 30vw, 220px) clamp(120px, 30vw, 220px) 0 0 /
+    clamp(80px, 22vw, 160px) clamp(80px, 22vw, 160px) 0 0;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45), inset 0 0 30px rgba(54, 245, 199, 0.18);
+  background: radial-gradient(circle at 50% 120%, rgba(4, 26, 34, 0.72), transparent 70%);
+  pointer-events: none;
+  z-index: 0;
 }
 
 .draws-title {
   margin: 0;
-  font-size: 0.88rem;
+  font-size: clamp(0.82rem, 2.2vw, 0.95rem);
+  letter-spacing: 0.14rem;
   text-transform: uppercase;
-  letter-spacing: 0.12rem;
-  color: var(--neon-cyan);
+  color: rgba(248, 249, 255, 0.86);
+  text-shadow: 0 0 12px rgba(31, 241, 255, 0.45);
+}
+
+.bets-zone {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(0.9rem, 2vw, 1.4rem);
+  padding: clamp(0.4rem, 1.5vw, 0.8rem) clamp(0.4rem, 1.5vw, 1.2rem)
+    clamp(0.8rem, 2.5vw, 1.6rem);
 }
 
 .draws {
   display: flex;
   flex-wrap: wrap;
   gap: 0.55rem;
-  padding-bottom: 0.25rem;
+  padding: 0.35rem 0.35rem 0.5rem;
   min-height: calc(var(--card-height) + 0.5rem);
   max-height: calc(var(--card-height) * 2 + 1.1rem);
   overflow-y: auto;
   overflow-x: hidden;
   align-content: flex-start;
+  border-radius: clamp(24px, 7vw, 38px);
+  background:
+    radial-gradient(circle at 50% -20%, rgba(54, 245, 199, 0.2), transparent 65%),
+    linear-gradient(160deg, rgba(4, 32, 34, 0.88), rgba(2, 18, 25, 0.85));
+  border: 1px solid rgba(12, 168, 138, 0.22);
+  box-shadow: inset 0 0 30px rgba(12, 168, 138, 0.2);
   scrollbar-width: thin;
   scrollbar-color: rgba(31, 241, 255, 0.6) rgba(8, 9, 30, 0.55);
 }
@@ -488,21 +535,48 @@ body {
 .playmat {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(92px, 1fr));
-  gap: clamp(0.45rem, 1.8vw, 0.8rem);
-  padding: clamp(0.75rem, 2.5vw, 1.2rem);
-  background:
-    linear-gradient(135deg, rgba(11, 17, 44, 0.85), rgba(9, 7, 26, 0.9)),
-    repeating-linear-gradient(
-      135deg,
-      rgba(31, 241, 255, 0.18),
-      rgba(31, 241, 255, 0.18) 2px,
-      transparent 2px,
-      transparent 18px
-    );
-  border-radius: 20px;
-  border: 1px solid rgba(139, 109, 255, 0.35);
-  box-shadow: inset 0 0 30px rgba(31, 241, 255, 0.12);
+  gap: clamp(0.55rem, 1.6vw, 0.9rem);
+  padding: clamp(0.65rem, 2.2vw, 1.15rem);
   justify-items: center;
+  position: relative;
+  border-radius: clamp(34px, 8vw, 58px);
+  background:
+    radial-gradient(circle at 50% 0%, rgba(12, 168, 138, 0.24), transparent 68%),
+    linear-gradient(185deg, rgba(5, 37, 38, 0.85), rgba(4, 18, 24, 0.92));
+  box-shadow: inset 0 0 60px rgba(9, 131, 121, 0.22);
+}
+
+.playmat::before {
+  content: "";
+  position: absolute;
+  inset: clamp(0.35rem, 1.2vw, 0.75rem);
+  border-radius: clamp(28px, 6vw, 54px);
+  border: 2px solid rgba(12, 168, 138, 0.26);
+  box-shadow: inset 0 0 30px rgba(12, 168, 138, 0.2);
+  background: linear-gradient(160deg, rgba(5, 32, 32, 0.75), rgba(3, 20, 28, 0.9));
+  z-index: 0;
+}
+
+.playmat::after {
+  content: "";
+  position: absolute;
+  top: clamp(-2.4rem, -6vw, -1.6rem);
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(92%, 520px);
+  height: clamp(90px, 24vw, 140px);
+  border: 2px solid rgba(12, 168, 138, 0.18);
+  border-top: none;
+  border-radius: 0 0 clamp(160px, 36vw, 220px) clamp(160px, 36vw, 220px) /
+    0 0 clamp(90px, 22vw, 150px) clamp(90px, 22vw, 150px);
+  box-shadow: inset 0 0 24px rgba(12, 168, 138, 0.16);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.playmat > * {
+  position: relative;
+  z-index: 1;
 }
 
 .bet-spot {
@@ -510,39 +584,50 @@ body {
   overflow: hidden;
   width: min(100%, 120px);
   aspect-ratio: 1 / 1;
-  border-radius: 24px;
-  border: 2px solid rgba(31, 241, 255, 0.35);
+  border-radius: clamp(20px, 6vw, 28px);
+  border: 1px solid rgba(248, 249, 255, 0.08);
   background:
-    linear-gradient(180deg, rgba(15, 21, 54, 0.92), rgba(8, 9, 30, 0.95)),
-    radial-gradient(circle at 50% 15%, rgba(255, 99, 224, 0.25), transparent 65%),
-    radial-gradient(circle at 50% 80%, rgba(31, 241, 255, 0.18), transparent 70%);
+    radial-gradient(circle at 50% 18%, rgba(54, 245, 199, 0.3), transparent 68%),
+    radial-gradient(circle at 50% 90%, rgba(255, 99, 224, 0.22), transparent 72%),
+    linear-gradient(185deg, rgba(4, 37, 39, 0.92), rgba(4, 16, 24, 0.94));
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: flex-start;
-  padding: clamp(0.5rem, 2vw, 0.8rem) clamp(0.45rem, 1.6vw, 0.75rem)
-    clamp(1.2rem, 3vw, 1.5rem);
+  padding: clamp(0.48rem, 1.7vw, 0.78rem) clamp(0.4rem, 1.6vw, 0.7rem)
+    clamp(1.05rem, 2.8vw, 1.35rem);
   color: var(--text-light);
   gap: 0.35rem;
   transition: transform 0.12s ease, box-shadow 0.2s ease, border-color 0.2s ease;
-  box-shadow: inset 0 0 18px rgba(139, 109, 255, 0.15);
+  box-shadow: inset 0 0 26px rgba(12, 168, 138, 0.16);
+}
+
+.bet-spot::before {
+  content: "";
+  position: absolute;
+  inset: clamp(0.25rem, 1vw, 0.45rem);
+  border-radius: clamp(16px, 5vw, 24px);
+  border: 1px solid rgba(248, 249, 255, 0.08);
+  box-shadow: inset 0 0 18px rgba(31, 241, 255, 0.18);
+  opacity: 0.75;
+  pointer-events: none;
 }
 
 .bet-spot:hover:not(:disabled),
 .bet-spot:focus-visible {
-  transform: translateY(-3px);
-  box-shadow: 0 20px 36px rgba(31, 241, 255, 0.28);
-  border-color: rgba(255, 99, 224, 0.75);
+  transform: translateY(-4px);
+  box-shadow: 0 24px 42px rgba(0, 0, 0, 0.6);
+  border-color: rgba(54, 245, 199, 0.85);
   outline: none;
 }
 
 .bet-spot:focus-visible::after {
   content: "";
   position: absolute;
-  inset: 4px;
-  border-radius: 20px;
-  border: 2px solid rgba(31, 241, 255, 0.9);
-  box-shadow: 0 0 12px rgba(31, 241, 255, 0.5);
+  inset: 6px;
+  border-radius: clamp(14px, 4vw, 20px);
+  border: 2px solid rgba(54, 245, 199, 0.85);
+  box-shadow: 0 0 18px rgba(54, 245, 199, 0.38);
   pointer-events: none;
 }
 
@@ -556,7 +641,7 @@ body {
   font-size: clamp(1.35rem, 3vw, 1.65rem);
   font-weight: 700;
   letter-spacing: 0.08em;
-  text-shadow: 0 0 12px rgba(255, 99, 224, 0.4);
+  text-shadow: 0 0 14px rgba(54, 245, 199, 0.35);
 }
 
 .bet-total {
@@ -574,16 +659,26 @@ body {
 }
 
 .bet-spot.has-bet {
-  border-color: rgba(255, 99, 224, 0.8);
-  box-shadow: 0 0 22px rgba(255, 99, 224, 0.28), inset 0 0 22px rgba(31, 241, 255, 0.18);
+  border-color: rgba(54, 245, 199, 0.9);
+  box-shadow: 0 0 26px rgba(54, 245, 199, 0.35), inset 0 0 26px rgba(31, 241, 255, 0.2);
+}
+
+.table-callout {
+  margin: clamp(0.3rem, 1.2vw, 0.55rem) auto 0;
+  text-align: center;
+  font-size: clamp(0.78rem, 2vw, 0.92rem);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: rgba(208, 244, 241, 0.75);
+  text-shadow: 0 0 10px rgba(54, 245, 199, 0.28);
 }
 
 .chip-stack {
   position: absolute;
-  bottom: clamp(-0.15rem, 1vw, 0.2rem);
+  bottom: clamp(-0.2rem, 0.8vw, 0.1rem);
   left: 50%;
-  width: clamp(46px, 6.4vw, 54px);
-  height: clamp(48px, 8vw, 62px);
+  width: clamp(42px, 6vw, 52px);
+  height: clamp(46px, 7.5vw, 58px);
   transform: translateX(-50%);
   pointer-events: none;
 }
@@ -633,14 +728,11 @@ body {
 
 .status {
   text-align: center;
-  font-size: 1.05rem;
+  font-size: clamp(0.92rem, 2.4vw, 1.05rem);
   min-height: 2rem;
-  padding: 0.75rem 1rem;
-  background: linear-gradient(135deg, rgba(9, 12, 33, 0.85), rgba(19, 7, 32, 0.85));
-  border-radius: 14px;
-  border: 1px solid rgba(139, 109, 255, 0.28);
-  text-shadow: 0 0 8px rgba(0, 0, 0, 0.65);
-  box-shadow: inset 0 0 18px rgba(31, 241, 255, 0.08);
+  padding: 0.6rem 0.8rem 0.4rem;
+  color: rgba(248, 249, 255, 0.9);
+  text-shadow: 0 0 10px rgba(0, 0, 0, 0.55);
 }
 
 .hit {
@@ -793,18 +885,18 @@ button:disabled {
 }
 
 .bets-panel {
-  background: linear-gradient(135deg, rgba(9, 14, 36, 0.92), rgba(19, 7, 32, 0.92));
+  background: linear-gradient(135deg, rgba(5, 30, 34, 0.86), rgba(4, 14, 24, 0.9));
   border-radius: 18px;
-  border: 1px solid rgba(31, 241, 255, 0.28);
+  border: 1px solid rgba(12, 168, 138, 0.22);
   padding: clamp(0.9rem, 2.4vw, 1.2rem) clamp(1rem, 3vw, 1.5rem);
   width: 100%;
   margin: clamp(0.75rem, 2.5vw, 1.3rem) 0 0;
-  box-shadow: 0 18px 36px rgba(3, 3, 15, 0.55);
+  box-shadow: inset 0 0 32px rgba(12, 168, 138, 0.16), 0 18px 36px rgba(2, 8, 12, 0.55);
 }
 
 .bets-panel h3 {
   margin: 0 0 0.65rem 0;
-  color: var(--neon-cyan);
+  color: rgba(148, 255, 233, 0.92);
   text-transform: uppercase;
   letter-spacing: 0.12rem;
 }
@@ -819,7 +911,7 @@ button:disabled {
 .bets-panel th,
 .bets-panel td {
   padding: 0.4rem 0.25rem;
-  border-bottom: 1px solid rgba(31, 241, 255, 0.18);
+  border-bottom: 1px solid rgba(54, 245, 199, 0.16);
 }
 
 .bets-panel tbody tr:last-child td {
@@ -832,32 +924,56 @@ button:disabled {
 }
 
 .bankroll-history {
-  background: linear-gradient(135deg, rgba(8, 13, 34, 0.92), rgba(22, 8, 36, 0.92));
+  background: linear-gradient(135deg, rgba(4, 24, 28, 0.88), rgba(4, 12, 20, 0.92));
   border-radius: 20px;
-  border: 1px solid rgba(139, 109, 255, 0.32);
+  border: 1px solid rgba(12, 168, 138, 0.24);
   padding: clamp(0.9rem, 2.6vw, 1.5rem);
   width: 100%;
   margin: clamp(0.75rem, 2.5vw, 1.3rem) 0 clamp(3.1rem, 8vw, 3.9rem);
   backdrop-filter: blur(6px);
-  box-shadow: 0 20px 42px rgba(3, 3, 15, 0.6);
+  box-shadow: inset 0 0 36px rgba(12, 168, 138, 0.16), 0 20px 42px rgba(2, 8, 12, 0.58);
   display: grid;
   gap: clamp(0.7rem, 2vw, 1.1rem);
 }
 
 .bankroll-history h3 {
   margin: 0;
-  color: var(--neon-cyan);
+  color: rgba(148, 255, 233, 0.92);
   text-transform: uppercase;
   letter-spacing: 0.14rem;
 }
 
+.bankroll-chart-wrapper {
+  width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding-bottom: clamp(0.35rem, 1.3vw, 0.6rem);
+}
+
+.bankroll-chart-wrapper::-webkit-scrollbar {
+  height: 6px;
+}
+
+.bankroll-chart-wrapper::-webkit-scrollbar-track {
+  background: rgba(10, 14, 38, 0.7);
+  border-radius: 999px;
+}
+
+.bankroll-chart-wrapper::-webkit-scrollbar-thumb {
+  background: linear-gradient(90deg, rgba(54, 245, 199, 0.8), rgba(31, 241, 255, 0.7));
+  border-radius: 999px;
+}
+
 .bankroll-chart {
   width: 100%;
+  min-width: 100%;
   height: clamp(200px, 32vw, 280px);
   border-radius: 16px;
-  background: rgba(6, 8, 26, 0.8);
-  border: 1px solid rgba(31, 241, 255, 0.32);
-  box-shadow: inset 0 0 35px rgba(139, 109, 255, 0.18);
+  background: rgba(3, 18, 24, 0.82);
+  border: 1px solid rgba(12, 168, 138, 0.26);
+  box-shadow: inset 0 0 35px rgba(12, 168, 138, 0.22);
+  display: block;
+  max-width: none;
 }
 
 .card {
