@@ -2,11 +2,13 @@ const STEP_PAYS = [3, 4, 15, 50];
 const NUMBER_RANKS = ["A", "2", "3", "4", "5", "6", "7", "8", "9", "10"];
 const DENOMINATIONS = [5, 10, 25, 100];
 const INITIAL_BANKROLL = 1000;
+const DEAL_DELAY = 600;
+const DEAL_DELAY_STEP = 60;
 const SUITS = [
-  { symbol: "♠", color: "black" },
-  { symbol: "♥", color: "red" },
-  { symbol: "♦", color: "red" },
-  { symbol: "♣", color: "black" }
+  { symbol: "♠", color: "black", name: "Spades" },
+  { symbol: "♥", color: "red", name: "Hearts" },
+  { symbol: "♦", color: "red", name: "Diamonds" },
+  { symbol: "♣", color: "black", name: "Clubs" }
 ];
 const RANK_LABELS = {
   A: "Ace"
@@ -28,16 +30,64 @@ const statusEl = document.getElementById("status");
 const chipSelectorEl = document.getElementById("chip-selector");
 const chipButtons = Array.from(document.querySelectorAll(".chip-choice"));
 const betSpotButtons = Array.from(document.querySelectorAll(".bet-spot"));
-const betSpots = new Map(
-  betSpotButtons.map((button) => [
-    button.dataset.rank,
-    {
-      button,
-      totalEl: button.querySelector(".bet-total"),
-      stackEl: button.querySelector(".chip-stack")
-    }
-  ])
-);
+const betDefinitions = new Map();
+const betSpots = new Map();
+betSpotButtons.forEach((button) => {
+  const key = button.dataset.betKey || button.dataset.rank;
+  if (!key) return;
+  const type = button.dataset.betType || "number";
+  const label = button.dataset.betLabel || button.querySelector(".bet-label")?.textContent?.trim() || key;
+  const lockDuringHand = button.dataset.lock === "hand";
+  const payout = Number(button.dataset.payout) || 0;
+  const metadata = {};
+
+  if (type === "number") {
+    metadata.rank = button.dataset.rank;
+  } else if (type === "bust-suit") {
+    metadata.suit = button.dataset.suit;
+  } else if (type === "bust-rank") {
+    metadata.face = button.dataset.face;
+  } else if (type === "bust-joker") {
+    metadata.face = "Joker";
+  } else if (type === "count") {
+    const min = button.dataset.countMin ? Number(button.dataset.countMin) : 0;
+    const maxValue = button.dataset.countMax === "Infinity" ? Infinity : Number(button.dataset.countMax);
+    metadata.countMin = min;
+    metadata.countMax = Number.isFinite(maxValue) ? maxValue : Infinity;
+  }
+
+  let announce;
+  if (type === "number") {
+    const rankLabel = metadata.rank ? describeRank(metadata.rank) : label;
+    announce = `Bet on ${rankLabel}`;
+  } else if (type === "count") {
+    announce = `${label} card count`;
+  } else if (type === "bust-suit") {
+    announce = `Bust suit ${metadata.suit}`;
+  } else if (type === "bust-rank") {
+    announce = `Bust ${metadata.face}`;
+  } else if (type === "bust-joker") {
+    announce = "Bust Joker";
+  } else {
+    announce = label;
+  }
+
+  betDefinitions.set(key, {
+    key,
+    type,
+    label,
+    lockDuringHand,
+    payout,
+    metadata,
+    announce
+  });
+
+  betSpots.set(key, {
+    button,
+    totalEl: button.querySelector(".bet-total"),
+    stackEl: button.querySelector(".chip-stack")
+  });
+});
 const handsPlayedEl = document.getElementById("hands-played");
 const totalWageredEl = document.getElementById("total-wagered");
 const totalPaidEl = document.getElementById("total-paid");
@@ -56,6 +106,9 @@ const bankrollChartCtx =
   bankrollChartCanvas instanceof HTMLCanvasElement
     ? bankrollChartCanvas.getContext("2d")
     : null;
+const advancedToggleButton = document.getElementById("advanced-toggle");
+const advancedBetsSection = document.getElementById("advanced-bets");
+const pausePlayButton = document.getElementById("pause-play");
 
 let bankroll = INITIAL_BANKROLL;
 let bets = [];
@@ -72,6 +125,10 @@ let bankrollAnimating = false;
 let bankrollAnimationFrame = null;
 let bankrollDeltaTimeout = null;
 let bankrollHistory = [];
+let advancedMode = false;
+let handPaused = false;
+let pauseResolvers = [];
+let currentHandContext = null;
 
 const MAX_HISTORY_POINTS = 500;
 
@@ -84,6 +141,7 @@ function createDeck() {
         label: String(rank),
         suit: suit.symbol,
         color: suit.color,
+        suitName: suit.name,
         stopper: false
       });
     });
@@ -96,6 +154,7 @@ function createDeck() {
         label: face,
         suit: suit.symbol,
         color: suit.color === "red" ? "red" : "black",
+        suitName: suit.name,
         stopper: true
       });
     });
@@ -106,6 +165,7 @@ function createDeck() {
     label: "Joker",
     suit: "★",
     color: "black",
+    suitName: null,
     stopper: true
   });
 
@@ -126,23 +186,32 @@ function updateBankroll() {
   bankrollEl.textContent = formatCurrency(bankroll);
 }
 
+function getBetDefinition(key) {
+  return betDefinitions.get(key);
+}
+
 function updateBetSpotTotals() {
-  const totals = new Map(bets.map((bet) => [bet.rank, bet.units]));
-  betSpots.forEach(({ totalEl, button }, rank) => {
-    const total = totals.get(rank) ?? 0;
+  const totals = new Map(bets.map((bet) => [bet.key, bet.units]));
+  betSpots.forEach(({ totalEl, button }, key) => {
+    const total = totals.get(key) ?? 0;
     totalEl.textContent = formatCurrency(total);
     button.classList.toggle("has-bet", total > 0);
-    const spokenRank = describeRank(rank);
+    const definition = getBetDefinition(key);
+    const spokenLabel =
+      definition?.type === "number"
+        ? describeRank(definition.metadata?.rank ?? definition?.label ?? key)
+        : definition?.label || key;
+    const prefix = definition?.type === "number" ? `Bet on ${spokenLabel}` : `${spokenLabel} bet`;
     const ariaLabel =
       total > 0
-        ? `Bet on ${spokenRank}. Total wager ${formatCurrency(total)} units.`
-        : `Bet on ${spokenRank}. No chips placed.`;
+        ? `${prefix}. Total wager ${formatCurrency(total)} units.`
+        : `${prefix}. No chips placed.`;
     button.setAttribute("aria-label", ariaLabel);
   });
 }
 
-function addChipToSpot(rank, value) {
-  const spot = betSpots.get(rank);
+function addChipToSpot(key, value) {
+  const spot = betSpots.get(key);
   if (!spot) return;
   const { stackEl } = spot;
   const chip = document.createElement("div");
@@ -167,18 +236,41 @@ function clearChipStacks() {
   });
 }
 
+function refreshBetControls() {
+  const chipEnabled = bettingOpen || advancedMode;
+  chipSelectorEl.classList.toggle("selector-disabled", !chipEnabled);
+  chipButtons.forEach((button) => {
+    button.disabled = !chipEnabled;
+    button.setAttribute("aria-disabled", String(!chipEnabled));
+  });
+
+  betSpotButtons.forEach((button) => {
+    const key = button.dataset.betKey || button.dataset.rank;
+    const definition = key ? getBetDefinition(key) : null;
+    const requiresAdvanced = definition ? definition.type !== "number" : false;
+    const lockedDuringHand = definition?.lockDuringHand ?? false;
+    let disabled = false;
+
+    if (requiresAdvanced && !advancedMode) {
+      disabled = true;
+    } else if (lockedDuringHand) {
+      disabled = !bettingOpen;
+    } else if (requiresAdvanced) {
+      disabled = false;
+    } else {
+      disabled = !bettingOpen;
+    }
+
+    button.disabled = disabled;
+    button.setAttribute("aria-disabled", String(disabled));
+  });
+
+  clearBetsButton.disabled = !bettingOpen || bets.length === 0;
+}
+
 function setBettingEnabled(enabled) {
   bettingOpen = enabled;
-  chipSelectorEl.classList.toggle("selector-disabled", !enabled);
-  chipButtons.forEach((button) => {
-    button.disabled = !enabled;
-    button.setAttribute("aria-disabled", String(!enabled));
-  });
-  betSpotButtons.forEach((button) => {
-    button.disabled = !enabled;
-    button.setAttribute("aria-disabled", String(!enabled));
-  });
-  clearBetsButton.disabled = !enabled || bets.length === 0;
+  refreshBetControls();
 }
 
 function updateChipSelectionUI() {
@@ -193,7 +285,7 @@ function setSelectedChip(value, announce = true) {
   selectedChip = value;
   updateChipSelectionUI();
   if (announce && !dealing) {
-    statusEl.textContent = `Selected ${formatCurrency(value)}-unit chip. Click Ace or a number to bet.`;
+    statusEl.textContent = `Selected ${formatCurrency(value)}-unit chip. Tap a bet spot to place chips.`;
   }
 }
 
@@ -210,15 +302,16 @@ function renderBets() {
     dealButton.disabled = true;
     clearBetsButton.disabled = true;
     updateBetSpotTotals();
+    refreshBetControls();
     return;
   }
 
   bets.forEach((bet) => {
     const row = document.createElement("tr");
     row.innerHTML = `
-      <td>${bet.rank}</td>
+      <td>${bet.label}</td>
       <td>${bet.units}</td>
-      <td>${bet.hits}</td>
+      <td>${bet.type === "number" ? bet.hits : "—"}</td>
       <td>${formatCurrency(bet.paid)}</td>
     `;
     betsBody.appendChild(row);
@@ -226,6 +319,7 @@ function renderBets() {
   dealButton.disabled = dealing || !bettingOpen;
   clearBetsButton.disabled = !bettingOpen;
   updateBetSpotTotals();
+  refreshBetControls();
 }
 
 function resetBets() {
@@ -234,19 +328,32 @@ function resetBets() {
   clearChipStacks();
 }
 
-function addBet(rank, units) {
-  let bet = bets.find((b) => b.rank === rank);
+function addBet(key, units) {
+  const definition = getBetDefinition(key);
+  if (!definition) return null;
+
+  let bet = bets.find((b) => b.key === key);
   if (bet) {
     bet.units += units;
     bet.chips.push(units);
   } else {
-    bet = { rank, units, hits: 0, paid: 0, chips: [units] };
+    bet = {
+      key,
+      type: definition.type,
+      label: definition.label,
+      units,
+      hits: definition.type === "number" ? 0 : 0,
+      paid: 0,
+      chips: [units],
+      metadata: { ...definition.metadata },
+      rank: definition.metadata.rank ?? null
+    };
     bets.push(bet);
   }
   bankroll -= units;
   updateBankroll();
   renderBets();
-  addChipToSpot(rank, units);
+  addChipToSpot(key, units);
   return bet;
 }
 
@@ -257,7 +364,9 @@ function restoreUnits(units) {
 
 function resetBetCounters() {
   bets.forEach((bet) => {
-    bet.hits = 0;
+    if (bet.type === "number") {
+      bet.hits = 0;
+    }
     bet.paid = 0;
   });
   renderBets();
@@ -287,6 +396,27 @@ function formatCurrency(value) {
 
 function easeOutCubic(x) {
   return 1 - Math.pow(1 - x, 3);
+}
+
+function waitWhilePaused() {
+  if (!handPaused) {
+    return Promise.resolve();
+  }
+  return new Promise((resolve) => {
+    pauseResolvers.push(resolve);
+  });
+}
+
+async function waitForDealDelay() {
+  let remaining = DEAL_DELAY;
+  while (remaining > 0) {
+    const slice = Math.min(DEAL_DELAY_STEP, remaining);
+    await new Promise((resolve) => setTimeout(resolve, slice));
+    remaining -= slice;
+    if (handPaused) {
+      await waitWhilePaused();
+    }
+  }
 }
 
 function drawBankrollChart() {
@@ -482,6 +612,59 @@ function resetBankrollHistory() {
   drawBankrollChart();
 }
 
+function updatePauseButton() {
+  if (!pausePlayButton) return;
+  const shouldShow = advancedMode && dealing;
+  pausePlayButton.hidden = !shouldShow;
+  if (!shouldShow) {
+    pausePlayButton.setAttribute("aria-pressed", "false");
+    pausePlayButton.textContent = "Pause";
+    pausePlayButton.disabled = true;
+    return;
+  }
+  pausePlayButton.disabled = false;
+  pausePlayButton.textContent = handPaused ? "Resume" : "Pause";
+  pausePlayButton.setAttribute("aria-pressed", String(handPaused));
+}
+
+function setHandPaused(paused) {
+  if (handPaused === paused) return;
+  handPaused = paused;
+  if (!handPaused) {
+    while (pauseResolvers.length) {
+      const resolve = pauseResolvers.shift();
+      if (resolve) {
+        resolve();
+      }
+    }
+  }
+  updatePauseButton();
+  refreshBetControls();
+  if (handPaused) {
+    statusEl.textContent = "Dealing paused. Place bust bets or resume play.";
+  } else if (dealing) {
+    statusEl.textContent = "Dealing...";
+  }
+}
+
+function setAdvancedMode(enabled) {
+  if (advancedMode === enabled) return;
+  advancedMode = enabled;
+  if (advancedBetsSection) {
+    advancedBetsSection.hidden = !enabled;
+  }
+  if (advancedToggleButton) {
+    advancedToggleButton.setAttribute("aria-pressed", String(enabled));
+    advancedToggleButton.classList.toggle("is-active", enabled);
+  }
+  document.body.classList.toggle("advanced-enabled", enabled);
+  if (!enabled) {
+    setHandPaused(false);
+  }
+  refreshBetControls();
+  updatePauseButton();
+}
+
 function stopBankrollAnimation(restoreDisplay = true) {
   if (bankrollAnimationFrame !== null) {
     cancelAnimationFrame(bankrollAnimationFrame);
@@ -620,9 +803,30 @@ function applyBetLayout(layout) {
   bets = [];
   clearChipStacks();
   renderBets();
-  layout.forEach(({ rank, chips = [] }) => {
-    chips.forEach((value) => addBet(rank, value));
+  const needsAdvanced = layout.some(({ key }) => {
+    const definition = getBetDefinition(key);
+    return definition && definition.type !== "number";
   });
+  if (needsAdvanced) {
+    setAdvancedMode(true);
+  }
+  layout.forEach(({ key, chips = [] }) => {
+    chips.forEach((value) => addBet(key, value));
+  });
+}
+
+function summarizeBetResult(bet) {
+  if (bet.type === "number") {
+    const spokenRank = describeRank(bet.metadata?.rank ?? bet.rank ?? "");
+    return bet.hits > 0
+      ? `${bet.units}u on ${spokenRank}: <span class="hit">${bet.hits} hits / ${formatCurrency(
+          bet.paid
+        )}</span>`
+      : `${bet.units}u on ${spokenRank}: 0 hits`;
+  }
+
+  const payoutText = bet.paid > 0 ? `<span class="hit">won ${formatCurrency(bet.paid)}</span>` : "no win";
+  return `${bet.label}: ${payoutText}`;
 }
 
 function addHistoryEntry(result) {
@@ -644,6 +848,8 @@ function resetTable(message = "Select a chip and place your bet on the regions a
   drawsContainer.innerHTML = "";
   statusEl.textContent = message;
   dealing = false;
+  currentHandContext = null;
+  setHandPaused(false);
   dealButton.hidden = false;
   tableReadyButton.hidden = true;
   tableReadyButton.disabled = true;
@@ -652,6 +858,7 @@ function resetTable(message = "Select a chip and place your bet on the regions a
   rebetButton.disabled = !hasLayout;
   setBettingEnabled(true);
   dealButton.disabled = bets.length === 0;
+  updatePauseButton();
 }
 
 function renderDraw(card) {
@@ -663,7 +870,60 @@ function renderDraw(card) {
   cardEl.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "end" });
 }
 
-function endHand(stopperCard) {
+function settleAdvancedBets(stopperCard, context = {}) {
+  const nonStopperCount = context.nonStopperCount ?? 0;
+  bets.forEach((bet) => {
+    if (bet.type === "number") return;
+    const definition = getBetDefinition(bet.key);
+    if (!definition) return;
+
+    let payout = 0;
+    const { metadata } = definition;
+
+    switch (definition.type) {
+      case "bust-suit":
+        if (stopperCard.label !== "Joker" && stopperCard.suitName === metadata.suit) {
+          payout = definition.payout * bet.units;
+        }
+        break;
+      case "bust-rank":
+        if (stopperCard.label === metadata.face) {
+          payout = definition.payout * bet.units;
+        }
+        break;
+      case "bust-joker":
+        if (stopperCard.label === "Joker") {
+          payout = definition.payout * bet.units;
+        }
+        break;
+      case "count":
+        {
+          const min = metadata.countMin ?? 0;
+          const max = metadata.countMax ?? min;
+          if (max === Infinity) {
+            if (nonStopperCount >= min) {
+              payout = definition.payout * bet.units;
+            }
+          } else if (nonStopperCount === max) {
+            payout = definition.payout * bet.units;
+          }
+        }
+        break;
+      default:
+        break;
+    }
+
+    if (payout > 0) {
+      bet.paid += payout;
+      bankroll += payout;
+      updateBankroll();
+    }
+  });
+}
+
+function endHand(stopperCard, context = {}) {
+  setHandPaused(false);
+  settleAdvancedBets(stopperCard, context);
   const totalWagerThisHand = bets.reduce((sum, bet) => sum + bet.units, 0);
   const totalPaidThisHand = bets.reduce((sum, bet) => sum + bet.paid, 0);
   const netThisHand = totalPaidThisHand - totalWagerThisHand;
@@ -679,19 +939,12 @@ function endHand(stopperCard) {
 
   addHistoryEntry({
     stopper: stopperCard,
-    betSummaries: bets.map((bet) => {
-      const spokenRank = describeRank(bet.rank);
-      return bet.hits > 0
-        ? `${bet.units}u on ${spokenRank}: <span class="hit">${bet.hits} hits / ${formatCurrency(
-            bet.paid
-          )}</span>`
-        : `${bet.units}u on ${spokenRank}: 0 hits`;
-    })
+    betSummaries: bets.map((bet) => summarizeBetResult(bet))
   });
 
   lastBetLayout = bets
     .filter((bet) => bet.units > 0)
-    .map((bet) => ({ rank: bet.rank, chips: [...bet.chips] }));
+    .map((bet) => ({ key: bet.key, chips: [...bet.chips] }));
   const hasLayout = lastBetLayout.length > 0;
   tableReadyButton.hidden = false;
   tableReadyButton.disabled = false;
@@ -703,21 +956,30 @@ function endHand(stopperCard) {
   dealing = false;
   animateBankrollOutcome(netThisHand);
   recordBankrollHistoryPoint();
+  updatePauseButton();
 }
 
-function processCard(card) {
+function processCard(card, context) {
   renderDraw(card);
 
   if (card.stopper) {
-    endHand(card);
+    endHand(card, context);
     return true;
+  }
+
+  if (context) {
+    context.nonStopperCount = (context.nonStopperCount ?? 0) + 1;
   }
 
   const rank = card.rank;
   let totalHitPayout = 0;
   let hitsRecorded = 0;
   bets.forEach((bet) => {
-    if (bet.rank === rank && bet.hits < STEP_PAYS.length) {
+    if (
+      bet.type === "number" &&
+      bet.metadata?.rank === rank &&
+      bet.hits < STEP_PAYS.length
+    ) {
       const pay = STEP_PAYS[bet.hits] * bet.units;
       bet.paid += pay;
       bet.hits += 1;
@@ -743,6 +1005,9 @@ function processCard(card) {
 async function dealHand() {
   if (bets.length === 0 || dealing) return;
   dealing = true;
+  pauseResolvers = [];
+  currentHandContext = { nonStopperCount: 0 };
+  setHandPaused(false);
   setBettingEnabled(false);
   dealButton.disabled = true;
   tableReadyButton.hidden = true;
@@ -751,21 +1016,39 @@ async function dealHand() {
   resetBetCounters();
   drawsContainer.innerHTML = "";
   statusEl.textContent = "Dealing...";
+  updatePauseButton();
 
   const deck = createDeck();
   shuffle(deck);
 
   for (const card of deck) {
-    const shouldStop = processCard(card);
+    await waitWhilePaused();
+    const shouldStop = processCard(card, currentHandContext);
     if (shouldStop) {
       break;
     }
-    await new Promise((resolve) => setTimeout(resolve, 600));
+    await waitForDealDelay();
   }
+
+  currentHandContext = null;
+  setHandPaused(false);
+  updatePauseButton();
 }
 
-function placeBet(rank) {
-  if (dealing) return;
+function placeBet(key) {
+  const definition = getBetDefinition(key);
+  if (!definition) return;
+
+  if (!bettingOpen && definition.lockDuringHand) {
+    statusEl.textContent = `${definition.label} bets are locked while a hand is in progress.`;
+    return;
+  }
+
+  if (definition.type !== "number" && !advancedMode) {
+    statusEl.textContent = "Enable Advanced Mode to place this wager.";
+    return;
+  }
+
   if (selectedChip > bankroll) {
     statusEl.textContent = `Insufficient bankroll for a ${formatCurrency(
       selectedChip
@@ -773,12 +1056,16 @@ function placeBet(rank) {
     return;
   }
 
-  const bet = addBet(rank, selectedChip);
-  const totalForRank = formatCurrency(bet.units);
-  const spokenRank = describeRank(rank);
+  const bet = addBet(key, selectedChip);
+  if (!bet) return;
+  const totalForBet = formatCurrency(bet.units);
+  const spokenLabel =
+    definition.type === "number"
+      ? describeRank(definition.metadata?.rank ?? definition.label)
+      : definition.label;
   statusEl.textContent = `Placed ${formatCurrency(selectedChip)} unit${
     selectedChip !== 1 ? "s" : ""
-  } on ${spokenRank}. Total on ${spokenRank}: ${totalForRank} unit${
+  } on ${spokenLabel}. Total on ${definition.label}: ${totalForBet} unit${
     bet.units !== 1 ? "s" : ""
   }.`;
 }
@@ -795,11 +1082,29 @@ chipButtons.forEach((button) => {
 betSpotButtons.forEach((button) => {
   button.addEventListener("click", () => {
     if (button.disabled) return;
-    const rank = button.dataset.rank;
-    if (!rank) return;
-    placeBet(rank);
+    const key = button.dataset.betKey || button.dataset.rank;
+    if (!key) return;
+    placeBet(key);
   });
 });
+
+if (advancedToggleButton) {
+  advancedToggleButton.addEventListener("click", () => {
+    setAdvancedMode(!advancedMode);
+    if (!dealing) {
+      statusEl.textContent = advancedMode
+        ? "Advanced Mode enabled. Bust and card count wagers are available beneath the number bets."
+        : "Advanced Mode disabled. Only Ace and number bets remain on the felt.";
+    }
+  });
+}
+
+if (pausePlayButton) {
+  pausePlayButton.addEventListener("click", () => {
+    if (!dealing) return;
+    setHandPaused(!handPaused);
+  });
+}
 
 clearBetsButton.addEventListener("click", () => {
   if (dealing || !bettingOpen || bets.length === 0) return;

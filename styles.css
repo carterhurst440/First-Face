@@ -516,6 +516,15 @@ body {
   margin-bottom: clamp(0.4rem, 1.3vw, 0.6rem);
 }
 
+.bets-tools {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: clamp(0.4rem, 1.8vw, 0.8rem);
+  flex-wrap: wrap;
+  margin-left: auto;
+}
+
 .bets-heading {
   margin: 0;
   text-transform: uppercase;
@@ -529,7 +538,26 @@ body {
   font-size: 0.74rem;
   letter-spacing: 0.08rem;
   white-space: nowrap;
-  margin-left: auto;
+}
+
+.advanced-toggle,
+.pause-toggle {
+  padding: 0.42rem 0.85rem;
+  font-size: 0.7rem;
+  letter-spacing: 0.08rem;
+  text-transform: uppercase;
+  border-radius: 999px;
+}
+
+.advanced-toggle.is-active {
+  background: linear-gradient(90deg, rgba(31, 241, 255, 0.28), rgba(139, 109, 255, 0.35));
+  border-color: rgba(139, 109, 255, 0.65);
+  color: var(--text-light);
+  box-shadow: 0 0 20px rgba(139, 109, 255, 0.45);
+}
+
+.pause-toggle {
+  min-width: 92px;
 }
 
 .playmat {
@@ -539,6 +567,91 @@ body {
   justify-items: center;
   position: relative;
   padding: 0;
+}
+
+.advanced-bets {
+  display: grid;
+  gap: clamp(0.6rem, 2vw, 1.2rem);
+  margin-top: clamp(0.55rem, 1.8vw, 0.9rem);
+}
+
+.advanced-group {
+  background: rgba(6, 18, 32, 0.62);
+  border: 1px solid rgba(31, 241, 255, 0.22);
+  border-radius: clamp(12px, 3vw, 18px);
+  padding: clamp(0.65rem, 2.2vw, 1.1rem);
+  box-shadow: inset 0 0 24px rgba(0, 0, 0, 0.32), 0 0 34px rgba(31, 241, 255, 0.12);
+}
+
+.advanced-group-header {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin-bottom: clamp(0.45rem, 1.6vw, 0.75rem);
+}
+
+.advanced-title {
+  font-size: clamp(0.85rem, 2.2vw, 1rem);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: rgba(248, 249, 255, 0.82);
+  margin: 0;
+}
+
+.advanced-subtitle {
+  margin: 0;
+  font-size: clamp(0.62rem, 1.8vw, 0.72rem);
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: rgba(173, 225, 247, 0.58);
+}
+
+.advanced-subgroup {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(0.4rem, 1.6vw, 0.7rem);
+  margin-top: clamp(0.2rem, 1vw, 0.45rem);
+}
+
+.advanced-subheading {
+  margin: 0;
+  font-size: clamp(0.68rem, 1.8vw, 0.8rem);
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: rgba(31, 241, 255, 0.65);
+}
+
+.advanced-grid {
+  display: grid;
+  gap: clamp(0.5rem, 1.6vw, 0.85rem);
+  grid-template-columns: repeat(auto-fit, minmax(128px, 1fr));
+}
+
+.card-count-grid {
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+}
+
+.bust-bet,
+.count-bet {
+  aspect-ratio: unset;
+  min-height: clamp(100px, 26vw, 132px);
+  width: 100%;
+  justify-content: space-between;
+  gap: 0.3rem;
+  padding: clamp(0.5rem, 1.6vw, 0.85rem);
+}
+
+.bust-bet .bet-label,
+.count-bet .bet-label {
+  font-size: clamp(1rem, 2.6vw, 1.3rem);
+  letter-spacing: 0.1em;
+}
+
+.bet-odds {
+  font-size: clamp(0.62rem, 2vw, 0.78rem);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: rgba(31, 241, 255, 0.8);
 }
 
 .bet-spot {
