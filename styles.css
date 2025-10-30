@@ -425,32 +425,8 @@ body {
   flex-direction: column;
   align-items: center;
   gap: clamp(0.6rem, 2vw, 1rem);
-  padding: clamp(0.5rem, 1.6vw, 0.9rem) clamp(0.8rem, 3vw, 1.8rem)
-    clamp(0.9rem, 2.2vw, 1.2rem);
-  position: relative;
-}
-
-.dealer-zone > * {
-  position: relative;
-  z-index: 1;
-}
-
-.dealer-zone::after {
-  content: "";
-  position: absolute;
-  bottom: clamp(-1.6rem, -4vw, -1rem);
-  left: 50%;
-  transform: translateX(-50%);
-  width: min(96%, 540px);
-  height: clamp(110px, 24vw, 160px);
-  border: 2px solid rgba(54, 245, 199, 0.22);
-  border-bottom: none;
-  border-radius: clamp(120px, 30vw, 220px) clamp(120px, 30vw, 220px) 0 0 /
-    clamp(80px, 22vw, 160px) clamp(80px, 22vw, 160px) 0 0;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45), inset 0 0 30px rgba(54, 245, 199, 0.18);
-  background: radial-gradient(circle at 50% 120%, rgba(4, 26, 34, 0.72), transparent 70%);
-  pointer-events: none;
-  z-index: 0;
+  padding: clamp(0.3rem, 1.2vw, 0.7rem) clamp(0.5rem, 2vw, 1.2rem)
+    clamp(0.6rem, 1.6vw, 1rem);
 }
 
 .draws-title {
@@ -473,19 +449,18 @@ body {
 .draws {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.55rem;
-  padding: 0.35rem 0.35rem 0.5rem;
-  min-height: calc(var(--card-height) + 0.5rem);
-  max-height: calc(var(--card-height) * 2 + 1.1rem);
+  gap: clamp(0.35rem, 1vw, 0.55rem);
+  padding: 0.25rem 0 0.35rem;
+  min-height: calc(var(--card-height) + 0.4rem);
+  max-height: calc(var(--card-height) * 2 + 0.9rem);
   overflow-y: auto;
   overflow-x: hidden;
   align-content: flex-start;
-  border-radius: clamp(24px, 7vw, 38px);
-  background:
-    radial-gradient(circle at 50% -20%, rgba(54, 245, 199, 0.2), transparent 65%),
-    linear-gradient(160deg, rgba(4, 32, 34, 0.88), rgba(2, 18, 25, 0.85));
-  border: 1px solid rgba(12, 168, 138, 0.22);
-  box-shadow: inset 0 0 30px rgba(12, 168, 138, 0.2);
+  justify-content: center;
+  background: none;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
   scrollbar-width: thin;
   scrollbar-color: rgba(31, 241, 255, 0.6) rgba(8, 9, 30, 0.55);
 }
@@ -990,10 +965,19 @@ button:disabled {
   gap: 0.15rem;
   font-weight: 700;
   font-size: clamp(1.1rem, 3vw, 1.4rem);
-  box-shadow: 0 12px 20px rgba(0, 0, 0, 0.4);
-  transform: translateY(20px);
+  box-shadow: 0 12px 20px rgba(0, 0, 0, 0.35);
   opacity: 0;
-  animation: slide-up 0.4s ease forwards;
+  transform: translate3d(-18px, -18px, 0) scale(0.92);
+  transition: transform 0.5s cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 0.5s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.5s ease;
+  will-change: transform, opacity;
+}
+
+.card.dealt-in {
+  opacity: 1;
+  transform: translate3d(0, 0, 0) scale(1);
+  box-shadow: 0 18px 28px rgba(0, 0, 0, 0.38);
 }
 
 .card-rank {
@@ -1024,17 +1008,6 @@ button:disabled {
 .card.stopper {
   background: linear-gradient(160deg, #ffe8e8, #ffdada);
   color: #c0392b;
-}
-
-@keyframes slide-up {
-  from {
-    transform: translateY(30px);
-    opacity: 0;
-  }
-  to {
-    transform: translateY(0);
-    opacity: 1;
-  }
 }
 
 @keyframes chip-drop {

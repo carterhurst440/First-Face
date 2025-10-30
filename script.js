@@ -648,6 +648,9 @@ function resetTable(message = "Select a chip and place your bet on the regions a
 function renderDraw(card) {
   const cardEl = makeCardElement(card);
   drawsContainer.appendChild(cardEl);
+  requestAnimationFrame(() => {
+    cardEl.classList.add("dealt-in");
+  });
   cardEl.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "end" });
 }
 
