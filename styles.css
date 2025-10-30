@@ -396,22 +396,22 @@ body {
 
 .felt-paytable {
   position: absolute;
-  top: clamp(0.85rem, 2.6vw, 1.6rem);
-  right: clamp(0.9rem, 3vw, 2.4rem);
-  width: clamp(150px, 22vw, 190px);
+  top: clamp(0.75rem, 2.2vw, 1.4rem);
+  left: clamp(0.9rem, 3vw, 2.4rem);
+  width: clamp(140px, 20vw, 178px);
   color: rgba(214, 245, 238, 0.82);
   text-transform: uppercase;
-  letter-spacing: 0.12rem;
-  font-size: 0.68rem;
-  line-height: 1.4;
+  letter-spacing: 0.1rem;
+  font-size: 0.66rem;
+  line-height: 1.35;
   pointer-events: none;
-  text-align: right;
+  text-align: left;
 }
 
 .felt-paytable-title {
-  margin: 0 0 0.35rem 0;
-  font-size: 0.72rem;
-  letter-spacing: 0.18rem;
+  margin: 0 0 0.3rem 0;
+  font-size: 0.7rem;
+  letter-spacing: 0.16rem;
   color: rgba(148, 255, 233, 0.95);
 }
 
@@ -428,8 +428,8 @@ body {
   justify-content: space-between;
   align-items: baseline;
   text-transform: none;
-  font-size: 0.72rem;
-  letter-spacing: 0.04rem;
+  font-size: 0.7rem;
+  letter-spacing: 0.03rem;
   color: rgba(214, 245, 238, 0.8);
   font-weight: 600;
 }
