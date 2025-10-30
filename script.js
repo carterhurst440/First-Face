@@ -106,7 +106,10 @@ const bankrollChartCtx =
   bankrollChartCanvas instanceof HTMLCanvasElement
     ? bankrollChartCanvas.getContext("2d")
     : null;
-const advancedToggleButton = document.getElementById("advanced-toggle");
+const advancedToggleInput = document.getElementById("advanced-toggle");
+const advancedToggleWrapper = advancedToggleInput
+  ? advancedToggleInput.closest(".advanced-toggle")
+  : null;
 const advancedBetsSection = document.getElementById("advanced-bets");
 const pausePlayButton = document.getElementById("pause-play");
 
@@ -129,6 +132,7 @@ let advancedMode = false;
 let handPaused = false;
 let pauseResolvers = [];
 let currentHandContext = null;
+let advancedCollapseTimeout = null;
 
 const MAX_HISTORY_POINTS = 500;
 
@@ -650,13 +654,47 @@ function setHandPaused(paused) {
 function setAdvancedMode(enabled) {
   if (advancedMode === enabled) return;
   advancedMode = enabled;
+
+  if (advancedCollapseTimeout !== null) {
+    window.clearTimeout(advancedCollapseTimeout);
+    advancedCollapseTimeout = null;
+  }
+
   if (advancedBetsSection) {
-    advancedBetsSection.hidden = !enabled;
+    if (enabled) {
+      const openSection = () => {
+        if (advancedBetsSection) {
+          advancedBetsSection.classList.add("is-open");
+        }
+      };
+      advancedBetsSection.hidden = false;
+      advancedBetsSection.setAttribute("aria-hidden", "false");
+      if (typeof requestAnimationFrame === "function") {
+        requestAnimationFrame(openSection);
+      } else {
+        openSection();
+      }
+    } else {
+      advancedBetsSection.classList.remove("is-open");
+      advancedBetsSection.setAttribute("aria-hidden", "true");
+      advancedCollapseTimeout = window.setTimeout(() => {
+        if (!advancedMode && advancedBetsSection) {
+          advancedBetsSection.hidden = true;
+        }
+        advancedCollapseTimeout = null;
+      }, 320);
+    }
   }
-  if (advancedToggleButton) {
-    advancedToggleButton.setAttribute("aria-pressed", String(enabled));
-    advancedToggleButton.classList.toggle("is-active", enabled);
+
+  if (advancedToggleInput) {
+    advancedToggleInput.checked = enabled;
+    advancedToggleInput.setAttribute("aria-checked", String(enabled));
   }
+
+  if (advancedToggleWrapper) {
+    advancedToggleWrapper.classList.toggle("is-active", enabled);
+  }
+
   document.body.classList.toggle("advanced-enabled", enabled);
   if (!enabled) {
     setHandPaused(false);
@@ -1088,11 +1126,12 @@ betSpotButtons.forEach((button) => {
   });
 });
 
-if (advancedToggleButton) {
-  advancedToggleButton.addEventListener("click", () => {
-    setAdvancedMode(!advancedMode);
+if (advancedToggleInput) {
+  advancedToggleInput.addEventListener("change", (event) => {
+    const enabled = Boolean(event.target.checked);
+    setAdvancedMode(enabled);
     if (!dealing) {
-      statusEl.textContent = advancedMode
+      statusEl.textContent = enabled
         ? "Advanced Mode enabled. Bust and card count wagers are available beneath the number bets."
         : "Advanced Mode disabled. Only Ace and number bets remain on the felt.";
     }

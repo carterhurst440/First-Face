@@ -153,14 +153,19 @@
                   >
                     Clear Bets
                   </button>
-                  <button
-                    type="button"
-                    id="advanced-toggle"
-                    class="advanced-toggle secondary"
-                    aria-pressed="false"
-                  >
-                    Advanced Mode
-                  </button>
+                  <label class="advanced-toggle" for="advanced-toggle">
+                    <span class="toggle-label">Advanced Mode</span>
+                    <input
+                      type="checkbox"
+                      id="advanced-toggle"
+                      role="switch"
+                      aria-checked="false"
+                      aria-controls="advanced-bets"
+                    />
+                    <span class="toggle-visual" aria-hidden="true">
+                      <span class="toggle-thumb"></span>
+                    </span>
+                  </label>
                   <button
                     type="button"
                     id="pause-play"
@@ -314,7 +319,7 @@
                   <div class="chip-stack" aria-hidden="true"></div>
                 </button>
               </div>
-              <div class="advanced-bets" id="advanced-bets" hidden>
+              <div class="advanced-bets" id="advanced-bets" hidden aria-hidden="true">
                 <div class="advanced-group" aria-label="Bust card bets">
                   <div class="advanced-group-header">
                     <h3 class="advanced-title">Bust Card</h3>
@@ -324,7 +329,7 @@
                     <h4 class="advanced-subheading">Suit · 3:1</h4>
                     <div class="advanced-grid">
                       <button
-                        class="bet-spot bust-bet"
+                        class="bet-spot bust-bet bust-suit bust-hearts"
                         type="button"
                         data-bet-type="bust-suit"
                         data-bet-key="bust-hearts"
@@ -333,13 +338,16 @@
                         data-payout="3"
                         aria-label="Bet the bust card is Hearts. Pays 3 to 1."
                       >
-                        <span class="bet-label">♥ Hearts</span>
+                        <span class="bet-label">
+                          <span class="bet-icon suit-icon" aria-hidden="true">♥</span>
+                          <span class="bet-text">Hearts</span>
+                        </span>
                         <span class="bet-odds">3:1</span>
                         <span class="bet-total" aria-live="polite" aria-atomic="true">0</span>
                         <div class="chip-stack" aria-hidden="true"></div>
                       </button>
                       <button
-                        class="bet-spot bust-bet"
+                        class="bet-spot bust-bet bust-suit bust-clubs"
                         type="button"
                         data-bet-type="bust-suit"
                         data-bet-key="bust-clubs"
@@ -348,13 +356,16 @@
                         data-payout="3"
                         aria-label="Bet the bust card is Clubs. Pays 3 to 1."
                       >
-                        <span class="bet-label">♣ Clubs</span>
+                        <span class="bet-label">
+                          <span class="bet-icon suit-icon" aria-hidden="true">♣</span>
+                          <span class="bet-text">Clubs</span>
+                        </span>
                         <span class="bet-odds">3:1</span>
                         <span class="bet-total" aria-live="polite" aria-atomic="true">0</span>
                         <div class="chip-stack" aria-hidden="true"></div>
                       </button>
                       <button
-                        class="bet-spot bust-bet"
+                        class="bet-spot bust-bet bust-suit bust-spades"
                         type="button"
                         data-bet-type="bust-suit"
                         data-bet-key="bust-spades"
@@ -363,13 +374,16 @@
                         data-payout="3"
                         aria-label="Bet the bust card is Spades. Pays 3 to 1."
                       >
-                        <span class="bet-label">♠ Spades</span>
+                        <span class="bet-label">
+                          <span class="bet-icon suit-icon" aria-hidden="true">♠</span>
+                          <span class="bet-text">Spades</span>
+                        </span>
                         <span class="bet-odds">3:1</span>
                         <span class="bet-total" aria-live="polite" aria-atomic="true">0</span>
                         <div class="chip-stack" aria-hidden="true"></div>
                       </button>
                       <button
-                        class="bet-spot bust-bet"
+                        class="bet-spot bust-bet bust-suit bust-diamonds"
                         type="button"
                         data-bet-type="bust-suit"
                         data-bet-key="bust-diamonds"
@@ -378,7 +392,10 @@
                         data-payout="3"
                         aria-label="Bet the bust card is Diamonds. Pays 3 to 1."
                       >
-                        <span class="bet-label">♦ Diamonds</span>
+                        <span class="bet-label">
+                          <span class="bet-icon suit-icon" aria-hidden="true">♦</span>
+                          <span class="bet-text">Diamonds</span>
+                        </span>
                         <span class="bet-odds">3:1</span>
                         <span class="bet-total" aria-live="polite" aria-atomic="true">0</span>
                         <div class="chip-stack" aria-hidden="true"></div>
@@ -389,7 +406,7 @@
                     <h4 class="advanced-subheading">Rank · 2:1</h4>
                     <div class="advanced-grid">
                       <button
-                        class="bet-spot bust-bet"
+                        class="bet-spot bust-bet bust-face bust-jack"
                         type="button"
                         data-bet-type="bust-rank"
                         data-bet-key="bust-jack"
@@ -398,13 +415,16 @@
                         data-payout="2"
                         aria-label="Bet the bust card is a Jack. Pays 2 to 1."
                       >
-                        <span class="bet-label">Jack</span>
+                        <span class="bet-label">
+                          <span class="bet-icon face-icon" aria-hidden="true">J</span>
+                          <span class="bet-text">Jack</span>
+                        </span>
                         <span class="bet-odds">2:1</span>
                         <span class="bet-total" aria-live="polite" aria-atomic="true">0</span>
                         <div class="chip-stack" aria-hidden="true"></div>
                       </button>
                       <button
-                        class="bet-spot bust-bet"
+                        class="bet-spot bust-bet bust-face bust-queen"
                         type="button"
                         data-bet-type="bust-rank"
                         data-bet-key="bust-queen"
@@ -413,13 +433,16 @@
                         data-payout="2"
                         aria-label="Bet the bust card is a Queen. Pays 2 to 1."
                       >
-                        <span class="bet-label">Queen</span>
+                        <span class="bet-label">
+                          <span class="bet-icon face-icon" aria-hidden="true">Q</span>
+                          <span class="bet-text">Queen</span>
+                        </span>
                         <span class="bet-odds">2:1</span>
                         <span class="bet-total" aria-live="polite" aria-atomic="true">0</span>
                         <div class="chip-stack" aria-hidden="true"></div>
                       </button>
                       <button
-                        class="bet-spot bust-bet"
+                        class="bet-spot bust-bet bust-face bust-king"
                         type="button"
                         data-bet-type="bust-rank"
                         data-bet-key="bust-king"
@@ -428,7 +451,10 @@
                         data-payout="2"
                         aria-label="Bet the bust card is a King. Pays 2 to 1."
                       >
-                        <span class="bet-label">King</span>
+                        <span class="bet-label">
+                          <span class="bet-icon face-icon" aria-hidden="true">K</span>
+                          <span class="bet-text">King</span>
+                        </span>
                         <span class="bet-odds">2:1</span>
                         <span class="bet-total" aria-live="polite" aria-atomic="true">0</span>
                         <div class="chip-stack" aria-hidden="true"></div>
@@ -439,7 +465,7 @@
                     <h4 class="advanced-subheading">Joker · 11:1</h4>
                     <div class="advanced-grid">
                       <button
-                        class="bet-spot bust-bet"
+                        class="bet-spot bust-bet bust-joker"
                         type="button"
                         data-bet-type="bust-joker"
                         data-bet-key="bust-joker"
@@ -447,7 +473,10 @@
                         data-payout="11"
                         aria-label="Bet the bust card is the Joker. Pays 11 to 1."
                       >
-                        <span class="bet-label">Joker</span>
+                        <span class="bet-label">
+                          <span class="bet-icon joker-icon" aria-hidden="true">🃏</span>
+                          <span class="bet-text">Joker</span>
+                        </span>
                         <span class="bet-odds">11:1</span>
                         <span class="bet-total" aria-live="polite" aria-atomic="true">0</span>
                         <div class="chip-stack" aria-hidden="true"></div>
@@ -470,6 +499,7 @@
                       data-count-min="1"
                       data-count-max="1"
                       data-payout="3"
+                      data-tier="1"
                       data-lock="hand"
                       aria-label="Bet the hand ends after exactly 1 non-face card. Pays 3 to 1."
                     >
@@ -487,6 +517,7 @@
                       data-count-min="2"
                       data-count-max="2"
                       data-payout="4"
+                      data-tier="2"
                       data-lock="hand"
                       aria-label="Bet the hand ends after exactly 2 non-face cards. Pays 4 to 1."
                     >
@@ -504,6 +535,7 @@
                       data-count-min="3"
                       data-count-max="3"
                       data-payout="5"
+                      data-tier="3"
                       data-lock="hand"
                       aria-label="Bet the hand ends after exactly 3 non-face cards. Pays 5 to 1."
                     >
@@ -521,6 +553,7 @@
                       data-count-min="4"
                       data-count-max="4"
                       data-payout="7"
+                      data-tier="4"
                       data-lock="hand"
                       aria-label="Bet the hand ends after exactly 4 non-face cards. Pays 7 to 1."
                     >
@@ -538,6 +571,7 @@
                       data-count-min="5"
                       data-count-max="5"
                       data-payout="10"
+                      data-tier="5"
                       data-lock="hand"
                       aria-label="Bet the hand ends after exactly 5 non-face cards. Pays 10 to 1."
                     >
@@ -555,6 +589,7 @@
                       data-count-min="6"
                       data-count-max="6"
                       data-payout="13"
+                      data-tier="6"
                       data-lock="hand"
                       aria-label="Bet the hand ends after exactly 6 non-face cards. Pays 13 to 1."
                     >
@@ -572,6 +607,7 @@
                       data-count-min="7"
                       data-count-max="7"
                       data-payout="18"
+                      data-tier="7"
                       data-lock="hand"
                       aria-label="Bet the hand ends after exactly 7 non-face cards. Pays 18 to 1."
                     >
@@ -589,6 +625,7 @@
                       data-count-min="8"
                       data-count-max="Infinity"
                       data-payout="10"
+                      data-tier="8"
                       data-lock="hand"
                       aria-label="Bet the hand lasts 8 or more non-face cards. Pays 10 to 1."
                     >
