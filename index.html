@@ -75,8 +75,9 @@
               the hand ends and all wagers are forfeited.
             </li>
             <li>
-              Use <strong>Rebet &amp; Deal</strong> to replay your previous chip
-              layout or <strong>Clear Bets</strong> to start fresh.
+              Use <strong>Rebet</strong> to restack your previous opening
+              layout, then press <strong>Deal Hand</strong>. Clear Bets starts
+              fresh if you want a brand-new arrangement.
             </li>
           </ol>
           <div class="rules-summary">
@@ -182,15 +183,6 @@
                     <span class="paytable-option-steps">1× · 10× · 40× · 200×</span>
                   </span>
                 </label>
-              </div>
-              <div class="active-paytable" aria-live="polite">
-                <h3 class="active-paytable-title">Active Ladder</h3>
-                <ol class="active-paytable-list" id="active-paytable-list">
-                  <li><span class="step">1st hit</span><span class="payout">3×</span></li>
-                  <li><span class="step">2nd hit</span><span class="payout">4×</span></li>
-                  <li><span class="step">3rd hit</span><span class="payout">15×</span></li>
-                  <li><span class="step">4th hit</span><span class="payout">50×</span></li>
-                </ol>
               </div>
             </section>
             <section class="bets-zone" aria-labelledby="number-bets-heading">
@@ -774,11 +766,8 @@
           </button>
         </div>
         <div class="chip-actions">
-          <button type="button" id="table-ready" class="secondary" hidden>
-            Table Ready
-          </button>
           <button type="button" id="rebet-button" class="secondary" hidden>
-            Rebet &amp; Deal
+            Rebet
           </button>
           <button id="deal-button" class="deal" disabled>Deal Hand</button>
         </div>

@@ -38,7 +38,6 @@ const bankrollEl = document.getElementById("bankroll");
 const bankrollDeltaEl = document.getElementById("bankroll-delta");
 const betsBody = document.getElementById("bets-body");
 const dealButton = document.getElementById("deal-button");
-const tableReadyButton = document.getElementById("table-ready");
 const rebetButton = document.getElementById("rebet-button");
 const clearBetsButton = document.getElementById("clear-bets");
 const drawsContainer = document.getElementById("draws");
@@ -129,8 +128,6 @@ const advancedToggleWrapper = advancedToggleInput
 const advancedBetsSection = document.getElementById("advanced-bets");
 const pausePlayButton = document.getElementById("pause-play");
 const paytableRadios = Array.from(document.querySelectorAll('input[name="paytable"]'));
-const activePaytableList = document.getElementById("active-paytable-list");
-const activePaytableTitle = document.querySelector(".active-paytable-title");
 
 let bankroll = INITIAL_BANKROLL;
 let bets = [];
@@ -143,6 +140,7 @@ let stats = {
   paid: 0
 };
 let lastBetLayout = [];
+let currentOpeningLayout = [];
 let bankrollAnimating = false;
 let bankrollAnimationFrame = null;
 let bankrollDeltaTimeout = null;
@@ -160,48 +158,11 @@ function getPaytableById(id) {
   return PAYTABLES.find((table) => table.id === id) ?? PAYTABLES[0];
 }
 
-function ordinal(value) {
-  const n = Math.abs(value);
-  const mod100 = n % 100;
-  if (mod100 >= 11 && mod100 <= 13) {
-    return `${value}th`;
-  }
-  switch (n % 10) {
-    case 1:
-      return `${value}st`;
-    case 2:
-      return `${value}nd`;
-    case 3:
-      return `${value}rd`;
-    default:
-      return `${value}th`;
-  }
-}
-
 function formatPaytableSummary(table) {
   return table.steps.map((step) => `${step}×`).join(", ");
 }
 
 function updateActivePaytableUI({ announce = false } = {}) {
-  if (activePaytableTitle) {
-    activePaytableTitle.textContent = `Active Ladder — ${activePaytable.name}`;
-  }
-
-  if (activePaytableList) {
-    activePaytableList.innerHTML = "";
-    activePaytable.steps.forEach((multiplier, index) => {
-      const item = document.createElement("li");
-      const step = document.createElement("span");
-      step.className = "step";
-      step.textContent = `${ordinal(index + 1)} hit`;
-      const payout = document.createElement("span");
-      payout.className = "payout";
-      payout.textContent = `${multiplier}×`;
-      item.append(step, payout);
-      activePaytableList.appendChild(item);
-    });
-  }
-
   paytableRadios.forEach((radio) => {
     radio.checked = radio.value === activePaytable.id;
     radio.setAttribute("aria-checked", String(radio.checked));
@@ -384,6 +345,15 @@ function setBettingEnabled(enabled) {
   bettingOpen = enabled;
   refreshBetControls();
   updatePaytableAvailability();
+}
+
+function updateRebetButtonState() {
+  if (!rebetButton) return;
+  const hasLayout = lastBetLayout.length > 0;
+  rebetButton.hidden = !hasLayout;
+  const disabled = !hasLayout || dealing;
+  rebetButton.disabled = disabled;
+  rebetButton.setAttribute("aria-disabled", String(disabled));
 }
 
 function updateChipSelectionUI() {
@@ -925,6 +895,13 @@ function formatStopper({ label, suit }) {
   return label === "Joker" ? "Joker" : `${label}${suit}`;
 }
 
+function snapshotLayout(source) {
+  return source.map((entry) => ({
+    key: entry.key,
+    chips: Array.isArray(entry.chips) ? [...entry.chips] : []
+  }));
+}
+
 function layoutTotalUnits(layout) {
   return layout.reduce((sum, entry) => {
     const chips = entry.chips ?? [];
@@ -981,21 +958,23 @@ function addHistoryEntry(result) {
   }
 }
 
-function resetTable(message = "Select a chip and place your bet on the regions above.") {
-  drawsContainer.innerHTML = "";
-  statusEl.textContent = message;
+function resetTable(
+  message = "Select a chip and place your bet on the regions above.",
+  { clearDraws = false } = {}
+) {
+  if (clearDraws) {
+    drawsContainer.innerHTML = "";
+  }
+  if (message) {
+    statusEl.textContent = message;
+  }
   dealing = false;
   currentHandContext = null;
   setHandPaused(false);
-  dealButton.hidden = false;
-  tableReadyButton.hidden = true;
-  tableReadyButton.disabled = true;
-  const hasLayout = lastBetLayout.length > 0;
-  rebetButton.hidden = !hasLayout;
-  rebetButton.disabled = !hasLayout;
   setBettingEnabled(true);
   dealButton.disabled = bets.length === 0;
   updatePauseButton();
+  updateRebetButtonState();
 }
 
 function renderDraw(card) {
@@ -1082,27 +1061,22 @@ function endHand(stopperCard, context = {}) {
 
   statusEl.textContent = `Hand stopped on ${stopperCard.label}${
     stopperCard.label !== "Joker" ? " of " + stopperCard.suit : ""
-  }. Wagers lost.`;
+  }. Place your next bets.`;
 
   addHistoryEntry({
     stopper: stopperCard,
     betSummaries: bets.map((bet) => summarizeBetResult(bet))
   });
 
-  lastBetLayout = bets
-    .filter((bet) => bet.units > 0)
-    .map((bet) => ({ key: bet.key, chips: [...bet.chips] }));
-  const hasLayout = lastBetLayout.length > 0;
-  tableReadyButton.hidden = false;
-  tableReadyButton.disabled = false;
-  rebetButton.hidden = !hasLayout;
-  rebetButton.disabled = !hasLayout;
-  dealButton.hidden = true;
-  dealButton.disabled = true;
-  setBettingEnabled(false);
+  lastBetLayout = currentOpeningLayout.length > 0 ? snapshotLayout(currentOpeningLayout) : [];
+  currentOpeningLayout = [];
+
   dealing = false;
   animateBankrollOutcome(netThisHand);
   recordBankrollHistoryPoint();
+  resetBets();
+  setBettingEnabled(true);
+  updateRebetButtonState();
   updatePauseButton();
 }
 
@@ -1156,15 +1130,14 @@ function processCard(card, context) {
 
 async function dealHand() {
   if (bets.length === 0 || dealing) return;
+  currentOpeningLayout = snapshotLayout(bets);
   dealing = true;
   pauseResolvers = [];
   currentHandContext = { nonStopperCount: 0, totalCards: 0 };
   setHandPaused(false);
   setBettingEnabled(false);
   dealButton.disabled = true;
-  tableReadyButton.hidden = true;
-  tableReadyButton.disabled = true;
-  rebetButton.hidden = true;
+  updateRebetButtonState();
   resetBetCounters();
   drawsContainer.innerHTML = "";
   statusEl.textContent = "Dealing...";
@@ -1283,13 +1256,6 @@ dealButton.addEventListener("click", () => {
   dealHand();
 });
 
-tableReadyButton.addEventListener("click", () => {
-  bets = [];
-  clearChipStacks();
-  renderBets();
-  resetTable();
-});
-
 rebetButton.addEventListener("click", () => {
   if (dealing || lastBetLayout.length === 0) return;
   const totalNeeded = layoutTotalUnits(lastBetLayout);
@@ -1297,18 +1263,27 @@ rebetButton.addEventListener("click", () => {
     statusEl.textContent = "No prior wagers to rebet.";
     return;
   }
-  if (totalNeeded > bankroll) {
+
+  const outstanding = bets.reduce((sum, bet) => sum + bet.units, 0);
+  const available = bankroll + outstanding;
+  if (totalNeeded > available) {
     statusEl.textContent = `Not enough bankroll to rebet ${formatCurrency(
       totalNeeded
     )} units. Reset your account or place smaller bets.`;
     return;
   }
+
+  if (outstanding > 0) {
+    restoreUnits(outstanding);
+    resetBets();
+  }
+
   rebetButton.disabled = true;
   applyBetLayout(lastBetLayout);
-  resetTable("Rebetting previous wagers...");
-  rebetButton.hidden = true;
-  rebetButton.disabled = true;
-  dealHand();
+  statusEl.textContent = "Previous wagers restored. Adjust or add bets, then deal when ready.";
+  rebetButton.disabled = false;
+  updateRebetButtonState();
+  dealButton.disabled = false;
 });
 
 resetAccountButton.addEventListener("click", () => {
@@ -1318,11 +1293,12 @@ resetAccountButton.addEventListener("click", () => {
   stats = { hands: 0, wagered: 0, paid: 0 };
   updateStatsUI();
   lastBetLayout = [];
+  currentOpeningLayout = [];
   historyList.innerHTML = "";
-  bets = [];
-  clearChipStacks();
-  renderBets();
-  resetTable("Account reset. Select a chip and place your bet on the regions above.");
+  resetBets();
+  resetTable("Account reset. Select a chip and place your bet on the regions above.", {
+    clearDraws: true
+  });
   resetBankrollHistory();
   closeUtilityPanel();
 });

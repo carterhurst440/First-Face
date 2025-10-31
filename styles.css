@@ -485,50 +485,6 @@ body {
   pointer-events: none;
 }
 
-.active-paytable {
-  display: grid;
-  gap: 0.35rem;
-  align-content: start;
-}
-
-.active-paytable-title {
-  margin: 0;
-  font-size: clamp(0.7rem, 1.8vw, 0.82rem);
-  text-transform: uppercase;
-  letter-spacing: 0.16rem;
-  color: rgba(148, 255, 233, 0.92);
-}
-
-.active-paytable-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: grid;
-  gap: 0.2rem;
-}
-
-.active-paytable-list li {
-  display: grid;
-  grid-template-columns: auto auto;
-  justify-content: start;
-  align-items: baseline;
-  gap: 0.35rem;
-  font-size: clamp(0.64rem, 1.6vw, 0.75rem);
-  color: rgba(214, 245, 238, 0.8);
-  letter-spacing: 0.04rem;
-}
-
-.active-paytable-list .step {
-  text-transform: uppercase;
-  color: rgba(214, 245, 238, 0.65);
-}
-
-.active-paytable-list .payout {
-  color: var(--neon-cyan);
-  font-weight: 700;
-  text-shadow: 0 0 10px rgba(31, 241, 255, 0.45);
-}
-
 .dealer-zone {
   display: flex;
   flex-direction: column;
@@ -1472,19 +1428,6 @@ button:disabled {
   .paytable-option {
     width: 100%;
     justify-content: center;
-  }
-
-  .active-paytable {
-    text-align: center;
-  }
-
-  .active-paytable-list {
-    justify-items: center;
-  }
-
-  .active-paytable-list li {
-    justify-content: center;
-    gap: clamp(0.65rem, 4vw, 1.2rem);
   }
 
   .playmat {
