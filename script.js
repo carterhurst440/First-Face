@@ -433,24 +433,13 @@ function drawBankrollChart() {
     bottom: 64,
     left: 84
   };
-  const maxPointsWithoutScroll = 100;
-  const scrollSpacing = 70;
   const minCanvasWidth = 240;
 
   if (bankrollChartWrapper) {
     const wrapperWidth = bankrollChartWrapper.clientWidth || minCanvasWidth;
-    let targetWidth = wrapperWidth;
-
-    if (values.length > maxPointsWithoutScroll) {
-      const segmentCount = Math.max(values.length - 1, 1);
-      const requiredWidth =
-        padding.left + padding.right + segmentCount * scrollSpacing;
-      targetWidth = Math.max(wrapperWidth, requiredWidth);
-    }
-
     bankrollChartCanvas.style.width = `${Math.max(
       minCanvasWidth,
-      Math.round(targetWidth)
+      Math.round(wrapperWidth)
     )}px`;
   }
 
@@ -579,18 +568,15 @@ function drawBankrollChart() {
   ctx.textBaseline = "top";
   if (points.length > 0) {
     const tickIndices = [];
-    if (points.length === 1) {
-      tickIndices.push(0);
-    } else {
-      const maxTicks = Math.min(10, points.length);
-      const step = Math.max(1, Math.floor((points.length - 1) / (maxTicks - 1)));
-      for (let i = 0; i < points.length; i += step) {
-        tickIndices.push(i);
+    const minSpacing = 48;
+    let lastX = -Infinity;
+    points.forEach((point, index) => {
+      const isEdge = index === 0 || index === points.length - 1;
+      if (isEdge || point.x - lastX >= minSpacing) {
+        tickIndices.push(index);
+        lastX = point.x;
       }
-      if (tickIndices[tickIndices.length - 1] !== points.length - 1) {
-        tickIndices.push(points.length - 1);
-      }
-    }
+    });
 
     tickIndices.forEach((index) => {
       const point = points[index];
