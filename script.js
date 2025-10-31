@@ -18,8 +18,8 @@ const PAYTABLES = [
 const NUMBER_RANKS = ["A", "2", "3", "4", "5", "6", "7", "8", "9", "10"];
 const DENOMINATIONS = [5, 10, 25, 100];
 const INITIAL_BANKROLL = 1000;
-const DEAL_DELAY = 540;
-const DEAL_DELAY_STEP = 60;
+const DEAL_DELAY = 420;
+const DEAL_DELAY_STEP = 40;
 const SUITS = [
   { symbol: "♠", color: "black", name: "Spades" },
   { symbol: "♥", color: "red", name: "Hearts" },
@@ -39,7 +39,9 @@ const bankrollDeltaEl = document.getElementById("bankroll-delta");
 const betsBody = document.getElementById("bets-body");
 const dealButton = document.getElementById("deal-button");
 const rebetButton = document.getElementById("rebet-button");
-const clearBetsButton = document.getElementById("clear-bets");
+const clearBetsButtons = Array.from(
+  document.querySelectorAll('[data-action="clear-bets"]')
+);
 const drawsContainer = document.getElementById("draws");
 const statusEl = document.getElementById("status");
 const chipSelectorEl = document.getElementById("chip-selector");
@@ -309,6 +311,17 @@ function clearChipStacks() {
   });
 }
 
+function setClearBetsDisabled(disabled) {
+  clearBetsButtons.forEach((button) => {
+    button.disabled = disabled;
+    if (disabled) {
+      button.setAttribute("aria-disabled", "true");
+    } else {
+      button.removeAttribute("aria-disabled");
+    }
+  });
+}
+
 function refreshBetControls() {
   const chipEnabled = bettingOpen || advancedMode;
   chipSelectorEl.classList.toggle("selector-disabled", !chipEnabled);
@@ -338,7 +351,7 @@ function refreshBetControls() {
     button.setAttribute("aria-disabled", String(disabled));
   });
 
-  clearBetsButton.disabled = !bettingOpen || bets.length === 0;
+  setClearBetsDisabled(!bettingOpen || bets.length === 0);
 }
 
 function setBettingEnabled(enabled) {
@@ -383,7 +396,7 @@ function renderBets() {
     row.appendChild(cell);
     betsBody.appendChild(row);
     dealButton.disabled = true;
-    clearBetsButton.disabled = true;
+    setClearBetsDisabled(true);
     updateBetSpotTotals();
     refreshBetControls();
     return;
@@ -400,7 +413,7 @@ function renderBets() {
     betsBody.appendChild(row);
   });
   dealButton.disabled = dealing || !bettingOpen;
-  clearBetsButton.disabled = !bettingOpen;
+  setClearBetsDisabled(!bettingOpen);
   updateBetSpotTotals();
   refreshBetControls();
 }
@@ -985,13 +998,6 @@ function renderDraw(card) {
   requestAnimationFrame(() => {
     cardEl.classList.add("dealt-in");
   });
-
-  if (drawsContainer.scrollWidth > drawsContainer.clientWidth) {
-    drawsContainer.scrollTo({
-      left: drawsContainer.scrollWidth,
-      behavior: "smooth"
-    });
-  }
 }
 
 function settleAdvancedBets(stopperCard, context = {}) {
@@ -1243,12 +1249,16 @@ if (pausePlayButton) {
   });
 }
 
-clearBetsButton.addEventListener("click", () => {
+function handleClearBetsClick() {
   if (dealing || !bettingOpen || bets.length === 0) return;
   const totalUnits = bets.reduce((sum, bet) => sum + bet.units, 0);
   restoreUnits(totalUnits);
   resetBets();
   statusEl.textContent = "Bets cleared.";
+}
+
+clearBetsButtons.forEach((button) => {
+  button.addEventListener("click", handleClearBetsClick);
 });
 
 dealButton.addEventListener("click", () => {

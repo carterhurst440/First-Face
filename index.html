@@ -189,7 +189,12 @@
               <div class="bets-header">
                 <h2 class="bets-heading" id="number-bets-heading">Number Bets</h2>
                 <div class="bets-tools">
-                  <button type="button" id="clear-bets" class="clear-bets secondary">
+                  <button
+                    type="button"
+                    id="clear-bets-table"
+                    class="clear-bets secondary"
+                    data-action="clear-bets"
+                  >
                     Clear Bets
                   </button>
                 </div>
@@ -716,8 +721,9 @@
         <div class="chip-control chip-control-left">
           <button
             type="button"
-            id="clear-bets"
+            id="clear-bets-footer"
             class="clear-bets secondary"
+            data-action="clear-bets"
           >
             Clear Bets
           </button>
