@@ -144,7 +144,7 @@
             </div>
             <div class="bets-zone">
               <div class="bets-header">
-                <h2 class="bets-heading">Bets</h2>
+                <h2 class="bets-heading">Number Bets</h2>
                 <div class="bets-tools">
                   <label class="advanced-toggle" for="advanced-toggle">
                     <span class="toggle-label">Advanced Mode</span>
@@ -313,12 +313,13 @@
                 </button>
               </div>
               <div class="advanced-bets" id="advanced-bets" hidden aria-hidden="true">
-                <div class="advanced-group advanced-busts" aria-label="Bust card bets">
-                  <div class="advanced-group-header">
-                    <h3 class="advanced-title">Bust Card</h3>
-                    <p class="advanced-subtitle">Playable any time · pays as shown</p>
-                  </div>
-                  <div class="bust-grid" role="group" aria-label="Bust card bet spots">
+                <div class="advanced-panel">
+                  <div class="advanced-group advanced-busts" aria-label="Bust card bets">
+                    <div class="advanced-group-header">
+                      <h3 class="advanced-title">Bust Card</h3>
+                      <p class="advanced-subtitle">Playable any time · pays as shown</p>
+                    </div>
+                    <div class="bust-grid" role="group" aria-label="Bust card bet spots">
                     <button
                       class="bet-spot bust-bet bust-suit bust-hearts"
                       type="button"
@@ -450,13 +451,13 @@
                       <span class="bet-total" aria-live="polite" aria-atomic="true">0</span>
                       <div class="chip-stack" aria-hidden="true"></div>
                     </button>
+                    </div>
                   </div>
-                </div>
-                <div class="advanced-group" aria-label="Card count bets">
-                  <div class="advanced-group-header">
-                    <h3 class="advanced-title">Card Count</h3>
-                    <p class="advanced-subtitle">Lock before dealing · counts include the bust card</p>
-                  </div>
+                  <div class="advanced-group" aria-label="Card count bets">
+                    <div class="advanced-group-header">
+                      <h3 class="advanced-title">Card Count</h3>
+                      <p class="advanced-subtitle">Lock before dealing · counts include the bust card</p>
+                    </div>
                   <div class="advanced-grid card-count-grid" role="group" aria-label="Card count bet spots">
                     <button
                       class="bet-spot count-bet"
