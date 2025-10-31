@@ -1,4 +1,20 @@
-const STEP_PAYS = [3, 4, 15, 50];
+const PAYTABLES = [
+  {
+    id: "paytable-1",
+    name: "Paytable 1",
+    steps: [3, 4, 15, 50]
+  },
+  {
+    id: "paytable-2",
+    name: "Paytable 2",
+    steps: [2, 6, 36, 100]
+  },
+  {
+    id: "paytable-3",
+    name: "Paytable 3",
+    steps: [1, 10, 40, 200]
+  }
+];
 const NUMBER_RANKS = ["A", "2", "3", "4", "5", "6", "7", "8", "9", "10"];
 const DENOMINATIONS = [5, 10, 25, 100];
 const INITIAL_BANKROLL = 1000;
@@ -112,6 +128,9 @@ const advancedToggleWrapper = advancedToggleInput
   : null;
 const advancedBetsSection = document.getElementById("advanced-bets");
 const pausePlayButton = document.getElementById("pause-play");
+const paytableRadios = Array.from(document.querySelectorAll('input[name="paytable"]'));
+const activePaytableList = document.getElementById("active-paytable-list");
+const activePaytableTitle = document.querySelector(".active-paytable-title");
 
 let bankroll = INITIAL_BANKROLL;
 let bets = [];
@@ -133,8 +152,97 @@ let handPaused = false;
 let pauseResolvers = [];
 let currentHandContext = null;
 let advancedCollapseTimeout = null;
+let activePaytable = PAYTABLES[0];
 
 const MAX_HISTORY_POINTS = 500;
+
+function getPaytableById(id) {
+  return PAYTABLES.find((table) => table.id === id) ?? PAYTABLES[0];
+}
+
+function ordinal(value) {
+  const n = Math.abs(value);
+  const mod100 = n % 100;
+  if (mod100 >= 11 && mod100 <= 13) {
+    return `${value}th`;
+  }
+  switch (n % 10) {
+    case 1:
+      return `${value}st`;
+    case 2:
+      return `${value}nd`;
+    case 3:
+      return `${value}rd`;
+    default:
+      return `${value}th`;
+  }
+}
+
+function formatPaytableSummary(table) {
+  return table.steps.map((step) => `${step}×`).join(", ");
+}
+
+function updateActivePaytableUI({ announce = false } = {}) {
+  if (activePaytableTitle) {
+    activePaytableTitle.textContent = `Active Ladder — ${activePaytable.name}`;
+  }
+
+  if (activePaytableList) {
+    activePaytableList.innerHTML = "";
+    activePaytable.steps.forEach((multiplier, index) => {
+      const item = document.createElement("li");
+      const step = document.createElement("span");
+      step.className = "step";
+      step.textContent = `${ordinal(index + 1)} hit`;
+      const payout = document.createElement("span");
+      payout.className = "payout";
+      payout.textContent = `${multiplier}×`;
+      item.append(step, payout);
+      activePaytableList.appendChild(item);
+    });
+  }
+
+  paytableRadios.forEach((radio) => {
+    radio.checked = radio.value === activePaytable.id;
+    radio.setAttribute("aria-checked", String(radio.checked));
+    const option = radio.closest(".paytable-option");
+    if (option) {
+      option.classList.toggle("selected", radio.checked);
+    }
+  });
+
+  if (announce && statusEl && !dealing) {
+    statusEl.textContent = `${activePaytable.name} selected. Ladder pays ${formatPaytableSummary(
+      activePaytable
+    )}.`;
+  }
+}
+
+function setActivePaytable(id, { announce = false } = {}) {
+  const next = getPaytableById(id);
+  if (next.id === activePaytable.id) {
+    updateActivePaytableUI({ announce });
+    return;
+  }
+  activePaytable = next;
+  updateActivePaytableUI({ announce });
+}
+
+function updatePaytableAvailability() {
+  const disabled = !bettingOpen;
+  paytableRadios.forEach((radio) => {
+    radio.disabled = disabled;
+    radio.setAttribute("aria-disabled", String(disabled));
+    const option = radio.closest(".paytable-option");
+    if (option) {
+      option.classList.toggle("option-disabled", disabled);
+    }
+  });
+}
+
+function currentStepPays() {
+  return activePaytable.steps;
+}
 
 function createDeck() {
   const deck = [];
@@ -275,6 +383,7 @@ function refreshBetControls() {
 function setBettingEnabled(enabled) {
   bettingOpen = enabled;
   refreshBetControls();
+  updatePaytableAvailability();
 }
 
 function updateChipSelectionUI() {
@@ -1016,13 +1125,14 @@ function processCard(card, context) {
   const rank = card.rank;
   let totalHitPayout = 0;
   let hitsRecorded = 0;
+  const stepPays = currentStepPays();
   bets.forEach((bet) => {
     if (
       bet.type === "number" &&
       bet.metadata?.rank === rank &&
-      bet.hits < STEP_PAYS.length
+      bet.hits < stepPays.length
     ) {
-      const pay = STEP_PAYS[bet.hits] * bet.units;
+      const pay = stepPays[bet.hits] * bet.units;
       bet.paid += pay;
       bet.hits += 1;
       bankroll += pay;
@@ -1130,13 +1240,24 @@ betSpotButtons.forEach((button) => {
   });
 });
 
+paytableRadios.forEach((radio) => {
+  radio.addEventListener("change", () => {
+    if (!radio.checked) return;
+    if (!bettingOpen) {
+      radio.checked = activePaytable.id === radio.value;
+      return;
+    }
+    setActivePaytable(radio.value, { announce: true });
+  });
+});
+
 if (advancedToggleInput) {
   advancedToggleInput.addEventListener("change", (event) => {
     const enabled = Boolean(event.target.checked);
     setAdvancedMode(enabled);
     if (!dealing) {
       statusEl.textContent = enabled
-        ? "Advanced Mode enabled. Bust and card count wagers are available beneath the number bets."
+        ? "Advanced Mode enabled. Bust and card count wagers are available below the deal area."
         : "Advanced Mode disabled. Only Ace and number bets remain on the felt.";
     }
   });
@@ -1248,6 +1369,8 @@ if (menuToggle && utilityPanel && utilityClose && panelScrim) {
   });
 }
 
+setActivePaytable(activePaytable.id, { announce: false });
+updatePaytableAvailability();
 setSelectedChip(selectedChip, false);
 renderBets();
 updateBankroll();

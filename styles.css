@@ -393,54 +393,137 @@ body {
   z-index: -1;
 }
 
-.felt-paytable {
-  position: absolute;
-  top: clamp(0.75rem, 2.2vw, 1.4rem);
-  left: clamp(0.9rem, 3vw, 2.4rem);
-  width: clamp(140px, 20vw, 178px);
-  color: rgba(214, 245, 238, 0.82);
+.paytable-panel {
+  display: grid;
+  gap: clamp(0.75rem, 2vw, 1.1rem);
+  padding: clamp(0.8rem, 2.4vw, 1.2rem);
+  background: linear-gradient(160deg, rgba(7, 22, 36, 0.8), rgba(6, 32, 36, 0.55));
+  border: 1px solid rgba(53, 255, 234, 0.22);
+  border-radius: clamp(14px, 4vw, 20px);
+  box-shadow: inset 0 0 24px rgba(24, 210, 255, 0.12);
+}
+
+.paytable-panel-header {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.paytable-panel-header h2 {
+  margin: 0;
+  font-size: clamp(0.82rem, 2.2vw, 1rem);
+  letter-spacing: 0.18rem;
   text-transform: uppercase;
-  letter-spacing: 0.1rem;
-  font-size: 0.66rem;
-  line-height: 1.35;
+  color: rgba(177, 255, 247, 0.9);
+}
+
+.paytable-panel-header p {
+  margin: 0;
+  font-size: clamp(0.68rem, 1.8vw, 0.8rem);
+  color: rgba(214, 245, 238, 0.72);
+  line-height: 1.5;
+}
+
+.paytable-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: clamp(0.5rem, 1.4vw, 0.8rem);
+}
+
+.paytable-option {
+  display: inline-flex;
+  align-items: center;
+  gap: clamp(0.45rem, 1.4vw, 0.7rem);
+  padding: clamp(0.45rem, 1.5vw, 0.65rem) clamp(0.8rem, 2vw, 1.1rem);
+  border-radius: 999px;
+  border: 1px solid rgba(62, 245, 255, 0.25);
+  background: rgba(7, 40, 52, 0.65);
+  box-shadow: inset 0 0 18px rgba(42, 245, 255, 0.08);
+  cursor: pointer;
+  transition: transform 120ms ease, box-shadow 120ms ease, border-color 120ms ease;
+}
+
+.paytable-option input {
+  width: 1rem;
+  height: 1rem;
+  accent-color: var(--neon-cyan);
+}
+
+.paytable-option .paytable-option-content {
+  display: grid;
+  gap: 0.15rem;
+}
+
+.paytable-option-name {
+  font-size: clamp(0.68rem, 1.6vw, 0.78rem);
+  text-transform: uppercase;
+  letter-spacing: 0.14rem;
+  color: rgba(214, 245, 238, 0.88);
+}
+
+.paytable-option-steps {
+  font-size: clamp(0.64rem, 1.4vw, 0.75rem);
+  color: rgba(148, 255, 233, 0.85);
+  letter-spacing: 0.05rem;
+}
+
+.paytable-option:hover,
+.paytable-option:focus-within {
+  border-color: rgba(87, 255, 242, 0.55);
+  box-shadow: inset 0 0 22px rgba(71, 252, 255, 0.18);
+}
+
+.paytable-option.selected {
+  transform: translateY(-2px);
+  border-color: rgba(114, 255, 242, 0.75);
+  box-shadow: inset 0 0 28px rgba(53, 255, 234, 0.3), 0 10px 22px rgba(11, 37, 44, 0.55);
+}
+
+.paytable-option.option-disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
   pointer-events: none;
-  text-align: left;
 }
 
-.felt-paytable-title {
-  margin: 0 0 0.3rem 0;
-  font-size: 0.7rem;
+.active-paytable {
+  display: grid;
+  gap: 0.35rem;
+  align-content: start;
+}
+
+.active-paytable-title {
+  margin: 0;
+  font-size: clamp(0.7rem, 1.8vw, 0.82rem);
+  text-transform: uppercase;
   letter-spacing: 0.16rem;
-  color: rgba(148, 255, 233, 0.95);
+  color: rgba(148, 255, 233, 0.92);
 }
 
-.felt-paytable-list {
+.active-paytable-list {
   list-style: none;
   margin: 0;
   padding: 0;
   display: grid;
-  gap: 0.14rem;
+  gap: 0.2rem;
 }
 
-.felt-paytable-list li {
+.active-paytable-list li {
   display: grid;
   grid-template-columns: auto auto;
   justify-content: start;
   align-items: baseline;
-  column-gap: 0.35rem;
-  text-transform: none;
-  font-size: 0.7rem;
-  letter-spacing: 0.03rem;
+  gap: 0.35rem;
+  font-size: clamp(0.64rem, 1.6vw, 0.75rem);
   color: rgba(214, 245, 238, 0.8);
-  font-weight: 600;
+  letter-spacing: 0.04rem;
 }
 
-.felt-paytable-list .step {
+.active-paytable-list .step {
   text-transform: uppercase;
   color: rgba(214, 245, 238, 0.65);
 }
 
-.felt-paytable-list .payout {
+.active-paytable-list .payout {
   color: var(--neon-cyan);
   font-weight: 700;
   text-shadow: 0 0 10px rgba(31, 241, 255, 0.45);
@@ -470,6 +553,20 @@ body {
   gap: clamp(0.9rem, 2vw, 1.2rem);
   padding: clamp(0.2rem, 1.1vw, 0.6rem) clamp(0.2rem, 1vw, 0.8rem)
     clamp(0.6rem, 2vw, 1.2rem);
+}
+
+.advanced-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.9rem;
+  padding: clamp(0.2rem, 1vw, 0.6rem) clamp(0.4rem, 1.6vw, 0.8rem);
+  flex-wrap: wrap;
+  margin-top: clamp(0.4rem, 1.8vw, 0.9rem);
+}
+
+.advanced-controls .advanced-toggle {
+  margin-right: auto;
 }
 
 .draws {
@@ -1364,21 +1461,28 @@ button:disabled {
       clamp(7.5rem, 20vh, 9.5rem);
   }
 
-  .felt-paytable {
-    position: static;
-    width: 100%;
-    max-width: none;
-    text-align: center;
-    margin-bottom: clamp(0.6rem, 3vw, 1rem);
-    letter-spacing: 0.1rem;
-    pointer-events: none;
+  .paytable-panel {
+    padding: clamp(0.75rem, 5vw, 1.1rem);
   }
 
-  .felt-paytable-list {
+  .paytable-options {
+    justify-content: center;
+  }
+
+  .paytable-option {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .active-paytable {
+    text-align: center;
+  }
+
+  .active-paytable-list {
     justify-items: center;
   }
 
-  .felt-paytable-list li {
+  .active-paytable-list li {
     justify-content: center;
     gap: clamp(0.65rem, 4vw, 1.2rem);
   }

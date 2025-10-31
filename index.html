@@ -86,11 +86,11 @@
               immediately; Ace and numbers 2–10 keep the action going.
             </p>
             <p>
-              Each hit on your number pays the next step on the ladder:
-              <strong>3×</strong>, <strong>4×</strong>, <strong>15×</strong>,
-              then <strong>50×</strong> your wagered units for the fourth hit.
-              Your original chips remain on the felt and are collected when the
-              hand stops.
+              Each hit on your number pays the next step on your selected
+              paytable. Choose a ladder above the felt before dealing; the
+              active paytable applies to every number bet until the hand stops.
+              Your original chips remain on the felt and are collected when play
+              ends.
             </p>
           </div>
         </section>
@@ -129,44 +129,76 @@
         </section>
         <section class="game" aria-label="Game play area">
           <div class="felt">
-            <aside class="felt-paytable" aria-label="Paytable">
-              <h2 class="felt-paytable-title">Paytable</h2>
-              <ol class="felt-paytable-list">
-                <li><span class="step">1st hit</span><span class="payout">3×</span></li>
-                <li><span class="step">2nd hit</span><span class="payout">4×</span></li>
-                <li><span class="step">3rd hit</span><span class="payout">15×</span></li>
-                <li><span class="step">4th hit</span><span class="payout">50×</span></li>
-              </ol>
-            </aside>
-            <div class="dealer-zone" aria-live="polite">
-              <h3 class="draws-title">Cards Dealt</h3>
-              <div class="draws" id="draws" aria-label="Cards dealt this hand"></div>
-            </div>
-            <div class="bets-zone">
+            <section
+              class="paytable-panel"
+              aria-labelledby="paytable-heading"
+              aria-describedby="paytable-description"
+            >
+              <div class="paytable-panel-header">
+                <h2 id="paytable-heading">Select Your Paytable</h2>
+                <p id="paytable-description">
+                  Choose a ladder before each hand. The active paytable applies to all
+                  number bets until the next hand begins.
+                </p>
+              </div>
+              <div class="paytable-options" role="radiogroup" aria-labelledby="paytable-heading">
+                <label class="paytable-option" for="paytable-1">
+                  <input
+                    type="radio"
+                    name="paytable"
+                    id="paytable-1"
+                    value="paytable-1"
+                    data-steps="3,4,15,50"
+                    checked
+                  />
+                  <span class="paytable-option-content">
+                    <span class="paytable-option-name">Paytable 1</span>
+                    <span class="paytable-option-steps">3× · 4× · 15× · 50×</span>
+                  </span>
+                </label>
+                <label class="paytable-option" for="paytable-2">
+                  <input
+                    type="radio"
+                    name="paytable"
+                    id="paytable-2"
+                    value="paytable-2"
+                    data-steps="2,6,36,100"
+                  />
+                  <span class="paytable-option-content">
+                    <span class="paytable-option-name">Paytable 2</span>
+                    <span class="paytable-option-steps">2× · 6× · 36× · 100×</span>
+                  </span>
+                </label>
+                <label class="paytable-option" for="paytable-3">
+                  <input
+                    type="radio"
+                    name="paytable"
+                    id="paytable-3"
+                    value="paytable-3"
+                    data-steps="1,10,40,200"
+                  />
+                  <span class="paytable-option-content">
+                    <span class="paytable-option-name">Paytable 3</span>
+                    <span class="paytable-option-steps">1× · 10× · 40× · 200×</span>
+                  </span>
+                </label>
+              </div>
+              <div class="active-paytable" aria-live="polite">
+                <h3 class="active-paytable-title">Active Ladder</h3>
+                <ol class="active-paytable-list" id="active-paytable-list">
+                  <li><span class="step">1st hit</span><span class="payout">3×</span></li>
+                  <li><span class="step">2nd hit</span><span class="payout">4×</span></li>
+                  <li><span class="step">3rd hit</span><span class="payout">15×</span></li>
+                  <li><span class="step">4th hit</span><span class="payout">50×</span></li>
+                </ol>
+              </div>
+            </section>
+            <section class="bets-zone" aria-labelledby="number-bets-heading">
               <div class="bets-header">
-                <h2 class="bets-heading">Number Bets</h2>
+                <h2 class="bets-heading" id="number-bets-heading">Number Bets</h2>
                 <div class="bets-tools">
-                  <label class="advanced-toggle" for="advanced-toggle">
-                    <span class="toggle-label">Advanced Mode</span>
-                    <input
-                      type="checkbox"
-                      id="advanced-toggle"
-                      role="switch"
-                      aria-checked="false"
-                      aria-controls="advanced-bets"
-                    />
-                    <span class="toggle-visual" aria-hidden="true">
-                      <span class="toggle-thumb"></span>
-                    </span>
-                  </label>
-                  <button
-                    type="button"
-                    id="pause-play"
-                    class="pause-toggle secondary"
-                    hidden
-                    aria-pressed="false"
-                  >
-                    Pause
+                  <button type="button" id="clear-bets" class="clear-bets secondary">
+                    Clear Bets
                   </button>
                 </div>
               </div>
@@ -312,8 +344,40 @@
                   <div class="chip-stack" aria-hidden="true"></div>
                 </button>
               </div>
-              <div class="advanced-bets" id="advanced-bets" hidden aria-hidden="true">
-                <div class="advanced-panel">
+              <p class="table-callout" id="table-callout">
+                Select a chip and place your bet on the regions above.
+              </p>
+            </section>
+            <section class="dealer-zone" aria-live="polite">
+              <h3 class="draws-title">Cards Dealt</h3>
+              <div class="draws" id="draws" aria-label="Cards dealt this hand"></div>
+            </section>
+            <div class="advanced-controls">
+              <label class="advanced-toggle" for="advanced-toggle">
+                <span class="toggle-label">Advanced Mode</span>
+                <input
+                  type="checkbox"
+                  id="advanced-toggle"
+                  role="switch"
+                  aria-checked="false"
+                  aria-controls="advanced-bets"
+                />
+                <span class="toggle-visual" aria-hidden="true">
+                  <span class="toggle-thumb"></span>
+                </span>
+              </label>
+              <button
+                type="button"
+                id="pause-play"
+                class="pause-toggle secondary"
+                hidden
+                aria-pressed="false"
+              >
+                Pause
+              </button>
+            </div>
+            <div class="advanced-bets" id="advanced-bets" hidden aria-hidden="true">
+              <div class="advanced-panel">
                   <div class="advanced-group advanced-busts" aria-label="Bust card bets">
                     <div class="advanced-group-header">
                       <h3 class="advanced-title">Bust Card</h3>
@@ -606,10 +670,6 @@
                   </div>
                 </div>
               </div>
-              <p class="table-callout" id="table-callout">
-                Select a chip and place your bet on the regions above
-              </p>
-            </div>
             <div class="status" id="status" aria-live="assertive">
               Select a chip and place your bet on the regions above.
             </div>
