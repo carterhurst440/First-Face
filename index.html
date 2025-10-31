@@ -1,0 +1,737 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Run the Numbers Simulator</title>
+    <link rel="stylesheet" href="styles.css" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Audiowide&family=Play:wght@400;700&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body>
+    <div class="table">
+      <header class="header" role="banner">
+        <div class="header-bar">
+          <div class="bankroll" role="status" aria-live="polite">
+            <span class="bankroll-label">Bank:</span>
+            <span id="bankroll" class="bankroll-value">1000</span>
+            <span class="bankroll-units">units</span>
+            <span id="bankroll-delta" class="bankroll-delta" aria-hidden="true"></span>
+          </div>
+          <button type="button" id="reset-account" class="reset-button" aria-label="Reset account">
+            Reset
+          </button>
+          <button
+            type="button"
+            class="menu-toggle"
+            id="menu-toggle"
+            aria-expanded="false"
+            aria-controls="utility-panel"
+          >
+            <span class="sr-only">Open menu</span>
+            <span class="menu-icon" aria-hidden="true"></span>
+          </button>
+        </div>
+      </header>
+      <section class="title-banner" aria-labelledby="game-title">
+        <div class="title-frame">
+          <h1 id="game-title" class="title-text">RUN THE NUMBERS</h1>
+          <span class="title-accent" aria-hidden="true"></span>
+        </div>
+      </section>
+
+      <aside
+        class="utility-panel"
+        id="utility-panel"
+        aria-hidden="true"
+        aria-labelledby="utility-title"
+      >
+        <div class="utility-header">
+          <h2 id="utility-title">Table Menu</h2>
+          <button type="button" class="utility-close" id="utility-close">
+            <span class="sr-only">Close menu</span>
+            <span aria-hidden="true">×</span>
+          </button>
+        </div>
+        <section class="utility-section" aria-labelledby="how-to-title">
+          <h3 id="how-to-title">How to Play</h3>
+          <ol class="how-to-list">
+            <li>Choose a chip value from the rack.</li>
+            <li>
+              Click Ace or any number from 2 through 10 on the felt to stack
+              chips on that wager.
+            </li>
+            <li>
+              Press <strong>Deal Hand</strong> to reveal cards until a face
+              card (J, Q, or K) or the Joker appears.
+            </li>
+            <li>
+              Each time your number hits before the first face card or Joker,
+              you earn the next step payout. Once a face card or Joker appears,
+              the hand ends and all wagers are forfeited.
+            </li>
+            <li>
+              Use <strong>Rebet &amp; Deal</strong> to replay your previous chip
+              layout or <strong>Clear Bets</strong> to start fresh.
+            </li>
+          </ol>
+          <div class="rules-summary">
+            <p>
+              The game uses a fresh 53-card deck each hand (standard 52 cards
+              plus one Joker). Face cards (J, Q, K) and the Joker stop the deal
+              immediately; Ace and numbers 2–10 keep the action going.
+            </p>
+            <p>
+              Each hit on your number pays the next step on the ladder:
+              <strong>3×</strong>, <strong>4×</strong>, <strong>15×</strong>,
+              then <strong>50×</strong> your wagered units for the fourth hit.
+              Your original chips remain on the felt and are collected when the
+              hand stops.
+            </p>
+          </div>
+        </section>
+        <section class="utility-section" aria-labelledby="recent-hands-title">
+          <div class="section-heading">
+            <h3 id="recent-hands-title">Recent Hands</h3>
+            <p class="section-sub">Most recent results appear first.</p>
+          </div>
+          <ul id="history-list" class="history-list" aria-live="polite"></ul>
+        </section>
+      </aside>
+      <div class="panel-scrim" id="panel-scrim" hidden></div>
+
+      <main class="layout">
+        <section class="stats-strip" aria-label="Game statistics">
+          <div class="stat">
+            <span class="label">Hands Played</span>
+            <span id="hands-played" class="value">0</span>
+          </div>
+          <div class="stat">
+            <span class="label">Total Wagered</span>
+            <span id="total-wagered" class="value">0</span>
+          </div>
+          <div class="stat">
+            <span class="label">Total Paid</span>
+            <span id="total-paid" class="value">0</span>
+          </div>
+          <div class="stat">
+            <span class="label">Hold</span>
+            <span id="hold" class="value">0</span>
+          </div>
+          <div class="stat">
+            <span class="label">House Edge</span>
+            <span id="house-edge" class="value">0%</span>
+          </div>
+        </section>
+        <section class="game" aria-label="Game play area">
+          <div class="felt">
+            <aside class="felt-paytable" aria-label="Paytable">
+              <h2 class="felt-paytable-title">Paytable</h2>
+              <ol class="felt-paytable-list">
+                <li><span class="step">1st hit</span><span class="payout">3×</span></li>
+                <li><span class="step">2nd hit</span><span class="payout">4×</span></li>
+                <li><span class="step">3rd hit</span><span class="payout">15×</span></li>
+                <li><span class="step">4th hit</span><span class="payout">50×</span></li>
+              </ol>
+            </aside>
+            <div class="dealer-zone" aria-live="polite">
+              <h3 class="draws-title">Cards Dealt</h3>
+              <div class="draws" id="draws" aria-label="Cards dealt this hand"></div>
+            </div>
+            <div class="bets-zone">
+              <div class="bets-header">
+                <h2 class="bets-heading">Number Bets</h2>
+                <div class="bets-tools">
+                  <label class="advanced-toggle" for="advanced-toggle">
+                    <span class="toggle-label">Advanced Mode</span>
+                    <input
+                      type="checkbox"
+                      id="advanced-toggle"
+                      role="switch"
+                      aria-checked="false"
+                      aria-controls="advanced-bets"
+                    />
+                    <span class="toggle-visual" aria-hidden="true">
+                      <span class="toggle-thumb"></span>
+                    </span>
+                  </label>
+                  <button
+                    type="button"
+                    id="pause-play"
+                    class="pause-toggle secondary"
+                    hidden
+                    aria-pressed="false"
+                  >
+                    Pause
+                  </button>
+                </div>
+              </div>
+              <div class="playmat" role="group" aria-label="Number bet spots">
+                <button
+                  class="bet-spot"
+                  type="button"
+                  data-bet-type="number"
+                  data-bet-key="number-A"
+                  data-rank="A"
+                  data-bet-label="Ace"
+                  data-lock="hand"
+                  aria-label="Bet on Ace"
+                >
+                  <span class="bet-label">A</span>
+                  <span class="bet-total" aria-live="polite" aria-atomic="true">0</span>
+                  <div class="chip-stack" aria-hidden="true"></div>
+                </button>
+                <button
+                  class="bet-spot"
+                  type="button"
+                  data-bet-type="number"
+                  data-bet-key="number-2"
+                  data-rank="2"
+                  data-bet-label="2"
+                  data-lock="hand"
+                  aria-label="Bet on number 2"
+                >
+                  <span class="bet-label">2</span>
+                  <span class="bet-total" aria-live="polite" aria-atomic="true">0</span>
+                  <div class="chip-stack" aria-hidden="true"></div>
+                </button>
+                <button
+                  class="bet-spot"
+                  type="button"
+                  data-bet-type="number"
+                  data-bet-key="number-3"
+                  data-rank="3"
+                  data-bet-label="3"
+                  data-lock="hand"
+                  aria-label="Bet on number 3"
+                >
+                  <span class="bet-label">3</span>
+                  <span class="bet-total" aria-live="polite" aria-atomic="true">0</span>
+                  <div class="chip-stack" aria-hidden="true"></div>
+                </button>
+                <button
+                  class="bet-spot"
+                  type="button"
+                  data-bet-type="number"
+                  data-bet-key="number-4"
+                  data-rank="4"
+                  data-bet-label="4"
+                  data-lock="hand"
+                  aria-label="Bet on number 4"
+                >
+                  <span class="bet-label">4</span>
+                  <span class="bet-total" aria-live="polite" aria-atomic="true">0</span>
+                  <div class="chip-stack" aria-hidden="true"></div>
+                </button>
+                <button
+                  class="bet-spot"
+                  type="button"
+                  data-bet-type="number"
+                  data-bet-key="number-5"
+                  data-rank="5"
+                  data-bet-label="5"
+                  data-lock="hand"
+                  aria-label="Bet on number 5"
+                >
+                  <span class="bet-label">5</span>
+                  <span class="bet-total" aria-live="polite" aria-atomic="true">0</span>
+                  <div class="chip-stack" aria-hidden="true"></div>
+                </button>
+                <button
+                  class="bet-spot"
+                  type="button"
+                  data-bet-type="number"
+                  data-bet-key="number-6"
+                  data-rank="6"
+                  data-bet-label="6"
+                  data-lock="hand"
+                  aria-label="Bet on number 6"
+                >
+                  <span class="bet-label">6</span>
+                  <span class="bet-total" aria-live="polite" aria-atomic="true">0</span>
+                  <div class="chip-stack" aria-hidden="true"></div>
+                </button>
+                <button
+                  class="bet-spot"
+                  type="button"
+                  data-bet-type="number"
+                  data-bet-key="number-7"
+                  data-rank="7"
+                  data-bet-label="7"
+                  data-lock="hand"
+                  aria-label="Bet on number 7"
+                >
+                  <span class="bet-label">7</span>
+                  <span class="bet-total" aria-live="polite" aria-atomic="true">0</span>
+                  <div class="chip-stack" aria-hidden="true"></div>
+                </button>
+                <button
+                  class="bet-spot"
+                  type="button"
+                  data-bet-type="number"
+                  data-bet-key="number-8"
+                  data-rank="8"
+                  data-bet-label="8"
+                  data-lock="hand"
+                  aria-label="Bet on number 8"
+                >
+                  <span class="bet-label">8</span>
+                  <span class="bet-total" aria-live="polite" aria-atomic="true">0</span>
+                  <div class="chip-stack" aria-hidden="true"></div>
+                </button>
+                <button
+                  class="bet-spot"
+                  type="button"
+                  data-bet-type="number"
+                  data-bet-key="number-9"
+                  data-rank="9"
+                  data-bet-label="9"
+                  data-lock="hand"
+                  aria-label="Bet on number 9"
+                >
+                  <span class="bet-label">9</span>
+                  <span class="bet-total" aria-live="polite" aria-atomic="true">0</span>
+                  <div class="chip-stack" aria-hidden="true"></div>
+                </button>
+                <button
+                  class="bet-spot"
+                  type="button"
+                  data-bet-type="number"
+                  data-bet-key="number-10"
+                  data-rank="10"
+                  data-bet-label="10"
+                  data-lock="hand"
+                  aria-label="Bet on number 10"
+                >
+                  <span class="bet-label">10</span>
+                  <span class="bet-total" aria-live="polite" aria-atomic="true">0</span>
+                  <div class="chip-stack" aria-hidden="true"></div>
+                </button>
+              </div>
+              <div class="advanced-bets" id="advanced-bets" hidden aria-hidden="true">
+                <div class="advanced-panel">
+                  <div class="advanced-group advanced-busts" aria-label="Bust card bets">
+                    <div class="advanced-group-header">
+                      <h3 class="advanced-title">Bust Card</h3>
+                      <p class="advanced-subtitle">Playable any time · pays as shown</p>
+                    </div>
+                    <div class="bust-grid" role="group" aria-label="Bust card bet spots">
+                    <button
+                      class="bet-spot bust-bet bust-suit bust-hearts"
+                      type="button"
+                      data-bet-type="bust-suit"
+                      data-bet-key="bust-hearts"
+                      data-bet-label="Bust Hearts"
+                      data-suit="Hearts"
+                      data-payout="3"
+                      aria-label="Bet the bust card is Hearts. Pays 3 to 1."
+                    >
+                      <span class="bet-label">
+                        <span class="suit-icon" aria-hidden="true">♥</span>
+                        <span class="bet-text">Hearts</span>
+                      </span>
+                      <span class="bet-odds">3:1</span>
+                      <span class="bet-total" aria-live="polite" aria-atomic="true">0</span>
+                      <div class="chip-stack" aria-hidden="true"></div>
+                    </button>
+                    <button
+                      class="bet-spot bust-bet bust-suit bust-clubs"
+                      type="button"
+                      data-bet-type="bust-suit"
+                      data-bet-key="bust-clubs"
+                      data-bet-label="Bust Clubs"
+                      data-suit="Clubs"
+                      data-payout="3"
+                      aria-label="Bet the bust card is Clubs. Pays 3 to 1."
+                    >
+                      <span class="bet-label">
+                        <span class="suit-icon" aria-hidden="true">♣</span>
+                        <span class="bet-text">Clubs</span>
+                      </span>
+                      <span class="bet-odds">3:1</span>
+                      <span class="bet-total" aria-live="polite" aria-atomic="true">0</span>
+                      <div class="chip-stack" aria-hidden="true"></div>
+                    </button>
+                    <button
+                      class="bet-spot bust-bet bust-suit bust-spades"
+                      type="button"
+                      data-bet-type="bust-suit"
+                      data-bet-key="bust-spades"
+                      data-bet-label="Bust Spades"
+                      data-suit="Spades"
+                      data-payout="3"
+                      aria-label="Bet the bust card is Spades. Pays 3 to 1."
+                    >
+                      <span class="bet-label">
+                        <span class="suit-icon" aria-hidden="true">♠</span>
+                        <span class="bet-text">Spades</span>
+                      </span>
+                      <span class="bet-odds">3:1</span>
+                      <span class="bet-total" aria-live="polite" aria-atomic="true">0</span>
+                      <div class="chip-stack" aria-hidden="true"></div>
+                    </button>
+                    <button
+                      class="bet-spot bust-bet bust-suit bust-diamonds"
+                      type="button"
+                      data-bet-type="bust-suit"
+                      data-bet-key="bust-diamonds"
+                      data-bet-label="Bust Diamonds"
+                      data-suit="Diamonds"
+                      data-payout="3"
+                      aria-label="Bet the bust card is Diamonds. Pays 3 to 1."
+                    >
+                      <span class="bet-label">
+                        <span class="suit-icon" aria-hidden="true">♦</span>
+                        <span class="bet-text">Diamonds</span>
+                      </span>
+                      <span class="bet-odds">3:1</span>
+                      <span class="bet-total" aria-live="polite" aria-atomic="true">0</span>
+                      <div class="chip-stack" aria-hidden="true"></div>
+                    </button>
+                    <button
+                      class="bet-spot bust-bet bust-face bust-jack"
+                      type="button"
+                      data-bet-type="bust-rank"
+                      data-bet-key="bust-jack"
+                      data-bet-label="Bust Jack"
+                      data-face="J"
+                      data-payout="2"
+                      aria-label="Bet the bust card is a Jack. Pays 2 to 1."
+                    >
+                      <span class="bet-label">Jack</span>
+                      <span class="bet-odds">2:1</span>
+                      <span class="bet-total" aria-live="polite" aria-atomic="true">0</span>
+                      <div class="chip-stack" aria-hidden="true"></div>
+                    </button>
+                    <button
+                      class="bet-spot bust-bet bust-face bust-queen"
+                      type="button"
+                      data-bet-type="bust-rank"
+                      data-bet-key="bust-queen"
+                      data-bet-label="Bust Queen"
+                      data-face="Q"
+                      data-payout="2"
+                      aria-label="Bet the bust card is a Queen. Pays 2 to 1."
+                    >
+                      <span class="bet-label">Queen</span>
+                      <span class="bet-odds">2:1</span>
+                      <span class="bet-total" aria-live="polite" aria-atomic="true">0</span>
+                      <div class="chip-stack" aria-hidden="true"></div>
+                    </button>
+                    <button
+                      class="bet-spot bust-bet bust-face bust-king"
+                      type="button"
+                      data-bet-type="bust-rank"
+                      data-bet-key="bust-king"
+                      data-bet-label="Bust King"
+                      data-face="K"
+                      data-payout="2"
+                      aria-label="Bet the bust card is a King. Pays 2 to 1."
+                    >
+                      <span class="bet-label">King</span>
+                      <span class="bet-odds">2:1</span>
+                      <span class="bet-total" aria-live="polite" aria-atomic="true">0</span>
+                      <div class="chip-stack" aria-hidden="true"></div>
+                    </button>
+                    <button
+                      class="bet-spot bust-bet bust-joker"
+                      type="button"
+                      data-bet-type="bust-joker"
+                      data-bet-key="bust-joker"
+                      data-bet-label="Bust Joker"
+                      data-payout="11"
+                      aria-label="Bet the bust card is the Joker. Pays 11 to 1."
+                    >
+                      <span class="bet-label">Joker</span>
+                      <span class="bet-odds">11:1</span>
+                      <span class="bet-total" aria-live="polite" aria-atomic="true">0</span>
+                      <div class="chip-stack" aria-hidden="true"></div>
+                    </button>
+                    </div>
+                  </div>
+                  <div class="advanced-group" aria-label="Card count bets">
+                    <div class="advanced-group-header">
+                      <h3 class="advanced-title">Card Count</h3>
+                      <p class="advanced-subtitle">Lock before dealing · counts include the bust card</p>
+                    </div>
+                  <div class="advanced-grid card-count-grid" role="group" aria-label="Card count bet spots">
+                    <button
+                      class="bet-spot count-bet"
+                      type="button"
+                      data-bet-type="count"
+                      data-bet-key="count-1"
+                      data-bet-label="1 Card"
+                      data-count-min="1"
+                      data-count-max="1"
+                      data-payout="3"
+                      data-tier="1"
+                      data-lock="hand"
+                      aria-label="Bet the hand ends after exactly 1 card dealt. Pays 3 to 1."
+                    >
+                      <span class="bet-label">1 Card</span>
+                      <span class="bet-odds">3:1</span>
+                      <span class="bet-total" aria-live="polite" aria-atomic="true">0</span>
+                      <div class="chip-stack" aria-hidden="true"></div>
+                    </button>
+                    <button
+                      class="bet-spot count-bet"
+                      type="button"
+                      data-bet-type="count"
+                      data-bet-key="count-2"
+                      data-bet-label="2 Cards"
+                      data-count-min="2"
+                      data-count-max="2"
+                      data-payout="4"
+                      data-tier="2"
+                      data-lock="hand"
+                      aria-label="Bet the hand ends after exactly 2 cards dealt. Pays 4 to 1."
+                    >
+                      <span class="bet-label">2 Cards</span>
+                      <span class="bet-odds">4:1</span>
+                      <span class="bet-total" aria-live="polite" aria-atomic="true">0</span>
+                      <div class="chip-stack" aria-hidden="true"></div>
+                    </button>
+                    <button
+                      class="bet-spot count-bet"
+                      type="button"
+                      data-bet-type="count"
+                      data-bet-key="count-3"
+                      data-bet-label="3 Cards"
+                      data-count-min="3"
+                      data-count-max="3"
+                      data-payout="5"
+                      data-tier="3"
+                      data-lock="hand"
+                      aria-label="Bet the hand ends after exactly 3 cards dealt. Pays 5 to 1."
+                    >
+                      <span class="bet-label">3 Cards</span>
+                      <span class="bet-odds">5:1</span>
+                      <span class="bet-total" aria-live="polite" aria-atomic="true">0</span>
+                      <div class="chip-stack" aria-hidden="true"></div>
+                    </button>
+                    <button
+                      class="bet-spot count-bet"
+                      type="button"
+                      data-bet-type="count"
+                      data-bet-key="count-4"
+                      data-bet-label="4 Cards"
+                      data-count-min="4"
+                      data-count-max="4"
+                      data-payout="7"
+                      data-tier="4"
+                      data-lock="hand"
+                      aria-label="Bet the hand ends after exactly 4 cards dealt. Pays 7 to 1."
+                    >
+                      <span class="bet-label">4 Cards</span>
+                      <span class="bet-odds">7:1</span>
+                      <span class="bet-total" aria-live="polite" aria-atomic="true">0</span>
+                      <div class="chip-stack" aria-hidden="true"></div>
+                    </button>
+                    <button
+                      class="bet-spot count-bet"
+                      type="button"
+                      data-bet-type="count"
+                      data-bet-key="count-5"
+                      data-bet-label="5 Cards"
+                      data-count-min="5"
+                      data-count-max="5"
+                      data-payout="10"
+                      data-tier="5"
+                      data-lock="hand"
+                      aria-label="Bet the hand ends after exactly 5 cards dealt. Pays 10 to 1."
+                    >
+                      <span class="bet-label">5 Cards</span>
+                      <span class="bet-odds">10:1</span>
+                      <span class="bet-total" aria-live="polite" aria-atomic="true">0</span>
+                      <div class="chip-stack" aria-hidden="true"></div>
+                    </button>
+                    <button
+                      class="bet-spot count-bet"
+                      type="button"
+                      data-bet-type="count"
+                      data-bet-key="count-6"
+                      data-bet-label="6 Cards"
+                      data-count-min="6"
+                      data-count-max="6"
+                      data-payout="13"
+                      data-tier="6"
+                      data-lock="hand"
+                      aria-label="Bet the hand ends after exactly 6 cards dealt. Pays 13 to 1."
+                    >
+                      <span class="bet-label">6 Cards</span>
+                      <span class="bet-odds">13:1</span>
+                      <span class="bet-total" aria-live="polite" aria-atomic="true">0</span>
+                      <div class="chip-stack" aria-hidden="true"></div>
+                    </button>
+                    <button
+                      class="bet-spot count-bet"
+                      type="button"
+                      data-bet-type="count"
+                      data-bet-key="count-7"
+                      data-bet-label="7 Cards"
+                      data-count-min="7"
+                      data-count-max="7"
+                      data-payout="18"
+                      data-tier="7"
+                      data-lock="hand"
+                      aria-label="Bet the hand ends after exactly 7 cards dealt. Pays 18 to 1."
+                    >
+                      <span class="bet-label">7 Cards</span>
+                      <span class="bet-odds">18:1</span>
+                      <span class="bet-total" aria-live="polite" aria-atomic="true">0</span>
+                      <div class="chip-stack" aria-hidden="true"></div>
+                    </button>
+                    <button
+                      class="bet-spot count-bet"
+                      type="button"
+                      data-bet-type="count"
+                      data-bet-key="count-8plus"
+                      data-bet-label="8+ Cards"
+                      data-count-min="8"
+                      data-count-max="Infinity"
+                      data-payout="10"
+                      data-tier="8"
+                      data-lock="hand"
+                      aria-label="Bet the hand lasts 8 or more cards dealt. Pays 10 to 1."
+                    >
+                      <span class="bet-label">8+ Cards</span>
+                      <span class="bet-odds">10:1</span>
+                      <span class="bet-total" aria-live="polite" aria-atomic="true">0</span>
+                      <div class="chip-stack" aria-hidden="true"></div>
+                    </button>
+                  </div>
+                </div>
+              </div>
+              <p class="table-callout" id="table-callout">
+                Select a chip and place your bet on the regions above
+              </p>
+            </div>
+            <div class="status" id="status" aria-live="assertive">
+              Select a chip and place your bet on the regions above.
+            </div>
+          </div>
+        </section>
+
+        <section
+          class="bets-panel"
+          aria-live="polite"
+          aria-label="Active bets"
+          role="region"
+        >
+          <h3>Active Bets</h3>
+          <table>
+            <thead>
+              <tr>
+                <th scope="col">Bet</th>
+                <th scope="col">Units</th>
+                <th scope="col">Hits</th>
+                <th scope="col">Paid</th>
+              </tr>
+            </thead>
+            <tbody id="bets-body">
+              <tr class="empty">
+                <td colspan="4">No bets placed.</td>
+              </tr>
+            </tbody>
+          </table>
+        </section>
+
+        <section class="bankroll-history" aria-label="Bankroll history over hands">
+          <div class="section-heading">
+            <h3>Bankroll History</h3>
+            <p class="section-sub">Hand results plotted over time.</p>
+          </div>
+          <div
+            class="bankroll-chart-wrapper"
+            id="bankroll-chart-wrapper"
+            role="presentation"
+          >
+            <canvas
+              id="bankroll-chart"
+              class="bankroll-chart"
+              role="img"
+              aria-label="Line chart showing bankroll value after each hand"
+            ></canvas>
+          </div>
+        </section>
+      </main>
+
+      <div class="chip-bar" aria-label="Bet controls">
+        <div class="chip-control chip-control-left">
+          <button
+            type="button"
+            id="clear-bets"
+            class="clear-bets secondary"
+          >
+            Clear Bets
+          </button>
+        </div>
+        <div
+          class="chip-selector"
+          id="chip-selector"
+          role="radiogroup"
+          aria-label="Choose chip denomination"
+        >
+          <button
+            class="chip-choice"
+            type="button"
+            data-value="5"
+            role="radio"
+            aria-checked="true"
+          >
+            5
+          </button>
+          <button
+            class="chip-choice"
+            type="button"
+            data-value="10"
+            role="radio"
+            aria-checked="false"
+          >
+            10
+          </button>
+          <button
+            class="chip-choice"
+            type="button"
+            data-value="25"
+            role="radio"
+            aria-checked="false"
+          >
+            25
+          </button>
+          <button
+            class="chip-choice"
+            type="button"
+            data-value="100"
+            role="radio"
+            aria-checked="false"
+          >
+            100
+          </button>
+        </div>
+        <div class="chip-actions">
+          <button type="button" id="table-ready" class="secondary" hidden>
+            Table Ready
+          </button>
+          <button type="button" id="rebet-button" class="secondary" hidden>
+            Rebet &amp; Deal
+          </button>
+          <button id="deal-button" class="deal" disabled>Deal Hand</button>
+        </div>
+      </div>
+    </div>
+
+    <template id="card-template">
+      <div class="card">
+        <div class="card-rank"></div>
+        <div class="card-suit"></div>
+      </div>
+    </template>
+
+    <script src="script.js" defer></script>
+  </body>
+</html>
