@@ -116,6 +116,12 @@ const resetAccountButton = document.getElementById("reset-account");
 const menuToggle = document.getElementById("menu-toggle");
 const utilityPanel = document.getElementById("utility-panel");
 const utilityClose = document.getElementById("utility-close");
+const graphToggle = document.getElementById("graph-toggle");
+const chartPanel = document.getElementById("chart-panel");
+const chartClose = document.getElementById("chart-close");
+const analyticsToggle = document.getElementById("analytics-toggle");
+const analyticsPanel = document.getElementById("analytics-panel");
+const analyticsClose = document.getElementById("analytics-close");
 const panelScrim = document.getElementById("panel-scrim");
 const bankrollChartCanvas = document.getElementById("bankroll-chart");
 const bankrollChartWrapper = document.getElementById("bankroll-chart-wrapper");
@@ -130,6 +136,14 @@ const advancedToggleWrapper = advancedToggleInput
 const advancedBetsSection = document.getElementById("advanced-bets");
 const pausePlayButton = document.getElementById("pause-play");
 const paytableRadios = Array.from(document.querySelectorAll('input[name="paytable"]'));
+const changePaytableButton = document.getElementById("change-paytable");
+const paytableModal = document.getElementById("paytable-modal");
+const paytableForm = document.getElementById("paytable-form");
+const paytableApplyButton = document.getElementById("paytable-apply");
+const paytableCancelButton = document.getElementById("paytable-cancel");
+const paytableCloseButton = document.getElementById("paytable-close");
+const activePaytableNameEl = document.getElementById("active-paytable-name");
+const activePaytableStepsEl = document.getElementById("active-paytable-steps");
 
 let bankroll = INITIAL_BANKROLL;
 let bets = [];
@@ -153,6 +167,9 @@ let pauseResolvers = [];
 let currentHandContext = null;
 let advancedCollapseTimeout = null;
 let activePaytable = PAYTABLES[0];
+let pendingPaytableId = activePaytable.id;
+let openDrawerPanel = null;
+let openDrawerToggle = null;
 
 const MAX_HISTORY_POINTS = 500;
 
@@ -174,6 +191,13 @@ function updateActivePaytableUI({ announce = false } = {}) {
     }
   });
 
+  if (activePaytableNameEl) {
+    activePaytableNameEl.textContent = activePaytable.name;
+  }
+  if (activePaytableStepsEl) {
+    activePaytableStepsEl.textContent = formatPaytableSummary(activePaytable);
+  }
+
   if (announce && statusEl && !dealing) {
     statusEl.textContent = `${activePaytable.name} selected. Ladder pays ${formatPaytableSummary(
       activePaytable
@@ -188,6 +212,7 @@ function setActivePaytable(id, { announce = false } = {}) {
     return;
   }
   activePaytable = next;
+  pendingPaytableId = activePaytable.id;
   updateActivePaytableUI({ announce });
 }
 
@@ -201,6 +226,15 @@ function updatePaytableAvailability() {
       option.classList.toggle("option-disabled", disabled);
     }
   });
+
+  if (changePaytableButton) {
+    changePaytableButton.disabled = disabled;
+    if (disabled) {
+      changePaytableButton.setAttribute("aria-disabled", "true");
+    } else {
+      changePaytableButton.removeAttribute("aria-disabled");
+    }
+  }
 }
 
 function currentStepPays() {
@@ -1222,11 +1256,7 @@ betSpotButtons.forEach((button) => {
 paytableRadios.forEach((radio) => {
   radio.addEventListener("change", () => {
     if (!radio.checked) return;
-    if (!bettingOpen) {
-      radio.checked = activePaytable.id === radio.value;
-      return;
-    }
-    setActivePaytable(radio.value, { announce: true });
+    pendingPaytableId = radio.value;
   });
 });
 
@@ -1313,47 +1343,175 @@ resetAccountButton.addEventListener("click", () => {
   closeUtilityPanel();
 });
 
-function openUtilityPanel() {
-  if (!utilityPanel || !menuToggle || !panelScrim) return;
-  utilityPanel.classList.add("is-open");
-  utilityPanel.setAttribute("aria-hidden", "false");
-  menuToggle.setAttribute("aria-expanded", "true");
+function openDrawer(panel, toggle) {
+  if (!panel || !panelScrim) return;
+  if (panel === openDrawerPanel) return;
+  closeActiveDrawer();
+  panel.classList.add("is-open");
+  panel.setAttribute("aria-hidden", "false");
+  if (toggle) {
+    toggle.setAttribute("aria-expanded", "true");
+  }
   panelScrim.hidden = false;
+  openDrawerPanel = panel;
+  openDrawerToggle = toggle || null;
+  if (panel === chartPanel) {
+    requestAnimationFrame(() => {
+      drawBankrollChart();
+    });
+  }
+}
+
+function closeDrawer(panel = openDrawerPanel, toggle = openDrawerToggle) {
+  if (!panel) return;
+  panel.classList.remove("is-open");
+  panel.setAttribute("aria-hidden", "true");
+  if (toggle) {
+    toggle.setAttribute("aria-expanded", "false");
+  }
+  if (panel === openDrawerPanel) {
+    openDrawerPanel = null;
+    openDrawerToggle = null;
+  }
+  if (!openDrawerPanel && panelScrim) {
+    panelScrim.hidden = true;
+  }
+}
+
+function closeActiveDrawer({ returnFocus = false } = {}) {
+  if (!openDrawerPanel) return;
+  const toggle = openDrawerToggle;
+  closeDrawer(openDrawerPanel, openDrawerToggle);
+  if (returnFocus && toggle) {
+    toggle.focus();
+  }
 }
 
 function closeUtilityPanel() {
-  if (!utilityPanel || !menuToggle || !panelScrim) return;
-  utilityPanel.classList.remove("is-open");
-  utilityPanel.setAttribute("aria-hidden", "true");
-  menuToggle.setAttribute("aria-expanded", "false");
-  panelScrim.hidden = true;
+  closeDrawer(utilityPanel, menuToggle);
+}
+
+function openPaytableModal() {
+  if (!paytableModal || !changePaytableButton) return;
+  if (!bettingOpen) return;
+  pendingPaytableId = activePaytable.id;
+  updateActivePaytableUI();
+  paytableRadios.forEach((radio) => {
+    radio.checked = radio.value === pendingPaytableId;
+  });
+  paytableModal.hidden = false;
+  paytableModal.classList.add("is-open");
+  paytableModal.setAttribute("aria-hidden", "false");
+  document.body.classList.add("modal-open");
+  const focusTarget =
+    paytableForm?.querySelector('input[name="paytable"]:checked') ||
+    paytableForm?.querySelector('input[name="paytable"]');
+  focusTarget?.focus();
+}
+
+function closePaytableModal({ restoreFocus = false } = {}) {
+  if (!paytableModal) return;
+  paytableModal.classList.remove("is-open");
+  paytableModal.setAttribute("aria-hidden", "true");
+  paytableModal.hidden = true;
+  document.body.classList.remove("modal-open");
+  updateActivePaytableUI();
+  if (restoreFocus && changePaytableButton) {
+    changePaytableButton.focus();
+  }
 }
 
 if (menuToggle && utilityPanel && utilityClose && panelScrim) {
   menuToggle.addEventListener("click", () => {
     const isOpen = utilityPanel.classList.contains("is-open");
     if (isOpen) {
-      closeUtilityPanel();
+      closeDrawer(utilityPanel, menuToggle);
     } else {
-      openUtilityPanel();
+      openDrawer(utilityPanel, menuToggle);
     }
   });
 
   utilityClose.addEventListener("click", () => {
-    closeUtilityPanel();
-  });
-
-  panelScrim.addEventListener("click", () => {
-    closeUtilityPanel();
-  });
-
-  document.addEventListener("keydown", (event) => {
-    if (event.key === "Escape" && utilityPanel.classList.contains("is-open")) {
-      closeUtilityPanel();
-      menuToggle.focus();
-    }
+    closeDrawer(utilityPanel, menuToggle);
   });
 }
+
+if (graphToggle && chartPanel && chartClose) {
+  graphToggle.addEventListener("click", () => {
+    const isOpen = chartPanel.classList.contains("is-open");
+    if (isOpen) {
+      closeDrawer(chartPanel, graphToggle);
+    } else {
+      openDrawer(chartPanel, graphToggle);
+    }
+  });
+
+  chartClose.addEventListener("click", () => {
+    closeDrawer(chartPanel, graphToggle);
+  });
+}
+
+if (analyticsToggle && analyticsPanel && analyticsClose) {
+  analyticsToggle.addEventListener("click", () => {
+    const isOpen = analyticsPanel.classList.contains("is-open");
+    if (isOpen) {
+      closeDrawer(analyticsPanel, analyticsToggle);
+    } else {
+      openDrawer(analyticsPanel, analyticsToggle);
+    }
+  });
+
+  analyticsClose.addEventListener("click", () => {
+    closeDrawer(analyticsPanel, analyticsToggle);
+  });
+}
+
+if (panelScrim) {
+  panelScrim.addEventListener("click", () => {
+    closeActiveDrawer();
+  });
+}
+
+if (changePaytableButton && paytableModal && paytableApplyButton && paytableCancelButton) {
+  changePaytableButton.addEventListener("click", () => {
+    if (changePaytableButton.disabled) return;
+    openPaytableModal();
+  });
+
+  paytableApplyButton.addEventListener("click", () => {
+    if (!paytableModal.hidden) {
+      setActivePaytable(pendingPaytableId, { announce: true });
+      closePaytableModal({ restoreFocus: true });
+    }
+  });
+
+  paytableCancelButton.addEventListener("click", () => {
+    pendingPaytableId = activePaytable.id;
+    closePaytableModal({ restoreFocus: true });
+  });
+
+  if (paytableCloseButton) {
+    paytableCloseButton.addEventListener("click", () => {
+      pendingPaytableId = activePaytable.id;
+      closePaytableModal({ restoreFocus: true });
+    });
+  }
+}
+
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape") {
+    if (paytableModal && !paytableModal.hidden) {
+      pendingPaytableId = activePaytable.id;
+      closePaytableModal({ restoreFocus: true });
+      event.preventDefault();
+      return;
+    }
+    if (openDrawerPanel) {
+      event.preventDefault();
+      closeActiveDrawer({ returnFocus: true });
+    }
+  }
+});
 
 setActivePaytable(activePaytable.id, { announce: false });
 updatePaytableAvailability();
