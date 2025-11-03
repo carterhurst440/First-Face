@@ -805,24 +805,12 @@ body {
 }
 
 .advanced-bets {
-  margin-top: 0;
-  overflow: hidden;
-  max-height: 0;
-  opacity: 0;
-  transform: translateY(-12px);
-  transition: max-height 0.32s ease, opacity 0.28s ease, transform 0.28s ease,
-    margin-top 0.3s ease;
+  display: none;
 }
 
 .advanced-bets.is-open {
+  display: block;
   margin-top: clamp(0.45rem, 1.4vw, 0.75rem);
-  max-height: var(--advanced-max-height, 1600px);
-  opacity: 1;
-  transform: translateY(0);
-}
-
-.advanced-bets[hidden] {
-  display: none;
 }
 
 .advanced-panel {

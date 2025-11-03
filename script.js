@@ -162,8 +162,6 @@ let advancedMode = false;
 let handPaused = false;
 let pauseResolvers = [];
 let currentHandContext = null;
-let advancedCollapseTimeout = null;
-let advancedHeightRAF = null;
 let activePaytable = PAYTABLES[0];
 let pendingPaytableId = activePaytable.id;
 let openDrawerPanel = null;
@@ -765,49 +763,15 @@ function setAdvancedMode(enabled) {
   if (advancedMode === enabled) return;
   advancedMode = enabled;
 
-  if (advancedCollapseTimeout !== null) {
-    window.clearTimeout(advancedCollapseTimeout);
-    advancedCollapseTimeout = null;
-  }
-
   if (advancedBetsSection) {
-    const cancelHeightAnimation = () => {
-      if (advancedHeightRAF !== null) {
-        cancelAnimationFrame(advancedHeightRAF);
-        advancedHeightRAF = null;
-      }
-    };
-
     if (enabled) {
       advancedBetsSection.hidden = false;
+      advancedBetsSection.classList.add("is-open");
       advancedBetsSection.setAttribute("aria-hidden", "false");
-      const updateHeight = () => {
-        if (!advancedBetsSection) return;
-        const targetHeight = advancedBetsSection.scrollHeight;
-        advancedBetsSection.style.setProperty(
-          "--advanced-max-height",
-          `${targetHeight}px`
-        );
-        advancedBetsSection.classList.add("is-open");
-        advancedHeightRAF = null;
-      };
-      if (typeof requestAnimationFrame === "function") {
-        cancelHeightAnimation();
-        advancedHeightRAF = requestAnimationFrame(updateHeight);
-      } else {
-        updateHeight();
-      }
     } else {
-      cancelHeightAnimation();
       advancedBetsSection.classList.remove("is-open");
-      advancedBetsSection.style.removeProperty("--advanced-max-height");
       advancedBetsSection.setAttribute("aria-hidden", "true");
-      advancedCollapseTimeout = window.setTimeout(() => {
-        if (!advancedMode && advancedBetsSection) {
-          advancedBetsSection.hidden = true;
-        }
-        advancedCollapseTimeout = null;
-      }, 320);
+      advancedBetsSection.hidden = true;
     }
   }
 
