@@ -15,7 +15,7 @@ Run the Numbers is a web-based simulator for the updated First Face ruleset. Sta
 
 ## Layout Overview
 
-* The main view is split into two responsive panels: the left felt for the active paytable and dealing lane, and the right column for wagering. On desktops the panels sit side by side; on mobile they stack top-to-bottom.
+* The main view is split into two responsive panels: the left felt for the active paytable and dealing lane, and the right column for wagering. Each panel holds half of the available play space and scrolls independently—side by side on desktops and stacked top-to-bottom on mobile so both stay visible at once.
 * Game stats move into the analytics drawer that opens from the header icon, keeping the table surface clear while still offering quick access to hands played, wagered, paid, hold, and house edge.
 * The Advanced Mode toggle and pause control sit at the bottom of the betting panel so number bets stay visible while the expanded wager grids slide into view only when needed.
 * Cards dealt during a hand scale down slightly and wrap onto a second row when needed, keeping long streaks readable on mobile.
