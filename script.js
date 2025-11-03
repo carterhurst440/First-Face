@@ -983,7 +983,7 @@ function addHistoryEntry(result) {
 }
 
 function resetTable(
-  message = "Select a chip and place your bet on the regions above.",
+  message = "Select a chip and place your bets in the betting panel.",
   { clearDraws = false } = {}
 ) {
   if (clearDraws) {
@@ -1313,7 +1313,7 @@ resetAccountButton.addEventListener("click", () => {
   currentOpeningLayout = [];
   historyList.innerHTML = "";
   resetBets();
-  resetTable("Account reset. Select a chip and place your bet on the regions above.", {
+  resetTable("Account reset. Select a chip and place your bets in the betting panel.", {
     clearDraws: true
   });
   resetBankrollHistory();
