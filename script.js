@@ -193,20 +193,41 @@ async function handleAuthSubmit(event) {
     authErrorEl.textContent = "";
   }
   try {
-    let { error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) {
-      const { error: signUpError } = await supabase.auth.signUp({ email, password });
+    const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+      email,
+      password
+    });
+
+    if (signInError) {
+      const { error: signUpError } = await supabase.auth.signUp({
+        email,
+        password
+      });
+
       if (signUpError) {
         throw signUpError;
       }
+
+      showToast("Check your email to confirm your account", "info");
+      return;
     }
-    const user = await refreshCurrentUser();
-    if (user) {
-      await ensureProfile(user);
-      updateHash("dashboard", { replace: true });
-      await setRoute("dashboard", { replaceHash: true });
-      showToast("Signed in", "success");
+
+    let user = signInData?.user ?? null;
+
+    if (!user) {
+      user = await refreshCurrentUser();
+    } else {
+      currentUser = user;
     }
+
+    if (!user) {
+      throw new Error("Unable to fetch user after sign in");
+    }
+
+    await ensureProfile(user);
+    updateHash("dashboard", { replace: true });
+    await setRoute("dashboard", { replaceHash: true });
+    showToast("Signed in", "success");
   } catch (error) {
     console.error(error);
     if (authErrorEl) {
