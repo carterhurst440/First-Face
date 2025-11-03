@@ -35,7 +35,7 @@ function describeRank(rank) {
 }
 
 function applyTheme(theme) {
-  const next = THEME_CLASS_MAP[theme] ? theme : "retro";
+  const next = THEME_CLASS_MAP[theme] ? theme : "blue";
   if (!document.body) {
     currentTheme = next;
     return;
@@ -48,7 +48,7 @@ function applyTheme(theme) {
     }
     return;
   }
-  Object.values(THEME_CLASS_MAP).forEach((className) => {
+  ALL_THEME_CLASSES.forEach((className) => {
     document.body.classList.remove(className);
   });
   document.body.classList.add(THEME_CLASS_MAP[next]);
@@ -64,14 +64,14 @@ function applyTheme(theme) {
 }
 
 function initTheme() {
-  let saved = "retro";
+  let saved = "blue";
   try {
     const stored = localStorage.getItem(THEME_STORAGE_KEY);
     if (stored && THEME_CLASS_MAP[stored]) {
       saved = stored;
     }
   } catch (error) {
-    saved = "retro";
+    saved = "blue";
   }
   applyTheme(saved);
   if (themeSelect) {
@@ -198,10 +198,16 @@ const activePaytableNameEl = document.getElementById("active-paytable-name");
 const activePaytableStepsEl = document.getElementById("active-paytable-steps");
 
 const THEME_CLASS_MAP = {
-  retro: "theme-retro",
-  "cotton-candy": "theme-cotton-candy",
-  pastel: "theme-pastel"
+  blue: "theme-blue",
+  pink: "theme-pink",
+  orange: "theme-orange"
 };
+const ALL_THEME_CLASSES = [
+  ...Object.values(THEME_CLASS_MAP),
+  "theme-retro",
+  "theme-cotton-candy",
+  "theme-pastel"
+];
 const THEME_STORAGE_KEY = "run-the-numbers-theme";
 
 let bankroll = INITIAL_BANKROLL;
@@ -228,7 +234,7 @@ let activePaytable = PAYTABLES[0];
 let pendingPaytableId = activePaytable.id;
 let openDrawerPanel = null;
 let openDrawerToggle = null;
-let currentTheme = "retro";
+let currentTheme = "blue";
 
 const MAX_HISTORY_POINTS = 500;
 

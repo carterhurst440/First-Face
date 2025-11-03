@@ -152,11 +152,11 @@
   font-size: 16px;
 }
 
-body.theme-retro {
+body.theme-blue {
   /* Default palette already provided via :root values */
 }
 
-body.theme-cotton-candy {
+body.theme-pink {
   --neon-cyan: #8be9ff;
   --neon-magenta: #ff9df4;
   --neon-violet: #c6a7ff;
@@ -276,7 +276,7 @@ body.theme-cotton-candy {
   --count-bet-end-base: rgba(255, 157, 244, 0.34);
 }
 
-body.theme-pastel {
+body.theme-orange {
   --neon-cyan: #9ff0e5;
   --neon-magenta: #ffc1a6;
   --neon-violet: #b8d4ff;
@@ -1450,68 +1450,68 @@ body {
   --count-end: rgba(255, 99, 224, 0.55);
 }
 
-body.theme-cotton-candy .count-bet[data-tier="1"] {
+body.theme-pink .count-bet[data-tier="1"] {
   --count-start: rgba(198, 167, 255, 0.24);
   --count-end: rgba(255, 168, 252, 0.28);
 }
-body.theme-cotton-candy .count-bet[data-tier="2"] {
+body.theme-pink .count-bet[data-tier="2"] {
   --count-start: rgba(198, 167, 255, 0.28);
   --count-end: rgba(255, 168, 252, 0.32);
 }
-body.theme-cotton-candy .count-bet[data-tier="3"] {
+body.theme-pink .count-bet[data-tier="3"] {
   --count-start: rgba(198, 167, 255, 0.32);
   --count-end: rgba(255, 168, 252, 0.36);
 }
-body.theme-cotton-candy .count-bet[data-tier="4"] {
+body.theme-pink .count-bet[data-tier="4"] {
   --count-start: rgba(198, 167, 255, 0.36);
   --count-end: rgba(255, 168, 252, 0.4);
 }
-body.theme-cotton-candy .count-bet[data-tier="5"] {
+body.theme-pink .count-bet[data-tier="5"] {
   --count-start: rgba(198, 167, 255, 0.4);
   --count-end: rgba(255, 168, 252, 0.44);
 }
-body.theme-cotton-candy .count-bet[data-tier="6"] {
+body.theme-pink .count-bet[data-tier="6"] {
   --count-start: rgba(198, 167, 255, 0.44);
   --count-end: rgba(255, 168, 252, 0.48);
 }
-body.theme-cotton-candy .count-bet[data-tier="7"] {
+body.theme-pink .count-bet[data-tier="7"] {
   --count-start: rgba(198, 167, 255, 0.48);
   --count-end: rgba(255, 168, 252, 0.52);
 }
-body.theme-cotton-candy .count-bet[data-tier="8"] {
+body.theme-pink .count-bet[data-tier="8"] {
   --count-start: rgba(198, 167, 255, 0.52);
   --count-end: rgba(255, 168, 252, 0.58);
 }
 
-body.theme-pastel .count-bet[data-tier="1"] {
+body.theme-orange .count-bet[data-tier="1"] {
   --count-start: rgba(159, 240, 229, 0.22);
   --count-end: rgba(255, 208, 122, 0.26);
 }
-body.theme-pastel .count-bet[data-tier="2"] {
+body.theme-orange .count-bet[data-tier="2"] {
   --count-start: rgba(159, 240, 229, 0.26);
   --count-end: rgba(255, 208, 122, 0.3);
 }
-body.theme-pastel .count-bet[data-tier="3"] {
+body.theme-orange .count-bet[data-tier="3"] {
   --count-start: rgba(159, 240, 229, 0.3);
   --count-end: rgba(255, 208, 122, 0.34);
 }
-body.theme-pastel .count-bet[data-tier="4"] {
+body.theme-orange .count-bet[data-tier="4"] {
   --count-start: rgba(159, 240, 229, 0.34);
   --count-end: rgba(255, 208, 122, 0.38);
 }
-body.theme-pastel .count-bet[data-tier="5"] {
+body.theme-orange .count-bet[data-tier="5"] {
   --count-start: rgba(159, 240, 229, 0.38);
   --count-end: rgba(255, 208, 122, 0.42);
 }
-body.theme-pastel .count-bet[data-tier="6"] {
+body.theme-orange .count-bet[data-tier="6"] {
   --count-start: rgba(159, 240, 229, 0.42);
   --count-end: rgba(255, 208, 122, 0.46);
 }
-body.theme-pastel .count-bet[data-tier="7"] {
+body.theme-orange .count-bet[data-tier="7"] {
   --count-start: rgba(159, 240, 229, 0.46);
   --count-end: rgba(255, 208, 122, 0.5);
 }
-body.theme-pastel .count-bet[data-tier="8"] {
+body.theme-orange .count-bet[data-tier="8"] {
   --count-start: rgba(159, 240, 229, 0.5);
   --count-end: rgba(255, 208, 122, 0.56);
 }
