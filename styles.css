@@ -1237,29 +1237,31 @@ button:disabled {
   padding: clamp(0.45rem, 1.2vw, 0.75rem) clamp(1.1rem, 4vw, 1.9rem);
   box-shadow: 0 -20px 40px rgba(3, 3, 15, 0.6);
   z-index: 8;
-  display: grid;
-  grid-template-columns:
-    minmax(clamp(120px, 24vw, 220px), 1fr)
-    auto
-    minmax(clamp(120px, 24vw, 220px), 1fr);
-  align-items: center;
-  gap: clamp(0.45rem, 1.8vw, 1rem);
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: clamp(0.45rem, 2vw, 0.85rem);
 }
 
-.chip-bar::before {
-  content: "";
-}
-
-.chip-control {
+.chip-selector {
   display: flex;
   align-items: center;
-  justify-content: flex-start;
-  min-width: clamp(120px, 24vw, 220px);
-  grid-column: 1;
+  justify-content: center;
+  gap: clamp(0.45rem, 2vw, 0.9rem);
+  flex-wrap: wrap;
 }
 
-.chip-control-left {
-  justify-self: start;
+.chip-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(0.35rem, 1.8vw, 0.75rem);
+  flex-wrap: nowrap;
+}
+
+.chip-actions button {
+  flex: 0 1 auto;
+  white-space: nowrap;
 }
 
 .chip-bar .secondary,
@@ -1274,25 +1276,11 @@ button:disabled {
   padding-inline: clamp(1rem, 3vw, 1.3rem);
 }
 
-.chip-selector {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: clamp(0.45rem, 2vw, 0.9rem);
-  min-width: clamp(220px, 38vw, 480px);
-  margin-inline: auto;
-  grid-column: 2;
-  justify-self: center;
-}
-
-.chip-actions {
-  display: flex;
-  align-items: center;
-  gap: clamp(0.4rem, 1.5vw, 0.85rem);
-  justify-content: flex-end;
-  min-width: clamp(120px, 26vw, 220px);
-  grid-column: 3;
-  justify-self: end;
+.chip-actions .clear-bets {
+  padding: 0.32rem 0.7rem;
+  font-size: 0.7rem;
+  letter-spacing: 0.08rem;
+  text-transform: uppercase;
 }
 
 .chip-choice {
@@ -1517,11 +1505,6 @@ button:disabled {
   .chip-bar {
     gap: clamp(0.5rem, 2.5vw, 1.3rem);
   }
-
-  .chip-control,
-  .chip-actions {
-    min-width: clamp(140px, 32vw, 240px);
-  }
 }
 
 @media (max-width: 720px) {
@@ -1547,35 +1530,14 @@ button:disabled {
   }
 
   .chip-bar {
-    grid-template-columns: 1fr;
-    row-gap: clamp(0.35rem, 2vw, 0.6rem);
     padding-inline: clamp(0.75rem, 5vw, 1.2rem);
+    gap: clamp(0.35rem, 2vw, 0.6rem);
   }
 
-  .chip-bar::before {
-    display: none;
-  }
-
-  .chip-selector {
-    grid-column: 1;
-    width: 100%;
-    justify-content: center;
-  }
-
-  .chip-control {
-    grid-column: 1;
-    justify-content: center;
-    min-width: auto;
-    width: 100%;
-    justify-self: center;
-  }
-
+  .chip-selector,
   .chip-actions {
-    grid-column: 1;
-    justify-content: center;
-    min-width: auto;
     width: 100%;
-    justify-self: center;
+    justify-content: center;
   }
 }
 

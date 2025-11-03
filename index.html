@@ -70,7 +70,7 @@
             <li>Stack chips on Ace or any number 2–10 before dealing.</li>
             <li>Press <strong>Deal Hand</strong> to reveal cards until a face card (J, Q, K) or the Joker appears.</li>
             <li>Each time your number hits before the bust card, you earn the next step on the active paytable.</li>
-            <li>Use <strong>Rebet</strong> to restore your previous layout or <strong>Clear Bets</strong> to start fresh.</li>
+            <li>Use <strong>Rebet</strong> to restore your previous layout or <strong>Clear</strong> to start fresh.</li>
           </ol>
           <div class="rules-summary">
             <p>
@@ -712,16 +712,6 @@
       </main>
 
       <div class="chip-bar" aria-label="Bet controls">
-        <div class="chip-control chip-control-left">
-          <button
-            type="button"
-            id="clear-bets-footer"
-            class="clear-bets secondary"
-            data-action="clear-bets"
-          >
-            Clear Bets
-          </button>
-        </div>
         <div
           class="chip-selector"
           id="chip-selector"
@@ -766,6 +756,14 @@
           </button>
         </div>
         <div class="chip-actions">
+          <button
+            type="button"
+            id="clear-bets-footer"
+            class="clear-bets secondary"
+            data-action="clear-bets"
+          >
+            Clear
+          </button>
           <button type="button" id="rebet-button" class="secondary" hidden>
             Rebet
           </button>
