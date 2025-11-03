@@ -34,6 +34,60 @@ function describeRank(rank) {
   return RANK_LABELS[rank] ?? String(rank);
 }
 
+function applyTheme(theme) {
+  const next = THEME_CLASS_MAP[theme] ? theme : "retro";
+  if (!document.body) {
+    currentTheme = next;
+    return;
+  }
+  if (currentTheme === next && document.body.classList.contains(THEME_CLASS_MAP[next])) {
+    if (typeof window !== "undefined") {
+      window.requestAnimationFrame(() => drawBankrollChart());
+    } else {
+      drawBankrollChart();
+    }
+    return;
+  }
+  Object.values(THEME_CLASS_MAP).forEach((className) => {
+    document.body.classList.remove(className);
+  });
+  document.body.classList.add(THEME_CLASS_MAP[next]);
+  currentTheme = next;
+  if (themeSelect && themeSelect.value !== next) {
+    themeSelect.value = next;
+  }
+  if (typeof window !== "undefined") {
+    window.requestAnimationFrame(() => drawBankrollChart());
+  } else {
+    drawBankrollChart();
+  }
+}
+
+function initTheme() {
+  let saved = "retro";
+  try {
+    const stored = localStorage.getItem(THEME_STORAGE_KEY);
+    if (stored && THEME_CLASS_MAP[stored]) {
+      saved = stored;
+    }
+  } catch (error) {
+    saved = "retro";
+  }
+  applyTheme(saved);
+  if (themeSelect) {
+    themeSelect.value = saved;
+    themeSelect.addEventListener("change", (event) => {
+      const selected = event.target.value;
+      applyTheme(selected);
+      try {
+        localStorage.setItem(THEME_STORAGE_KEY, selected);
+      } catch (error) {
+        /* ignore storage issues */
+      }
+    });
+  }
+}
+
 const bankrollEl = document.getElementById("bankroll");
 const bankrollDeltaEl = document.getElementById("bankroll-delta");
 const betsBody = document.getElementById("bets-body");
@@ -116,6 +170,7 @@ const resetAccountButton = document.getElementById("reset-account");
 const menuToggle = document.getElementById("menu-toggle");
 const utilityPanel = document.getElementById("utility-panel");
 const utilityClose = document.getElementById("utility-close");
+const themeSelect = document.getElementById("theme-select");
 const graphToggle = document.getElementById("graph-toggle");
 const chartPanel = document.getElementById("chart-panel");
 const chartClose = document.getElementById("chart-close");
@@ -142,6 +197,13 @@ const paytableCloseButton = document.getElementById("paytable-close");
 const activePaytableNameEl = document.getElementById("active-paytable-name");
 const activePaytableStepsEl = document.getElementById("active-paytable-steps");
 
+const THEME_CLASS_MAP = {
+  retro: "theme-retro",
+  "cotton-candy": "theme-cotton-candy",
+  pastel: "theme-pastel"
+};
+const THEME_STORAGE_KEY = "run-the-numbers-theme";
+
 let bankroll = INITIAL_BANKROLL;
 let bets = [];
 let dealing = false;
@@ -166,6 +228,7 @@ let activePaytable = PAYTABLES[0];
 let pendingPaytableId = activePaytable.id;
 let openDrawerPanel = null;
 let openDrawerToggle = null;
+let currentTheme = "retro";
 
 const MAX_HISTORY_POINTS = 500;
 
@@ -587,16 +650,36 @@ function drawBankrollChart() {
   const minVal = Math.min(...values);
   const range = maxVal - minVal || 1;
 
-  ctx.fillStyle = "rgba(6, 8, 26, 0.92)";
+  const bodyStyles = getComputedStyle(document.body);
+  const rootStyles = getComputedStyle(document.documentElement);
+  const cssVar = (name, fallback) => {
+    const raw = bodyStyles.getPropertyValue(name) || rootStyles.getPropertyValue(name);
+    return raw && raw.trim() ? raw.trim() : fallback;
+  };
+  const chartBackground = cssVar("--chart-background", "rgba(6, 8, 26, 0.92)");
+  const chartBgStart = cssVar("--chart-background-gradient-start", "rgba(255, 99, 224, 0.18)");
+  const chartBgEnd = cssVar("--chart-background-gradient-end", "rgba(31, 241, 255, 0.16)");
+  const chartGridColor = cssVar("--chart-grid-color", "rgba(31, 241, 255, 0.18)");
+  const chartFillColor = cssVar("--chart-fill-color", "rgba(31, 241, 255, 0.18)");
+  const chartFillFade = cssVar("--chart-fill-fade", "rgba(31, 241, 255, 0)");
+  const chartLineColor = cssVar("--chart-line-color", "#1ff1ff");
+  const chartLineShadow = cssVar("--chart-line-shadow", "rgba(139, 109, 255, 0.45)");
+  const chartMarkerColor = cssVar("--chart-marker-color", "#ff63e0");
+  const chartMarkerStroke = cssVar("--chart-marker-stroke", "rgba(248, 249, 255, 0.85)");
+  const chartMarkerShadow = cssVar("--chart-marker-shadow", "rgba(255, 99, 224, 0.6)");
+  const chartBaseLine = cssVar("--chart-base-line", "rgba(31, 241, 255, 0.35)");
+  const chartAxisColor = cssVar("--chart-axis-color", "rgba(248, 249, 255, 0.85)");
+
+  ctx.fillStyle = chartBackground;
   ctx.fillRect(0, 0, width, height);
 
   const backgroundGradient = ctx.createLinearGradient(0, 0, width, height);
-  backgroundGradient.addColorStop(0, "rgba(255, 99, 224, 0.18)");
-  backgroundGradient.addColorStop(1, "rgba(31, 241, 255, 0.16)");
+  backgroundGradient.addColorStop(0, chartBgStart);
+  backgroundGradient.addColorStop(1, chartBgEnd);
   ctx.fillStyle = backgroundGradient;
   ctx.fillRect(0, 0, width, height);
 
-  ctx.strokeStyle = "rgba(139, 109, 255, 0.22)";
+  ctx.strokeStyle = chartGridColor;
   ctx.lineWidth = 1;
   ctx.setLineDash([6, 10]);
   for (let i = 0; i <= 4; i += 1) {
@@ -619,8 +702,8 @@ function drawBankrollChart() {
 
   if (points.length >= 2) {
     const fillGradient = ctx.createLinearGradient(0, padding.top, 0, baseY);
-    fillGradient.addColorStop(0, "rgba(255, 99, 224, 0.26)");
-    fillGradient.addColorStop(1, "rgba(31, 241, 255, 0)");
+    fillGradient.addColorStop(0, chartFillColor);
+    fillGradient.addColorStop(1, chartFillFade);
     ctx.beginPath();
     ctx.moveTo(points[0].x, points[0].y);
     for (let i = 1; i < points.length; i += 1) {
@@ -636,8 +719,8 @@ function drawBankrollChart() {
   ctx.beginPath();
   if (points.length === 1) {
     const point = points[0];
-    ctx.fillStyle = "#1ff1ff";
-    ctx.shadowColor = "rgba(31, 241, 255, 0.6)";
+    ctx.fillStyle = chartLineColor;
+    ctx.shadowColor = chartLineShadow;
     ctx.shadowBlur = 12;
     ctx.arc(point.x, point.y, 6, 0, Math.PI * 2);
     ctx.fill();
@@ -650,9 +733,9 @@ function drawBankrollChart() {
         ctx.lineTo(point.x, point.y);
       }
     });
-    ctx.strokeStyle = "#8b6dff";
+    ctx.strokeStyle = chartLineColor;
     ctx.lineWidth = 2.8;
-    ctx.shadowColor = "rgba(139, 109, 255, 0.45)";
+    ctx.shadowColor = chartLineShadow;
     ctx.shadowBlur = 16;
     ctx.stroke();
     ctx.shadowBlur = 0;
@@ -661,15 +744,18 @@ function drawBankrollChart() {
   if (points.length > 0) {
     const lastPoint = points[points.length - 1];
     ctx.beginPath();
-    ctx.fillStyle = "#ff63e0";
-    ctx.strokeStyle = "rgba(248, 249, 255, 0.85)";
+    ctx.fillStyle = chartMarkerColor;
+    ctx.strokeStyle = chartMarkerStroke;
     ctx.lineWidth = 2.2;
+    ctx.shadowColor = chartMarkerShadow;
+    ctx.shadowBlur = 12;
     ctx.arc(lastPoint.x, lastPoint.y, 5, 0, Math.PI * 2);
     ctx.fill();
     ctx.stroke();
+    ctx.shadowBlur = 0;
   }
 
-  ctx.strokeStyle = "rgba(31, 241, 255, 0.35)";
+  ctx.strokeStyle = chartBaseLine;
   ctx.lineWidth = 1.6;
   ctx.beginPath();
   ctx.moveTo(padding.left, baseY);
@@ -677,7 +763,7 @@ function drawBankrollChart() {
   ctx.stroke();
 
   ctx.font = "600 12px 'Play', 'Segoe UI', sans-serif";
-  ctx.fillStyle = "rgba(248, 249, 255, 0.85)";
+  ctx.fillStyle = chartAxisColor;
   ctx.textAlign = "right";
   ctx.textBaseline = "middle";
   for (let i = 0; i <= 4; i += 1) {
@@ -1475,6 +1561,7 @@ document.addEventListener("keydown", (event) => {
   }
 });
 
+initTheme();
 setActivePaytable(activePaytable.id, { announce: false });
 updatePaytableAvailability();
 setSelectedChip(selectedChip, false);

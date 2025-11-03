@@ -9,9 +9,391 @@
   --neon-cyan: #1ff1ff;
   --neon-violet: #8b6dff;
   --neon-magenta: #ff3df3;
+  --body-bg: linear-gradient(180deg, #02060c 0%, #050b16 55%, #01030a 100%);
+  --app-overlay:
+    radial-gradient(circle at 15% 8%, rgba(31, 241, 255, 0.08), transparent 45%),
+    radial-gradient(circle at 85% 12%, rgba(255, 61, 243, 0.08), transparent 48%),
+    radial-gradient(circle at 50% 120%, rgba(139, 109, 255, 0.12), transparent 60%);
+  --header-gradient: linear-gradient(135deg, #090c21, #160c28);
+  --header-border-color: rgba(31, 241, 255, 0.32);
+  --icon-button-bg: linear-gradient(135deg, rgba(24, 32, 64, 0.85), rgba(20, 18, 48, 0.85));
+  --icon-button-border-color: rgba(31, 241, 255, 0.35);
+  --icon-button-border-hover: rgba(31, 241, 255, 0.65);
+  --icon-button-shadow-hover: 0 8px 20px rgba(31, 241, 255, 0.2);
+  --icon-graph-gradient: linear-gradient(135deg, #1ff1ff, #ff3df3);
+  --reset-border-color: rgba(255, 99, 224, 0.7);
+  --reset-bg: linear-gradient(135deg, rgba(255, 99, 224, 0.15), rgba(255, 99, 224, 0.35));
+  --reset-border-hover: rgba(255, 99, 224, 0.95);
+  --reset-bg-hover: linear-gradient(135deg, rgba(255, 99, 224, 0.25), rgba(255, 99, 224, 0.45));
+  --reset-shadow-hover: 0 10px 28px rgba(255, 99, 224, 0.35);
+  --menu-border-color: rgba(31, 241, 255, 0.4);
+  --menu-bg: linear-gradient(135deg, rgba(15, 21, 54, 0.9), rgba(12, 14, 44, 0.9));
+  --menu-shadow: 0 12px 26px rgba(31, 241, 255, 0.18);
+  --menu-border-hover: rgba(31, 241, 255, 0.7);
+  --menu-shadow-hover: 0 18px 32px rgba(31, 241, 255, 0.3);
+  --stat-bg: linear-gradient(135deg, rgba(6, 24, 32, 0.72), rgba(11, 18, 36, 0.78));
+  --stat-border: rgba(12, 168, 138, 0.22);
+  --stat-shadow: inset 0 0 22px rgba(12, 168, 138, 0.18);
+  --table-panel-bg: linear-gradient(170deg, #0d3b3a 0%, #052426 55%, #041018 100%);
+  --table-panel-shadow: 0 40px 80px rgba(2, 8, 12, 0.75), inset 0 0 90px rgba(12, 168, 138, 0.16);
+  --paytable-panel-bg: linear-gradient(160deg, rgba(7, 22, 36, 0.8), rgba(6, 32, 36, 0.55));
+  --paytable-panel-border: rgba(53, 255, 234, 0.22);
+  --paytable-panel-shadow: inset 0 0 24px rgba(24, 210, 255, 0.12);
+  --paytable-option-bg: rgba(7, 40, 52, 0.65);
+  --paytable-option-border: rgba(62, 245, 255, 0.25);
+  --paytable-option-shadow: inset 0 0 18px rgba(42, 245, 255, 0.08);
+  --paytable-option-border-hover: rgba(87, 255, 242, 0.55);
+  --paytable-option-shadow-hover: inset 0 0 22px rgba(71, 252, 255, 0.18);
+  --paytable-option-border-selected: rgba(114, 255, 242, 0.75);
+  --paytable-option-shadow-selected: inset 0 0 28px rgba(53, 255, 234, 0.3), 0 10px 22px rgba(11, 37, 44, 0.55);
+  --paytable-option-name-color: rgba(214, 245, 238, 0.88);
+  --paytable-option-steps-color: rgba(148, 255, 233, 0.85);
+  --active-paytable-bg: linear-gradient(135deg, rgba(9, 22, 36, 0.82), rgba(6, 28, 32, 0.72));
+  --active-paytable-border: rgba(53, 255, 234, 0.22);
+  --active-paytable-shadow: inset 0 0 22px rgba(53, 255, 234, 0.15);
+  --active-paytable-label-color: rgba(177, 255, 247, 0.75);
+  --active-paytable-steps-color: rgba(148, 255, 233, 0.8);
+  --change-paytable-bg: linear-gradient(135deg, rgba(53, 255, 234, 0.2), rgba(53, 255, 234, 0.08));
+  --change-paytable-border: rgba(53, 255, 234, 0.5);
+  --change-paytable-border-hover: rgba(53, 255, 234, 0.85);
+  --change-paytable-shadow: 0 12px 26px rgba(53, 255, 234, 0.25);
+  --betting-panel-bg: linear-gradient(160deg, rgba(12, 16, 36, 0.82), rgba(8, 10, 26, 0.88));
+  --betting-panel-border: rgba(139, 109, 255, 0.25);
+  --betting-panel-shadow: 0 24px 60px rgba(1, 5, 12, 0.6), inset 0 0 46px rgba(139, 109, 255, 0.12);
+  --bet-spot-bg: rgba(4, 28, 33, 0.92);
+  --bet-spot-border: rgba(31, 241, 255, 0.4);
+  --bet-spot-border-hover: rgba(54, 245, 199, 0.85);
+  --bet-spot-border-active: rgba(54, 245, 199, 0.9);
+  --bet-spot-shadow: inset 0 0 12px rgba(0, 0, 0, 0.35);
+  --bet-spot-active-shadow: 0 0 26px rgba(54, 245, 199, 0.35), inset 0 0 26px rgba(31, 241, 255, 0.2);
+  --status-text-color: rgba(248, 249, 255, 0.9);
+  --table-callout-color: rgba(208, 244, 241, 0.75);
+  --table-callout-shadow: rgba(54, 245, 199, 0.28);
+  --chip-5-bg: radial-gradient(circle at 35% 30%, #ff3df3, #a9009f 70%);
+  --chip-10-bg: radial-gradient(circle at 35% 30%, #1ff1ff, #0c6eff 70%);
+  --chip-25-bg: radial-gradient(circle at 35% 30%, #7cffd0, #11b28a 70%);
+  --chip-100-bg: radial-gradient(circle at 35% 30%, #ffe780, #c36100 70%);
+  --chip-choice-bg: radial-gradient(circle at 32% 32%, rgba(31, 241, 255, 0.85), rgba(9, 12, 33, 0.9));
+  --chip-choice-border: rgba(31, 241, 255, 0.45);
+  --chip-choice-shadow: 0 12px 24px rgba(3, 3, 15, 0.55);
+  --chip-choice-shadow-hover: 0 0 0 3px rgba(31, 241, 255, 0.45), 0 16px 28px rgba(31, 241, 255, 0.32);
+  --chip-choice-active-bg:
+    radial-gradient(circle at 35% 30%, rgba(255, 99, 224, 0.85), rgba(9, 12, 33, 0.9));
+  --chip-choice-active-shadow: 0 18px 34px rgba(255, 99, 224, 0.35);
+  --chip-bar-bg: linear-gradient(135deg, #0a0c20, #180a28);
+  --chip-bar-border: rgba(31, 241, 255, 0.4);
+  --chip-bar-shadow: 0 -20px 40px rgba(3, 3, 15, 0.6);
+  --secondary-button-bg: linear-gradient(135deg, rgba(139, 109, 255, 0.18), rgba(15, 21, 54, 0.9));
+  --secondary-button-border: rgba(139, 109, 255, 0.35);
+  --deal-button-bg: linear-gradient(135deg, rgba(31, 241, 255, 0.85), rgba(12, 110, 255, 0.85));
+  --deal-button-shadow: 0 18px 34px rgba(31, 241, 255, 0.35);
+  --deal-button-shadow-hover: 0 20px 38px rgba(12, 110, 255, 0.38);
+  --drawer-bg: linear-gradient(145deg, rgba(8, 12, 28, 0.96), rgba(3, 8, 20, 0.94));
+  --drawer-border: rgba(31, 241, 255, 0.28);
+  --drawer-shadow: 0 30px 80px rgba(0, 0, 0, 0.6);
+  --modal-bg: rgba(3, 8, 16, 0.92);
+  --modal-border: rgba(31, 241, 255, 0.3);
+  --modal-shadow: 0 30px 80px rgba(0, 0, 0, 0.75);
+  --scrim-bg: rgba(2, 6, 12, 0.68);
+  --analytics-bg: var(--stat-bg);
+  --analytics-border: var(--stat-border);
+  --analytics-shadow: var(--stat-shadow);
+  --chart-background: rgba(6, 8, 26, 0.92);
+  --chart-axis-color: rgba(248, 249, 255, 0.68);
+  --chart-grid-color: rgba(31, 241, 255, 0.18);
+  --chart-line-color: #1ff1ff;
+  --chart-line-shadow: rgba(139, 109, 255, 0.45);
+  --chart-fill-color: rgba(31, 241, 255, 0.18);
+  --chart-fill-fade: rgba(31, 241, 255, 0);
+  --chart-background-gradient-start: rgba(255, 99, 224, 0.18);
+  --chart-background-gradient-end: rgba(31, 241, 255, 0.16);
+  --chart-marker-color: #ff63e0;
+  --chart-marker-stroke: rgba(248, 249, 255, 0.85);
+  --chart-marker-shadow: rgba(255, 99, 224, 0.6);
+  --chart-base-line: rgba(31, 241, 255, 0.35);
+  --chart-scroll-track: rgba(3, 8, 16, 0.6);
+  --chart-scroll-thumb: rgba(31, 241, 255, 0.35);
+  --card-bg: linear-gradient(180deg, #fefefe 0%, #f1f3f9 100%);
+  --card-border: rgba(255, 255, 255, 0.85);
+  --card-shadow: 0 18px 40px rgba(0, 0, 0, 0.45);
+  --card-rank-red: #f20089;
+  --card-rank-black: #101525;
+  --card-rank-shadow: rgba(0, 0, 0, 0.18);
+  --card-rank-glow: rgba(31, 241, 255, 0.16);
+  --panel-divider: rgba(31, 241, 255, 0.14);
+  --advanced-panel-bg: rgba(4, 24, 36, 0.65);
+  --advanced-panel-border: rgba(31, 241, 255, 0.2);
+  --advanced-panel-shadow: inset 0 0 22px rgba(31, 241, 255, 0.16);
+  --bust-bet-bg: rgba(14, 60, 82, 0.65);
+  --bust-bet-border: rgba(148, 255, 233, 0.4);
+  --bust-bet-shadow: inset 0 0 18px rgba(24, 210, 255, 0.12);
+  --count-bet-start-base: rgba(196, 87, 255, 0.24);
+  --count-bet-end-base: rgba(255, 99, 224, 0.28);
+  --chip-text-dark: #0c0c16;
+  --chip-text-light: #f8f9ff;
+  --chip-text-gold: #2b1400;
+  --footer-text-color: var(--text-light);
+  --footer-secondary-bg: var(--secondary-button-bg);
+  --footer-secondary-border: var(--secondary-button-border);
+  --footer-secondary-shadow: 0 12px 28px rgba(8, 9, 30, 0.4);
+  --footer-secondary-shadow-hover: 0 14px 26px rgba(31, 241, 255, 0.26);
+  --footer-deal-bg: var(--deal-button-bg);
+  --footer-deal-shadow: var(--deal-button-shadow);
+  --footer-deal-shadow-hover: var(--deal-button-shadow-hover);
+  --chip-selector-gap: clamp(0.45rem, 2vw, 0.9rem);
+  --chip-actions-gap: clamp(0.35rem, 1.8vw, 0.75rem);
+  --chip-bar-padding: clamp(0.45rem, 1.2vw, 0.75rem) clamp(1.1rem, 4vw, 1.9rem);
+  --chip-choice-size: clamp(36px, 5.2vw, 44px);
+  --chip-choice-font: 0.85rem;
+  --chip-stack-size: clamp(26px, 4.4vw, 32px);
+  --chip-stack-offset: -7px;
   --card-width: clamp(52px, 10vw, 68px);
   --card-height: clamp(74px, 15vw, 96px);
   font-size: 16px;
+}
+
+body.theme-retro {
+  /* Default palette already provided via :root values */
+}
+
+body.theme-cotton-candy {
+  --neon-cyan: #8be9ff;
+  --neon-magenta: #ff9df4;
+  --neon-violet: #c6a7ff;
+  --gold: #ffd166;
+  --muted: #d5caf6;
+  --success: #8ef6d2;
+  --danger: #ff7caf;
+  --body-bg: linear-gradient(180deg, #1b1034 0%, #32184b 45%, #111f47 100%);
+  --app-overlay:
+    radial-gradient(circle at 12% 12%, rgba(139, 233, 255, 0.12), transparent 48%),
+    radial-gradient(circle at 88% 16%, rgba(255, 157, 244, 0.12), transparent 52%),
+    radial-gradient(circle at 45% 120%, rgba(198, 167, 255, 0.18), transparent 62%);
+  --header-gradient: linear-gradient(135deg, #2f1c55, #481f6f);
+  --header-border-color: rgba(255, 168, 252, 0.45);
+  --icon-button-bg: linear-gradient(135deg, rgba(74, 40, 115, 0.85), rgba(38, 26, 74, 0.85));
+  --icon-button-border-color: rgba(255, 168, 252, 0.45);
+  --icon-button-border-hover: rgba(255, 214, 252, 0.8);
+  --icon-button-shadow-hover: 0 8px 20px rgba(255, 168, 252, 0.25);
+  --icon-graph-gradient: linear-gradient(135deg, #8be9ff, #ff9df4);
+  --reset-border-color: rgba(255, 168, 252, 0.75);
+  --reset-bg: linear-gradient(135deg, rgba(255, 168, 252, 0.18), rgba(127, 83, 186, 0.4));
+  --reset-border-hover: rgba(255, 210, 252, 0.9);
+  --reset-bg-hover: linear-gradient(135deg, rgba(255, 168, 252, 0.25), rgba(127, 83, 186, 0.5));
+  --reset-shadow-hover: 0 10px 28px rgba(255, 168, 252, 0.35);
+  --menu-bg: linear-gradient(135deg, rgba(55, 32, 99, 0.9), rgba(35, 22, 71, 0.9));
+  --menu-border-color: rgba(139, 201, 255, 0.45);
+  --menu-shadow: 0 12px 26px rgba(139, 201, 255, 0.22);
+  --menu-border-hover: rgba(205, 240, 255, 0.8);
+  --menu-shadow-hover: 0 18px 32px rgba(139, 201, 255, 0.32);
+  --stat-bg: linear-gradient(135deg, rgba(46, 28, 84, 0.82), rgba(32, 32, 78, 0.78));
+  --stat-border: rgba(198, 167, 255, 0.32);
+  --stat-shadow: inset 0 0 22px rgba(198, 167, 255, 0.24);
+  --table-panel-bg: linear-gradient(170deg, #203a65 0%, #1b2556 55%, #141738 100%);
+  --table-panel-shadow: 0 40px 80px rgba(10, 12, 38, 0.75), inset 0 0 90px rgba(150, 210, 255, 0.18);
+  --paytable-panel-bg: linear-gradient(160deg, rgba(45, 31, 78, 0.85), rgba(32, 42, 92, 0.62));
+  --paytable-panel-border: rgba(173, 221, 255, 0.38);
+  --paytable-panel-shadow: inset 0 0 24px rgba(173, 221, 255, 0.2);
+  --paytable-option-bg: rgba(36, 38, 88, 0.72);
+  --paytable-option-border: rgba(173, 221, 255, 0.32);
+  --paytable-option-shadow: inset 0 0 18px rgba(173, 221, 255, 0.12);
+  --paytable-option-border-hover: rgba(198, 238, 255, 0.6);
+  --paytable-option-shadow-hover: inset 0 0 22px rgba(198, 238, 255, 0.24);
+  --paytable-option-border-selected: rgba(255, 214, 252, 0.75);
+  --paytable-option-shadow-selected: inset 0 0 28px rgba(255, 214, 252, 0.28), 0 10px 22px rgba(29, 32, 72, 0.55);
+  --paytable-option-name-color: rgba(233, 228, 255, 0.92);
+  --paytable-option-steps-color: rgba(216, 244, 255, 0.85);
+  --active-paytable-bg: linear-gradient(135deg, rgba(40, 32, 84, 0.82), rgba(22, 39, 90, 0.72));
+  --active-paytable-border: rgba(173, 221, 255, 0.35);
+  --active-paytable-shadow: inset 0 0 22px rgba(173, 221, 255, 0.22);
+  --active-paytable-label-color: rgba(233, 228, 255, 0.78);
+  --active-paytable-steps-color: rgba(198, 238, 255, 0.88);
+  --change-paytable-bg: linear-gradient(135deg, rgba(198, 238, 255, 0.24), rgba(198, 238, 255, 0.12));
+  --change-paytable-border: rgba(198, 238, 255, 0.45);
+  --change-paytable-border-hover: rgba(255, 214, 252, 0.85);
+  --change-paytable-shadow: 0 12px 26px rgba(198, 238, 255, 0.28);
+  --betting-panel-bg: linear-gradient(160deg, rgba(28, 30, 74, 0.86), rgba(20, 26, 62, 0.92));
+  --betting-panel-border: rgba(198, 167, 255, 0.32);
+  --betting-panel-shadow: 0 24px 60px rgba(6, 8, 26, 0.65), inset 0 0 46px rgba(198, 167, 255, 0.18);
+  --bet-spot-bg: rgba(28, 32, 74, 0.92);
+  --bet-spot-border: rgba(139, 201, 255, 0.45);
+  --bet-spot-border-hover: rgba(255, 214, 252, 0.85);
+  --bet-spot-border-active: rgba(255, 214, 252, 0.95);
+  --bet-spot-shadow: inset 0 0 12px rgba(9, 12, 33, 0.55);
+  --bet-spot-active-shadow: 0 0 26px rgba(255, 214, 252, 0.35), inset 0 0 26px rgba(139, 201, 255, 0.28);
+  --bet-total-glow: rgba(139, 233, 255, 0.38);
+  --bet-total-active-glow: rgba(255, 168, 252, 0.38);
+  --status-text-color: rgba(245, 240, 255, 0.92);
+  --table-callout-color: rgba(224, 233, 255, 0.8);
+  --table-callout-shadow: rgba(198, 238, 255, 0.28);
+  --chip-5-bg: radial-gradient(circle at 35% 30%, #ff9df4, #c54cd4 70%);
+  --chip-10-bg: radial-gradient(circle at 35% 30%, #8be9ff, #3b8dff 70%);
+  --chip-25-bg: radial-gradient(circle at 35% 30%, #bdfcc9, #46c29b 70%);
+  --chip-100-bg: radial-gradient(circle at 35% 30%, #ffe6a3, #d27c2c 70%);
+  --chip-choice-bg: radial-gradient(circle at 32% 32%, rgba(139, 233, 255, 0.85), rgba(36, 28, 82, 0.9));
+  --chip-choice-border: rgba(198, 238, 255, 0.52);
+  --chip-choice-shadow: 0 12px 24px rgba(17, 18, 46, 0.55);
+  --chip-choice-shadow-hover: 0 0 0 3px rgba(198, 238, 255, 0.48), 0 16px 28px rgba(198, 238, 255, 0.32);
+  --chip-choice-active-bg: radial-gradient(circle at 35% 30%, rgba(255, 168, 252, 0.92), rgba(32, 24, 68, 0.92));
+  --chip-choice-active-shadow: 0 18px 34px rgba(255, 168, 252, 0.38);
+  --chip-bar-bg: linear-gradient(135deg, #241852, #3a1f67);
+  --chip-bar-border: rgba(198, 238, 255, 0.35);
+  --chip-bar-shadow: 0 -20px 40px rgba(8, 6, 26, 0.65);
+  --secondary-button-bg: linear-gradient(135deg, rgba(198, 167, 255, 0.22), rgba(45, 28, 84, 0.92));
+  --secondary-button-border: rgba(198, 167, 255, 0.4);
+  --deal-button-bg: linear-gradient(135deg, rgba(139, 233, 255, 0.85), rgba(255, 157, 244, 0.85));
+  --deal-button-shadow: 0 18px 34px rgba(139, 233, 255, 0.35);
+  --deal-button-shadow-hover: 0 20px 38px rgba(255, 157, 244, 0.35);
+  --drawer-bg: linear-gradient(145deg, rgba(28, 22, 60, 0.95), rgba(12, 18, 46, 0.94));
+  --drawer-border: rgba(198, 238, 255, 0.28);
+  --drawer-shadow: 0 30px 80px rgba(10, 12, 28, 0.7);
+  --modal-bg: rgba(18, 16, 40, 0.94);
+  --modal-border: rgba(198, 238, 255, 0.32);
+  --modal-shadow: 0 30px 80px rgba(10, 12, 28, 0.75);
+  --scrim-bg: rgba(6, 4, 16, 0.7);
+  --analytics-bg: linear-gradient(135deg, rgba(46, 28, 84, 0.82), rgba(32, 32, 78, 0.78));
+  --analytics-border: rgba(198, 167, 255, 0.3);
+  --analytics-shadow: inset 0 0 22px rgba(198, 167, 255, 0.22);
+  --chart-axis-color: rgba(225, 233, 255, 0.76);
+  --chart-grid-color: rgba(139, 233, 255, 0.24);
+  --chart-line-color: #ff9df4;
+  --chart-line-shadow: rgba(198, 167, 255, 0.45);
+  --chart-fill-color: rgba(255, 157, 244, 0.22);
+  --chart-fill-fade: rgba(255, 157, 244, 0);
+  --chart-scroll-thumb: rgba(198, 238, 255, 0.35);
+  --chart-scroll-track: rgba(24, 20, 52, 0.6);
+  --chart-background: rgba(24, 20, 52, 0.9);
+  --chart-background-gradient-start: rgba(255, 168, 252, 0.18);
+  --chart-background-gradient-end: rgba(139, 233, 255, 0.16);
+  --chart-marker-color: #ffb3f6;
+  --chart-marker-stroke: rgba(233, 228, 255, 0.9);
+  --chart-marker-shadow: rgba(255, 168, 252, 0.55);
+  --chart-base-line: rgba(139, 233, 255, 0.35);
+  --bust-bet-bg: linear-gradient(145deg, rgba(173, 221, 255, 0.2), rgba(127, 83, 186, 0.2));
+  --bust-bet-border: rgba(198, 238, 255, 0.6);
+  --bust-bet-shadow: 0 10px 22px rgba(26, 22, 58, 0.38);
+  --count-bet-start-base: rgba(198, 167, 255, 0.28);
+  --count-bet-end-base: rgba(255, 157, 244, 0.34);
+}
+
+body.theme-pastel {
+  --neon-cyan: #9ff0e5;
+  --neon-magenta: #ffc1a6;
+  --neon-violet: #b8d4ff;
+  --gold: #ffd07a;
+  --muted: #c9d6e5;
+  --success: #a6f6b7;
+  --danger: #ff8f9a;
+  --body-bg: linear-gradient(180deg, #0f1b23 0%, #1b2f38 55%, #0c1a1f 100%);
+  --app-overlay:
+    radial-gradient(circle at 18% 10%, rgba(159, 240, 229, 0.1), transparent 48%),
+    radial-gradient(circle at 82% 16%, rgba(255, 193, 166, 0.1), transparent 50%),
+    radial-gradient(circle at 50% 120%, rgba(184, 212, 255, 0.15), transparent 65%);
+  --header-gradient: linear-gradient(135deg, #1b2e36, #2a3f46);
+  --header-border-color: rgba(159, 240, 229, 0.35);
+  --icon-button-bg: linear-gradient(135deg, rgba(32, 48, 56, 0.85), rgba(24, 36, 44, 0.85));
+  --icon-button-border-color: rgba(159, 240, 229, 0.4);
+  --icon-button-border-hover: rgba(189, 255, 242, 0.75);
+  --icon-button-shadow-hover: 0 8px 20px rgba(159, 240, 229, 0.2);
+  --icon-graph-gradient: linear-gradient(135deg, #9ff0e5, #ffc1a6);
+  --reset-border-color: rgba(255, 193, 166, 0.65);
+  --reset-bg: linear-gradient(135deg, rgba(255, 193, 166, 0.18), rgba(60, 90, 92, 0.4));
+  --reset-border-hover: rgba(255, 221, 198, 0.85);
+  --reset-bg-hover: linear-gradient(135deg, rgba(255, 193, 166, 0.26), rgba(60, 90, 92, 0.48));
+  --reset-shadow-hover: 0 10px 28px rgba(255, 193, 166, 0.28);
+  --menu-bg: linear-gradient(135deg, rgba(28, 48, 56, 0.9), rgba(22, 36, 42, 0.9));
+  --menu-border-color: rgba(159, 240, 229, 0.45);
+  --menu-shadow: 0 12px 26px rgba(15, 28, 34, 0.45);
+  --menu-border-hover: rgba(189, 255, 242, 0.78);
+  --menu-shadow-hover: 0 18px 32px rgba(15, 28, 34, 0.5);
+  --stat-bg: linear-gradient(135deg, rgba(22, 46, 52, 0.78), rgba(18, 36, 44, 0.8));
+  --stat-border: rgba(159, 240, 229, 0.28);
+  --stat-shadow: inset 0 0 22px rgba(159, 240, 229, 0.18);
+  --table-panel-bg: linear-gradient(170deg, #1c3a40 0%, #152a30 55%, #101f25 100%);
+  --table-panel-shadow: 0 40px 80px rgba(6, 12, 16, 0.7), inset 0 0 90px rgba(159, 240, 229, 0.18);
+  --paytable-panel-bg: linear-gradient(160deg, rgba(24, 46, 52, 0.82), rgba(18, 36, 42, 0.62));
+  --paytable-panel-border: rgba(159, 240, 229, 0.32);
+  --paytable-panel-shadow: inset 0 0 24px rgba(159, 240, 229, 0.2);
+  --paytable-option-bg: rgba(22, 44, 50, 0.72);
+  --paytable-option-border: rgba(159, 240, 229, 0.3);
+  --paytable-option-shadow: inset 0 0 18px rgba(159, 240, 229, 0.12);
+  --paytable-option-border-hover: rgba(189, 255, 242, 0.55);
+  --paytable-option-shadow-hover: inset 0 0 22px rgba(189, 255, 242, 0.2);
+  --paytable-option-border-selected: rgba(255, 208, 122, 0.75);
+  --paytable-option-shadow-selected: inset 0 0 28px rgba(255, 208, 122, 0.22), 0 10px 22px rgba(12, 26, 32, 0.55);
+  --paytable-option-name-color: rgba(236, 246, 248, 0.9);
+  --paytable-option-steps-color: rgba(216, 244, 255, 0.85);
+  --active-paytable-bg: linear-gradient(135deg, rgba(24, 46, 52, 0.82), rgba(18, 36, 42, 0.72));
+  --active-paytable-border: rgba(159, 240, 229, 0.32);
+  --active-paytable-shadow: inset 0 0 22px rgba(159, 240, 229, 0.2);
+  --active-paytable-label-color: rgba(216, 244, 255, 0.78);
+  --active-paytable-steps-color: rgba(189, 255, 242, 0.88);
+  --change-paytable-bg: linear-gradient(135deg, rgba(159, 240, 229, 0.2), rgba(159, 240, 229, 0.1));
+  --change-paytable-border: rgba(159, 240, 229, 0.4);
+  --change-paytable-border-hover: rgba(255, 208, 122, 0.8);
+  --change-paytable-shadow: 0 12px 26px rgba(159, 240, 229, 0.24);
+  --betting-panel-bg: linear-gradient(160deg, rgba(24, 40, 45, 0.86), rgba(18, 30, 38, 0.9));
+  --betting-panel-border: rgba(159, 240, 229, 0.25);
+  --betting-panel-shadow: 0 24px 60px rgba(5, 10, 14, 0.6), inset 0 0 46px rgba(159, 240, 229, 0.16);
+  --bet-spot-bg: rgba(18, 38, 44, 0.92);
+  --bet-spot-border: rgba(159, 240, 229, 0.45);
+  --bet-spot-border-hover: rgba(255, 208, 122, 0.85);
+  --bet-spot-border-active: rgba(255, 208, 122, 0.92);
+  --bet-spot-shadow: inset 0 0 12px rgba(8, 12, 16, 0.55);
+  --bet-spot-active-shadow: 0 0 26px rgba(255, 208, 122, 0.3), inset 0 0 26px rgba(159, 240, 229, 0.24);
+  --bet-total-glow: rgba(159, 240, 229, 0.32);
+  --bet-total-active-glow: rgba(255, 208, 122, 0.32);
+  --status-text-color: rgba(232, 245, 246, 0.92);
+  --table-callout-color: rgba(214, 244, 248, 0.78);
+  --table-callout-shadow: rgba(159, 240, 229, 0.24);
+  --chip-5-bg: radial-gradient(circle at 35% 30%, #ffc1a6, #d98562 70%);
+  --chip-10-bg: radial-gradient(circle at 35% 30%, #9ff0e5, #4db8a6 70%);
+  --chip-25-bg: radial-gradient(circle at 35% 30%, #d7f7c8, #66c192 70%);
+  --chip-100-bg: radial-gradient(circle at 35% 30%, #ffe6a3, #d59a43 70%);
+  --chip-choice-bg: radial-gradient(circle at 32% 32%, rgba(159, 240, 229, 0.85), rgba(24, 38, 44, 0.92));
+  --chip-choice-border: rgba(159, 240, 229, 0.45);
+  --chip-choice-shadow: 0 12px 24px rgba(5, 12, 14, 0.55);
+  --chip-choice-shadow-hover: 0 0 0 3px rgba(159, 240, 229, 0.45), 0 16px 28px rgba(159, 240, 229, 0.3);
+  --chip-choice-active-bg: radial-gradient(circle at 35% 30%, rgba(255, 208, 122, 0.88), rgba(24, 38, 44, 0.92));
+  --chip-choice-active-shadow: 0 18px 34px rgba(255, 208, 122, 0.32);
+  --chip-bar-bg: linear-gradient(135deg, #1a2f36, #254047);
+  --chip-bar-border: rgba(159, 240, 229, 0.35);
+  --chip-bar-shadow: 0 -20px 40px rgba(6, 12, 14, 0.65);
+  --secondary-button-bg: linear-gradient(135deg, rgba(159, 240, 229, 0.2), rgba(24, 38, 44, 0.9));
+  --secondary-button-border: rgba(159, 240, 229, 0.4);
+  --deal-button-bg: linear-gradient(135deg, rgba(159, 240, 229, 0.85), rgba(255, 208, 122, 0.85));
+  --deal-button-shadow: 0 18px 34px rgba(159, 240, 229, 0.32);
+  --deal-button-shadow-hover: 0 20px 38px rgba(255, 208, 122, 0.32);
+  --drawer-bg: linear-gradient(145deg, rgba(20, 34, 40, 0.96), rgba(12, 22, 28, 0.94));
+  --drawer-border: rgba(159, 240, 229, 0.28);
+  --drawer-shadow: 0 30px 80px rgba(4, 10, 12, 0.65);
+  --modal-bg: rgba(12, 24, 28, 0.92);
+  --modal-border: rgba(159, 240, 229, 0.3);
+  --modal-shadow: 0 30px 80px rgba(4, 10, 12, 0.68);
+  --scrim-bg: rgba(4, 10, 12, 0.68);
+  --analytics-bg: linear-gradient(135deg, rgba(22, 46, 52, 0.78), rgba(18, 36, 44, 0.8));
+  --analytics-border: rgba(159, 240, 229, 0.28);
+  --analytics-shadow: inset 0 0 22px rgba(159, 240, 229, 0.18);
+  --chart-axis-color: rgba(214, 244, 248, 0.75);
+  --chart-grid-color: rgba(159, 240, 229, 0.22);
+  --chart-line-color: #ffd07a;
+  --chart-line-shadow: rgba(159, 240, 229, 0.35);
+  --chart-fill-color: rgba(255, 208, 122, 0.2);
+  --chart-fill-fade: rgba(255, 208, 122, 0);
+  --chart-scroll-thumb: rgba(159, 240, 229, 0.35);
+  --chart-scroll-track: rgba(12, 24, 28, 0.6);
+  --chart-background: rgba(12, 24, 28, 0.9);
+  --chart-background-gradient-start: rgba(159, 240, 229, 0.18);
+  --chart-background-gradient-end: rgba(255, 208, 122, 0.16);
+  --chart-marker-color: #ffd07a;
+  --chart-marker-stroke: rgba(236, 246, 248, 0.9);
+  --chart-marker-shadow: rgba(255, 208, 122, 0.55);
+  --chart-base-line: rgba(159, 240, 229, 0.35);
+  --bust-bet-bg: linear-gradient(145deg, rgba(159, 240, 229, 0.18), rgba(104, 205, 188, 0.22));
+  --bust-bet-border: rgba(189, 255, 242, 0.55);
+  --bust-bet-shadow: 0 10px 22px rgba(6, 12, 16, 0.35);
+  --count-bet-start-base: rgba(184, 212, 255, 0.24);
+  --count-bet-end-base: rgba(255, 193, 166, 0.3);
 }
 
 * {
@@ -21,7 +403,7 @@
 body {
   margin: 0;
   font-family: "Play", "Segoe UI", sans-serif;
-  background: linear-gradient(180deg, #02060c 0%, #050b16 55%, #01030a 100%);
+  background: var(--body-bg);
   color: var(--text-light);
   min-height: 100vh;
 }
@@ -32,16 +414,13 @@ body {
   display: flex;
   flex-direction: column;
   position: relative;
-  background:
-    radial-gradient(circle at 15% 8%, rgba(31, 241, 255, 0.08), transparent 45%),
-    radial-gradient(circle at 85% 12%, rgba(255, 61, 243, 0.08), transparent 48%),
-    radial-gradient(circle at 50% 120%, rgba(139, 109, 255, 0.12), transparent 60%);
+  background: var(--app-overlay);
 }
 
 .header {
-  background: linear-gradient(135deg, #090c21, #160c28);
+  background: var(--header-gradient);
   padding: clamp(0.55rem, 1.6vw, 0.85rem) clamp(1rem, 2.8vw, 1.6rem);
-  border-bottom: 2px solid rgba(31, 241, 255, 0.32);
+  border-bottom: 2px solid var(--header-border-color);
   box-shadow: 0 12px 26px rgba(0, 0, 0, 0.42);
   position: sticky;
   top: 0;
@@ -62,12 +441,56 @@ body {
   flex-shrink: 0;
 }
 
+.theme-picker {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.theme-select {
+  appearance: none;
+  -webkit-appearance: none;
+  font-family: inherit;
+  font-size: 0.74rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  padding: 0.32rem 1.75rem 0.32rem 0.8rem;
+  border-radius: 999px;
+  border: 1px solid var(--icon-button-border-color);
+  background: var(--icon-button-bg);
+  color: var(--text-light);
+  cursor: pointer;
+  min-width: clamp(120px, 20vw, 150px);
+  transition: border-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease;
+}
+
+.theme-select:hover,
+.theme-select:focus-visible {
+  border-color: var(--icon-button-border-hover);
+  box-shadow: var(--icon-button-shadow-hover);
+  outline: none;
+}
+
+.theme-picker::after {
+  content: "";
+  position: absolute;
+  right: 0.75rem;
+  top: 50%;
+  width: 0.45rem;
+  height: 0.45rem;
+  border-right: 2px solid var(--neon-cyan);
+  border-bottom: 2px solid var(--neon-cyan);
+  transform: translateY(-50%) rotate(45deg);
+  pointer-events: none;
+}
+
 .icon-button {
   width: 34px;
   height: 34px;
   border-radius: 999px;
-  border: 1px solid rgba(31, 241, 255, 0.35);
-  background: linear-gradient(135deg, rgba(24, 32, 64, 0.85), rgba(20, 18, 48, 0.85));
+  border: 1px solid var(--icon-button-border-color);
+  background: var(--icon-button-bg);
   color: var(--text-light);
   display: inline-flex;
   align-items: center;
@@ -80,8 +503,8 @@ body {
 .icon-button:hover,
 .icon-button:focus-visible {
   transform: translateY(-1px);
-  border-color: rgba(31, 241, 255, 0.65);
-  box-shadow: 0 8px 20px rgba(31, 241, 255, 0.2);
+  border-color: var(--icon-button-border-hover);
+  box-shadow: var(--icon-button-shadow-hover);
   outline: none;
 }
 
@@ -97,7 +520,7 @@ body {
   position: absolute;
   inset: 0;
   border-radius: 2px;
-  background: linear-gradient(135deg, #1ff1ff, #ff3df3);
+  background: var(--icon-graph-gradient);
 }
 
 .icon.icon-graph::before {
@@ -108,8 +531,8 @@ body {
 .reset-button {
   padding: 0.32rem 0.6rem;
   border-radius: 999px;
-  border: 1px solid rgba(255, 99, 224, 0.7);
-  background: linear-gradient(135deg, rgba(255, 99, 224, 0.15), rgba(255, 99, 224, 0.35));
+  border: 1px solid var(--reset-border-color);
+  background: var(--reset-bg);
   color: var(--text-light);
   font-family: inherit;
   font-size: 0.78rem;
@@ -124,9 +547,9 @@ body {
 .reset-button:hover,
 .reset-button:focus-visible {
   transform: translateY(-1px);
-  border-color: rgba(255, 99, 224, 0.95);
-  box-shadow: 0 10px 28px rgba(255, 99, 224, 0.35);
-  background: linear-gradient(135deg, rgba(255, 99, 224, 0.25), rgba(255, 99, 224, 0.45));
+  border-color: var(--reset-border-hover);
+  box-shadow: var(--reset-shadow-hover);
+  background: var(--reset-bg-hover);
   outline: none;
 }
 
@@ -311,21 +734,21 @@ body {
   width: 38px;
   height: 38px;
   border-radius: 12px;
-  border: 1px solid rgba(31, 241, 255, 0.4);
-  background: linear-gradient(135deg, rgba(15, 21, 54, 0.9), rgba(12, 14, 44, 0.9));
+  border: 1px solid var(--menu-border-color);
+  background: var(--menu-bg);
   display: inline-flex;
   align-items: center;
   justify-content: center;
   padding: 0;
-  box-shadow: 0 12px 26px rgba(31, 241, 255, 0.18);
+  box-shadow: var(--menu-shadow);
   margin-left: clamp(0.4rem, 1vw, 0.75rem);
 }
 
 .menu-toggle:hover,
 .menu-toggle:focus-visible {
   transform: translateY(-2px);
-  box-shadow: 0 18px 32px rgba(31, 241, 255, 0.3);
-  border-color: rgba(31, 241, 255, 0.7);
+  box-shadow: var(--menu-shadow-hover);
+  border-color: var(--menu-border-hover);
   outline: none;
 }
 
@@ -368,11 +791,11 @@ body {
 
 .stat {
   flex: 1 1 clamp(110px, 26vw, 150px);
-  background: linear-gradient(135deg, rgba(6, 24, 32, 0.72), rgba(11, 18, 36, 0.78));
+  background: var(--stat-bg);
   padding: clamp(0.55rem, 2vw, 0.75rem) clamp(0.6rem, 2.4vw, 0.95rem);
   border-radius: 14px;
-  border: 1px solid rgba(12, 168, 138, 0.22);
-  box-shadow: inset 0 0 22px rgba(12, 168, 138, 0.18);
+  border: 1px solid var(--stat-border);
+  box-shadow: var(--stat-shadow);
   min-width: clamp(110px, 28vw, 150px);
 }
 
@@ -432,10 +855,10 @@ body {
   justify-content: space-between;
   gap: clamp(0.8rem, 2vw, 1.2rem);
   padding: clamp(0.6rem, 1.6vw, 0.9rem) clamp(0.8rem, 2vw, 1.2rem);
-  background: linear-gradient(135deg, rgba(9, 22, 36, 0.82), rgba(6, 28, 32, 0.72));
-  border: 1px solid rgba(53, 255, 234, 0.22);
+  background: var(--active-paytable-bg);
+  border: 1px solid var(--active-paytable-border);
   border-radius: 18px;
-  box-shadow: inset 0 0 22px rgba(53, 255, 234, 0.15);
+  box-shadow: var(--active-paytable-shadow);
 }
 
 .active-paytable-info {
@@ -448,7 +871,7 @@ body {
   text-transform: uppercase;
   font-size: 0.68rem;
   letter-spacing: 0.16rem;
-  color: rgba(177, 255, 247, 0.75);
+  color: var(--active-paytable-label-color);
 }
 
 .active-paytable-name {
@@ -459,7 +882,7 @@ body {
 
 .active-paytable-steps {
   font-size: clamp(0.75rem, 1.9vw, 0.9rem);
-  color: rgba(148, 255, 233, 0.8);
+  color: var(--active-paytable-steps-color);
   letter-spacing: 0.08rem;
 }
 
@@ -467,8 +890,8 @@ body {
   align-self: center;
   padding: 0.35rem 0.85rem;
   border-radius: 999px;
-  border: 1px solid rgba(53, 255, 234, 0.5);
-  background: linear-gradient(135deg, rgba(53, 255, 234, 0.2), rgba(53, 255, 234, 0.08));
+  border: 1px solid var(--change-paytable-border);
+  background: var(--change-paytable-bg);
   color: var(--text-light);
   font-family: inherit;
   font-size: 0.72rem;
@@ -481,8 +904,8 @@ body {
 .change-paytable:hover,
 .change-paytable:focus-visible {
   transform: translateY(-1px);
-  border-color: rgba(53, 255, 234, 0.85);
-  box-shadow: 0 12px 26px rgba(53, 255, 234, 0.25);
+  border-color: var(--change-paytable-border-hover);
+  box-shadow: var(--change-paytable-shadow);
   outline: none;
 }
 
@@ -492,9 +915,9 @@ body {
 }
 
 .betting-panel {
-  background: linear-gradient(160deg, rgba(12, 16, 36, 0.82), rgba(8, 10, 26, 0.88));
-  border: 1px solid rgba(139, 109, 255, 0.25);
-  box-shadow: 0 24px 60px rgba(1, 5, 12, 0.6), inset 0 0 46px rgba(139, 109, 255, 0.12);
+  background: var(--betting-panel-bg);
+  border: 1px solid var(--betting-panel-border);
+  box-shadow: var(--betting-panel-shadow);
   padding: clamp(1.2rem, 3vw, 1.6rem);
   overflow: hidden;
   min-height: 0;
@@ -525,18 +948,18 @@ body {
   flex-direction: column;
   gap: clamp(1.2rem, 3vw, 1.9rem);
   border-radius: clamp(16px, 5vw, 28px);
-  background: linear-gradient(170deg, #0d3b3a 0%, #052426 55%, #041018 100%);
-  box-shadow: 0 40px 80px rgba(2, 8, 12, 0.75), inset 0 0 90px rgba(12, 168, 138, 0.16);
+  background: var(--table-panel-bg);
+  box-shadow: var(--table-panel-shadow);
 }
 
 .paytable-panel {
   display: grid;
   gap: clamp(0.75rem, 2vw, 1.1rem);
   padding: clamp(0.8rem, 2.4vw, 1.2rem);
-  background: linear-gradient(160deg, rgba(7, 22, 36, 0.8), rgba(6, 32, 36, 0.55));
-  border: 1px solid rgba(53, 255, 234, 0.22);
+  background: var(--paytable-panel-bg);
+  border: 1px solid var(--paytable-panel-border);
   border-radius: clamp(14px, 4vw, 20px);
-  box-shadow: inset 0 0 24px rgba(24, 210, 255, 0.12);
+  box-shadow: var(--paytable-panel-shadow);
 }
 
 .paytable-panel-header {
@@ -570,9 +993,9 @@ body {
   gap: clamp(0.45rem, 1.4vw, 0.7rem);
   padding: clamp(0.45rem, 1.5vw, 0.65rem) clamp(0.8rem, 2vw, 1.1rem);
   border-radius: 999px;
-  border: 1px solid rgba(62, 245, 255, 0.25);
-  background: rgba(7, 40, 52, 0.65);
-  box-shadow: inset 0 0 18px rgba(42, 245, 255, 0.08);
+  border: 1px solid var(--paytable-option-border);
+  background: var(--paytable-option-bg);
+  box-shadow: var(--paytable-option-shadow);
   cursor: pointer;
   transition: transform 120ms ease, box-shadow 120ms ease, border-color 120ms ease;
   width: 100%;
@@ -594,25 +1017,25 @@ body {
   font-size: clamp(0.68rem, 1.6vw, 0.78rem);
   text-transform: uppercase;
   letter-spacing: 0.14rem;
-  color: rgba(214, 245, 238, 0.88);
+  color: var(--paytable-option-name-color);
 }
 
 .paytable-option-steps {
   font-size: clamp(0.64rem, 1.4vw, 0.75rem);
-  color: rgba(148, 255, 233, 0.85);
+  color: var(--paytable-option-steps-color);
   letter-spacing: 0.05rem;
 }
 
 .paytable-option:hover,
 .paytable-option:focus-within {
-  border-color: rgba(87, 255, 242, 0.55);
-  box-shadow: inset 0 0 22px rgba(71, 252, 255, 0.18);
+  border-color: var(--paytable-option-border-hover);
+  box-shadow: var(--paytable-option-shadow-hover);
 }
 
 .paytable-option.selected {
   transform: translateY(-2px);
-  border-color: rgba(114, 255, 242, 0.75);
-  box-shadow: inset 0 0 28px rgba(53, 255, 234, 0.3), 0 10px 22px rgba(11, 37, 44, 0.55);
+  border-color: var(--paytable-option-border-selected);
+  box-shadow: var(--paytable-option-shadow-selected);
 }
 
 .paytable-option.option-disabled {
@@ -814,11 +1237,11 @@ body {
 }
 
 .advanced-panel {
-  background: rgba(6, 24, 36, 0.72);
-  border: 1px solid rgba(132, 210, 255, 0.32);
+  background: var(--advanced-panel-bg);
+  border: 1px solid var(--advanced-panel-border);
   border-radius: clamp(14px, 3.2vw, 20px);
   padding: clamp(0.55rem, 1.6vw, 0.95rem);
-  box-shadow: 0 16px 28px rgba(3, 10, 18, 0.45);
+  box-shadow: var(--advanced-panel-shadow);
   display: grid;
   gap: clamp(0.45rem, 1.4vw, 0.75rem);
   width: 100%;
@@ -831,7 +1254,7 @@ body {
 }
 
 .advanced-group + .advanced-group {
-  border-top: 1px solid rgba(132, 210, 255, 0.22);
+  border-top: 1px solid var(--panel-divider);
   padding-top: clamp(0.35rem, 1vw, 0.6rem);
 }
 
@@ -847,7 +1270,7 @@ body {
   font-size: clamp(0.68rem, 1.6vw, 0.82rem);
   letter-spacing: 0.16em;
   text-transform: uppercase;
-  color: rgba(248, 249, 255, 0.84);
+  color: var(--advanced-heading-color, rgba(248, 249, 255, 0.84));
   margin: 0;
 }
 
@@ -856,7 +1279,7 @@ body {
   font-size: clamp(0.5rem, 1.3vw, 0.62rem);
   letter-spacing: 0.18em;
   text-transform: uppercase;
-  color: rgba(173, 225, 247, 0.58);
+  color: var(--advanced-subhead-color, rgba(173, 225, 247, 0.58));
 }
 
 .advanced-subgroup {
@@ -946,20 +1369,20 @@ body {
 
 
 .bust-bet {
-  background: linear-gradient(145deg, rgba(116, 228, 255, 0.16), rgba(64, 175, 255, 0.22));
-  border: 1px solid rgba(244, 252, 255, 0.72);
-  color: rgba(248, 249, 255, 0.95);
+  background: var(--bust-bet-bg);
+  border: 1px solid var(--bust-bet-border);
+  color: var(--bust-label-color, rgba(248, 249, 255, 0.95));
   transition: transform 0.18s ease, box-shadow 0.2s ease;
 }
 
 .bust-bet:hover,
 .bust-bet:focus-visible {
   transform: translateY(-1px);
-  box-shadow: 0 10px 20px rgba(7, 40, 66, 0.28);
+  box-shadow: var(--bust-bet-shadow);
 }
 
 .bust-bet .bet-total {
-  color: rgba(233, 243, 255, 0.85);
+  color: var(--bust-label-color, rgba(233, 243, 255, 0.85));
 }
 
 .bust-bet .bet-label,
@@ -1027,6 +1450,72 @@ body {
   --count-end: rgba(255, 99, 224, 0.55);
 }
 
+body.theme-cotton-candy .count-bet[data-tier="1"] {
+  --count-start: rgba(198, 167, 255, 0.24);
+  --count-end: rgba(255, 168, 252, 0.28);
+}
+body.theme-cotton-candy .count-bet[data-tier="2"] {
+  --count-start: rgba(198, 167, 255, 0.28);
+  --count-end: rgba(255, 168, 252, 0.32);
+}
+body.theme-cotton-candy .count-bet[data-tier="3"] {
+  --count-start: rgba(198, 167, 255, 0.32);
+  --count-end: rgba(255, 168, 252, 0.36);
+}
+body.theme-cotton-candy .count-bet[data-tier="4"] {
+  --count-start: rgba(198, 167, 255, 0.36);
+  --count-end: rgba(255, 168, 252, 0.4);
+}
+body.theme-cotton-candy .count-bet[data-tier="5"] {
+  --count-start: rgba(198, 167, 255, 0.4);
+  --count-end: rgba(255, 168, 252, 0.44);
+}
+body.theme-cotton-candy .count-bet[data-tier="6"] {
+  --count-start: rgba(198, 167, 255, 0.44);
+  --count-end: rgba(255, 168, 252, 0.48);
+}
+body.theme-cotton-candy .count-bet[data-tier="7"] {
+  --count-start: rgba(198, 167, 255, 0.48);
+  --count-end: rgba(255, 168, 252, 0.52);
+}
+body.theme-cotton-candy .count-bet[data-tier="8"] {
+  --count-start: rgba(198, 167, 255, 0.52);
+  --count-end: rgba(255, 168, 252, 0.58);
+}
+
+body.theme-pastel .count-bet[data-tier="1"] {
+  --count-start: rgba(159, 240, 229, 0.22);
+  --count-end: rgba(255, 208, 122, 0.26);
+}
+body.theme-pastel .count-bet[data-tier="2"] {
+  --count-start: rgba(159, 240, 229, 0.26);
+  --count-end: rgba(255, 208, 122, 0.3);
+}
+body.theme-pastel .count-bet[data-tier="3"] {
+  --count-start: rgba(159, 240, 229, 0.3);
+  --count-end: rgba(255, 208, 122, 0.34);
+}
+body.theme-pastel .count-bet[data-tier="4"] {
+  --count-start: rgba(159, 240, 229, 0.34);
+  --count-end: rgba(255, 208, 122, 0.38);
+}
+body.theme-pastel .count-bet[data-tier="5"] {
+  --count-start: rgba(159, 240, 229, 0.38);
+  --count-end: rgba(255, 208, 122, 0.42);
+}
+body.theme-pastel .count-bet[data-tier="6"] {
+  --count-start: rgba(159, 240, 229, 0.42);
+  --count-end: rgba(255, 208, 122, 0.46);
+}
+body.theme-pastel .count-bet[data-tier="7"] {
+  --count-start: rgba(159, 240, 229, 0.46);
+  --count-end: rgba(255, 208, 122, 0.5);
+}
+body.theme-pastel .count-bet[data-tier="8"] {
+  --count-start: rgba(159, 240, 229, 0.5);
+  --count-end: rgba(255, 208, 122, 0.56);
+}
+
 .bet-spot {
   position: relative;
   overflow: hidden;
@@ -1034,8 +1523,8 @@ body {
   max-width: 88px;
   aspect-ratio: 1 / 1;
   border-radius: clamp(10px, 2.4vw, 12px);
-  border: 2px solid rgba(31, 241, 255, 0.4);
-  background: rgba(4, 28, 33, 0.92);
+  border: 2px solid var(--bet-spot-border);
+  background: var(--bet-spot-bg);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -1045,14 +1534,14 @@ body {
   color: var(--text-light);
   gap: clamp(0.26rem, 0.9vw, 0.38rem);
   transition: transform 0.12s ease, box-shadow 0.2s ease, border-color 0.2s ease;
-  box-shadow: inset 0 0 12px rgba(0, 0, 0, 0.35);
+  box-shadow: var(--bet-spot-shadow);
 }
 
 .bet-spot:hover:not(:disabled),
 .bet-spot:focus-visible {
   transform: translateY(-4px);
   box-shadow: 0 24px 42px rgba(0, 0, 0, 0.6);
-  border-color: rgba(54, 245, 199, 0.85);
+  border-color: var(--bet-spot-border-hover);
   outline: none;
 }
 
@@ -1071,21 +1560,21 @@ body {
 
 .bet-total {
   font-size: clamp(0.62rem, 1.8vw, 0.8rem);
-  color: var(--neon-cyan);
+  color: var(--bet-total-color, var(--neon-cyan));
   min-height: 1.05rem;
   font-variant-numeric: tabular-nums;
-  text-shadow: 0 0 10px rgba(31, 241, 255, 0.4);
+  text-shadow: 0 0 10px var(--bet-total-glow);
 }
 
 .bet-spot.has-bet .bet-total {
-  color: var(--gold);
+  color: var(--bet-total-active-color, var(--gold));
   font-weight: 700;
-  text-shadow: 0 0 12px rgba(255, 99, 224, 0.4);
+  text-shadow: 0 0 12px var(--bet-total-active-glow);
 }
 
 .bet-spot.has-bet {
-  border-color: rgba(54, 245, 199, 0.9);
-  box-shadow: 0 0 26px rgba(54, 245, 199, 0.35), inset 0 0 26px rgba(31, 241, 255, 0.2);
+  border-color: var(--bet-spot-border-active);
+  box-shadow: var(--bet-spot-active-shadow);
 }
 
 .advanced-bets .bet-spot {
@@ -1114,8 +1603,8 @@ body {
   font-size: clamp(0.78rem, 2vw, 0.92rem);
   letter-spacing: 0.18em;
   text-transform: uppercase;
-  color: rgba(208, 244, 241, 0.75);
-  text-shadow: 0 0 10px rgba(54, 245, 199, 0.28);
+  color: var(--table-callout-color);
+  text-shadow: 0 0 10px var(--table-callout-shadow);
 }
 
 .chip-stack {
@@ -1153,21 +1642,21 @@ body {
 }
 
 .chip.denom-5 {
-  background: radial-gradient(circle at 35% 30%, #ff3df3, #a9009f 70%);
+  background: var(--chip-5-bg);
   color: #ffeaff;
 }
 
 .chip.denom-10 {
-  background: radial-gradient(circle at 35% 30%, #1ff1ff, #0c6eff 70%);
+  background: var(--chip-10-bg);
   color: #e8faff;
 }
 
 .chip.denom-25 {
-  background: radial-gradient(circle at 35% 30%, #7cffd0, #11b28a 70%);
+  background: var(--chip-25-bg);
 }
 
 .chip.denom-100 {
-  background: radial-gradient(circle at 35% 30%, #ffe780, #c36100 70%);
+  background: var(--chip-100-bg);
   color: #2b1400;
 }
 
@@ -1176,7 +1665,7 @@ body {
   font-size: clamp(0.92rem, 2.4vw, 1.05rem);
   min-height: 2rem;
   padding: 0.6rem 0.8rem 0.4rem;
-  color: rgba(248, 249, 255, 0.9);
+  color: var(--status-text-color);
   text-shadow: 0 0 10px rgba(0, 0, 0, 0.55);
 }
 
@@ -1202,9 +1691,9 @@ button:disabled {
 }
 
 .secondary {
-  background: linear-gradient(135deg, rgba(139, 109, 255, 0.18), rgba(15, 21, 54, 0.9));
+  background: var(--secondary-button-bg);
   color: var(--text-light);
-  border: 1px solid rgba(139, 109, 255, 0.35);
+  border: 1px solid var(--secondary-button-border);
   box-shadow: 0 12px 28px rgba(8, 9, 30, 0.4);
 }
 
@@ -1214,16 +1703,16 @@ button:disabled {
 }
 
 .deal {
-  background: linear-gradient(135deg, rgba(31, 241, 255, 0.85), rgba(12, 110, 255, 0.85));
+  background: var(--deal-button-bg);
   color: #020616;
   font-size: 1.05rem;
   padding: 0.85rem 1.6rem;
-  box-shadow: 0 18px 34px rgba(31, 241, 255, 0.35);
+  box-shadow: var(--deal-button-shadow);
 }
 
 .deal:hover:not(:disabled) {
   transform: translateY(-1px);
-  box-shadow: 0 20px 38px rgba(12, 110, 255, 0.38);
+  box-shadow: var(--deal-button-shadow-hover);
 }
 
 .chip-bar {
@@ -1232,10 +1721,10 @@ button:disabled {
   left: 0;
   width: 100%;
   align-self: stretch;
-  background: linear-gradient(135deg, #0a0c20, #180a28);
-  border-top: 2px solid rgba(31, 241, 255, 0.4);
-  padding: clamp(0.45rem, 1.2vw, 0.75rem) clamp(1.1rem, 4vw, 1.9rem);
-  box-shadow: 0 -20px 40px rgba(3, 3, 15, 0.6);
+  background: var(--chip-bar-bg);
+  border-top: 2px solid var(--chip-bar-border);
+  padding: var(--chip-bar-padding);
+  box-shadow: var(--chip-bar-shadow);
   z-index: 8;
   display: flex;
   flex-direction: column;
@@ -1247,7 +1736,7 @@ button:disabled {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: clamp(0.45rem, 2vw, 0.9rem);
+  gap: var(--chip-selector-gap);
   flex-wrap: wrap;
 }
 
@@ -1255,7 +1744,7 @@ button:disabled {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: clamp(0.35rem, 1.8vw, 0.75rem);
+  gap: var(--chip-actions-gap);
   flex-wrap: nowrap;
 }
 
@@ -1285,37 +1774,32 @@ button:disabled {
 
 .chip-choice {
   flex: 0 0 auto;
-  width: clamp(36px, 5.2vw, 44px);
-  height: clamp(36px, 5.2vw, 44px);
+  width: var(--chip-choice-size);
+  height: var(--chip-choice-size);
   border-radius: 50%;
-  border: 2px solid rgba(31, 241, 255, 0.45);
-  background: radial-gradient(circle at 32% 32%, rgba(31, 241, 255, 0.85), rgba(9, 12, 33, 0.9));
-  color: #f8f9ff;
-  font-size: 0.85rem;
+  border: 2px solid var(--chip-choice-border);
+  background: var(--chip-choice-bg);
+  color: var(--chip-text-light);
+  font-size: var(--chip-choice-font);
   font-weight: 700;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 12px 24px rgba(3, 3, 15, 0.55);
+  box-shadow: var(--chip-choice-shadow);
   transition: transform 0.12s ease, box-shadow 0.2s ease, border-color 0.2s ease;
 }
 
 .chip-choice:hover:not(:disabled),
 .chip-choice:focus-visible {
   transform: translateY(-3px);
-  box-shadow: 0 0 0 3px rgba(31, 241, 255, 0.45),
-    0 16px 28px rgba(31, 241, 255, 0.32);
+  box-shadow: var(--chip-choice-shadow-hover);
   outline: none;
 }
 
 .chip-choice.active {
   border-color: var(--gold);
-  box-shadow: 0 18px 34px rgba(255, 99, 224, 0.35);
-  background: radial-gradient(
-    circle at 35% 30%,
-    rgba(255, 99, 224, 0.85),
-    rgba(9, 12, 33, 0.9)
-  );
+  box-shadow: var(--chip-choice-active-shadow);
+  background: var(--chip-choice-active-bg);
 }
 
 .chip-choice:disabled {

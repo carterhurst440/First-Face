@@ -12,7 +12,7 @@
       rel="stylesheet"
     />
   </head>
-  <body>
+  <body class="theme-retro">
     <div class="app">
       <header class="header" role="banner">
         <div class="header-bar">
@@ -23,6 +23,14 @@
             <span id="bankroll-delta" class="bankroll-delta" aria-hidden="true"></span>
           </div>
           <div class="header-actions">
+            <div class="theme-picker">
+              <label class="sr-only" for="theme-select">Select theme</label>
+              <select id="theme-select" class="theme-select" aria-label="Select table theme">
+                <option value="retro">Retro</option>
+                <option value="cotton-candy">Cotton Candy</option>
+                <option value="pastel">Pastel</option>
+              </select>
+            </div>
             <button
               type="button"
               id="graph-toggle"
