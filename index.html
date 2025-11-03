@@ -27,21 +27,11 @@
               type="button"
               id="graph-toggle"
               class="icon-button"
-              aria-label="Open bankroll history"
+              aria-label="Open bankroll history and analytics"
               aria-expanded="false"
               aria-controls="chart-panel"
             >
               <span aria-hidden="true" class="icon icon-graph"></span>
-            </button>
-            <button
-              type="button"
-              id="analytics-toggle"
-              class="icon-button"
-              aria-label="Open analytics"
-              aria-expanded="false"
-              aria-controls="analytics-panel"
-            >
-              <span aria-hidden="true" class="icon icon-analytics"></span>
             </button>
             <button type="button" id="reset-account" class="reset-button" aria-label="Reset account">
               Reset
@@ -107,9 +97,9 @@
         aria-labelledby="chart-title"
       >
         <div class="drawer-header">
-          <h2 id="chart-title">Bankroll History</h2>
+          <h2 id="chart-title">Bankroll &amp; Analytics</h2>
           <button type="button" class="drawer-close" id="chart-close">
-            <span class="sr-only">Close bankroll history</span>
+            <span class="sr-only">Close bankroll analytics</span>
             <span aria-hidden="true">×</span>
           </button>
         </div>
@@ -124,22 +114,8 @@
             ></canvas>
           </div>
         </div>
-      </aside>
-
-      <aside
-        class="drawer analytics-panel"
-        id="analytics-panel"
-        aria-hidden="true"
-        aria-labelledby="analytics-title"
-      >
-        <div class="drawer-header">
-          <h2 id="analytics-title">Analytics</h2>
-          <button type="button" class="drawer-close" id="analytics-close">
-            <span class="sr-only">Close analytics</span>
-            <span aria-hidden="true">×</span>
-          </button>
-        </div>
         <section class="drawer-section">
+          <h3 class="drawer-subhead">Session analytics</h3>
           <div class="stats-strip" aria-label="Game statistics">
             <div class="stat">
               <span class="label">Hands Played</span>

@@ -119,9 +119,6 @@ const utilityClose = document.getElementById("utility-close");
 const graphToggle = document.getElementById("graph-toggle");
 const chartPanel = document.getElementById("chart-panel");
 const chartClose = document.getElementById("chart-close");
-const analyticsToggle = document.getElementById("analytics-toggle");
-const analyticsPanel = document.getElementById("analytics-panel");
-const analyticsClose = document.getElementById("analytics-close");
 const panelScrim = document.getElementById("panel-scrim");
 const bankrollChartCanvas = document.getElementById("bankroll-chart");
 const bankrollChartWrapper = document.getElementById("bankroll-chart-wrapper");
@@ -166,6 +163,7 @@ let handPaused = false;
 let pauseResolvers = [];
 let currentHandContext = null;
 let advancedCollapseTimeout = null;
+let advancedHeightRAF = null;
 let activePaytable = PAYTABLES[0];
 let pendingPaytableId = activePaytable.id;
 let openDrawerPanel = null;
@@ -773,21 +771,36 @@ function setAdvancedMode(enabled) {
   }
 
   if (advancedBetsSection) {
+    const cancelHeightAnimation = () => {
+      if (advancedHeightRAF !== null) {
+        cancelAnimationFrame(advancedHeightRAF);
+        advancedHeightRAF = null;
+      }
+    };
+
     if (enabled) {
-      const openSection = () => {
-        if (advancedBetsSection) {
-          advancedBetsSection.classList.add("is-open");
-        }
-      };
       advancedBetsSection.hidden = false;
       advancedBetsSection.setAttribute("aria-hidden", "false");
+      const updateHeight = () => {
+        if (!advancedBetsSection) return;
+        const targetHeight = advancedBetsSection.scrollHeight;
+        advancedBetsSection.style.setProperty(
+          "--advanced-max-height",
+          `${targetHeight}px`
+        );
+        advancedBetsSection.classList.add("is-open");
+        advancedHeightRAF = null;
+      };
       if (typeof requestAnimationFrame === "function") {
-        requestAnimationFrame(openSection);
+        cancelHeightAnimation();
+        advancedHeightRAF = requestAnimationFrame(updateHeight);
       } else {
-        openSection();
+        updateHeight();
       }
     } else {
+      cancelHeightAnimation();
       advancedBetsSection.classList.remove("is-open");
+      advancedBetsSection.style.removeProperty("--advanced-max-height");
       advancedBetsSection.setAttribute("aria-hidden", "true");
       advancedCollapseTimeout = window.setTimeout(() => {
         if (!advancedMode && advancedBetsSection) {
@@ -1448,21 +1461,6 @@ if (graphToggle && chartPanel && chartClose) {
 
   chartClose.addEventListener("click", () => {
     closeDrawer(chartPanel, graphToggle);
-  });
-}
-
-if (analyticsToggle && analyticsPanel && analyticsClose) {
-  analyticsToggle.addEventListener("click", () => {
-    const isOpen = analyticsPanel.classList.contains("is-open");
-    if (isOpen) {
-      closeDrawer(analyticsPanel, analyticsToggle);
-    } else {
-      openDrawer(analyticsPanel, analyticsToggle);
-    }
-  });
-
-  analyticsClose.addEventListener("click", () => {
-    closeDrawer(analyticsPanel, analyticsToggle);
   });
 }
 

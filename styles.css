@@ -92,9 +92,7 @@ body {
   display: inline-block;
 }
 
-.icon.icon-graph::before,
-.icon.icon-analytics::before,
-.icon.icon-analytics::after {
+.icon.icon-graph::before {
   content: "";
   position: absolute;
   inset: 0;
@@ -105,17 +103,6 @@ body {
 .icon.icon-graph::before {
   clip-path: polygon(10% 70%, 10% 100%, 22% 100%, 22% 45%, 34% 45%, 34% 60%, 48% 60%, 48% 25%, 62% 25%,
       62% 40%, 78% 40%, 78% 0%, 90% 0%, 90% 100%, 10% 100%);
-}
-
-.icon.icon-analytics::before {
-  clip-path: polygon(0% 70%, 18% 52%, 35% 65%, 52% 35%, 68% 48%, 100% 18%, 100% 100%, 0% 100%);
-}
-
-.icon.icon-analytics::after {
-  inset: 5px;
-  border-radius: 50%;
-  background: radial-gradient(circle, rgba(255, 255, 255, 0.9) 0%, rgba(255, 255, 255, 0) 70%);
-  opacity: 0.45;
 }
 
 .reset-button {
@@ -829,7 +816,7 @@ body {
 
 .advanced-bets.is-open {
   margin-top: clamp(0.45rem, 1.4vw, 0.75rem);
-  max-height: 2400px;
+  max-height: var(--advanced-max-height, 1600px);
   opacity: 1;
   transform: translateY(0);
 }
