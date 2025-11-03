@@ -13,7 +13,81 @@
     />
   </head>
   <body class="theme-blue">
-    <div class="app">
+    <script>
+      window.process = window.process || { env: {} };
+      const env = window.process.env;
+      env.NEXT_PUBLIC_SUPABASE_URL =
+        env.NEXT_PUBLIC_SUPABASE_URL || "https://jfqdjqhqumoqcoivjwbi.supabase.co";
+      env.NEXT_PUBLIC_SUPABASE_ANON_KEY =
+        env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
+        "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpmcWRqcWhxdW1vcWNvaXZqd2JpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjIxOTY1MDAsImV4cCI6MjA3Nzc3MjUwMH0.zLGqQ5gjH4fIdyG-K3vbOGL7dvCchbCFlnm11Txt8gs";
+    </script>
+    <div id="toast-container" class="toast-container" role="status" aria-live="polite"></div>
+    <section id="auth-view" class="auth-view" hidden>
+      <div class="auth-card">
+        <h1>Sign in to continue</h1>
+        <form id="auth-form" class="auth-form">
+          <label for="auth-email">Email</label>
+          <input type="email" id="auth-email" name="email" autocomplete="email" required />
+          <label for="auth-password">Password</label>
+          <input
+            type="password"
+            id="auth-password"
+            name="password"
+            autocomplete="current-password"
+            required
+          />
+          <button type="submit" id="auth-submit">Sign In / Sign Up</button>
+          <p id="auth-error" class="auth-error" role="alert" hidden></p>
+        </form>
+      </div>
+    </section>
+    <section id="dashboard-view" class="route-view" hidden>
+      <div class="route-shell">
+        <header class="route-header">
+          <div>
+            <h1>Dashboard</h1>
+            <p id="dashboard-email" class="route-subheading"></p>
+          </div>
+          <div class="route-actions">
+            <button type="button" data-route-target="play" class="link-button">Back to table</button>
+            <button type="button" data-action="sign-out" class="link-button">Sign out</button>
+          </div>
+        </header>
+        <section class="route-section">
+          <h2>Profile</h2>
+          <dl class="profile-list">
+            <div>
+              <dt>Credits</dt>
+              <dd id="dashboard-credits">0</dd>
+            </div>
+          </dl>
+        </section>
+        <section class="route-section">
+          <h2>Recent Game Runs</h2>
+          <ul id="dashboard-runs" class="runs-list"></ul>
+        </section>
+      </div>
+    </section>
+    <section id="prize-view" class="route-view" hidden>
+      <div class="route-shell">
+        <header class="route-header">
+          <div>
+            <h1>Prize Shop</h1>
+            <p class="route-subheading">Redeem credits for prizes.</p>
+          </div>
+          <div class="route-actions">
+            <button type="button" data-route-target="play" class="link-button">Back to table</button>
+            <button type="button" data-action="sign-out" class="link-button">Sign out</button>
+          </div>
+        </header>
+        <section class="route-section">
+          <ul id="prize-list" class="prize-list"></ul>
+        </section>
+      </div>
+    </section>
+    <section id="game-view" class="route-view" hidden>
+      <div class="app">
       <header class="header" role="banner">
         <div class="header-bar">
           <div class="bankroll" role="status" aria-live="polite">
@@ -71,6 +145,16 @@
             <span aria-hidden="true">×</span>
           </button>
         </div>
+        <section class="drawer-section" aria-label="Navigation">
+          <div class="drawer-nav">
+            <button type="button" data-route-target="play" class="drawer-link">Play table</button>
+            <button type="button" data-route-target="dashboard" class="drawer-link">
+              Dashboard
+            </button>
+            <button type="button" data-route-target="prizes" class="drawer-link">Prize shop</button>
+            <button type="button" data-action="sign-out" class="drawer-link">Sign out</button>
+          </div>
+        </section>
         <section class="drawer-section" aria-labelledby="how-to-title">
           <h3 id="how-to-title">How to Play</h3>
           <ol class="how-to-list">
@@ -779,6 +863,7 @@
         </div>
       </div>
     </div>
+    </section>
 
     <template id="card-template">
       <div class="card">
@@ -787,6 +872,6 @@
       </div>
     </template>
 
-    <script src="script.js" defer></script>
+    <script type="module" src="script.js"></script>
   </body>
 </html>

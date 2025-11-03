@@ -1,3 +1,5 @@
+import { supabase } from "./supabaseClient.js";
+
 const PAYTABLES = [
   {
     id: "paytable-1",
@@ -32,6 +34,364 @@ const RANK_LABELS = {
 
 function describeRank(rank) {
   return RANK_LABELS[rank] ?? String(rank);
+}
+
+function showToast(message, tone = "info") {
+  if (!toastContainer) return;
+  const toast = document.createElement("div");
+  toast.className = `toast toast-${tone}`;
+  toast.textContent = message;
+  toastContainer.appendChild(toast);
+  requestAnimationFrame(() => {
+    toast.classList.add("visible");
+  });
+  setTimeout(() => {
+    toast.classList.remove("visible");
+    setTimeout(() => {
+      toast.remove();
+    }, 300);
+  }, 3200);
+}
+
+function setViewVisibility(view, visible) {
+  if (!view) return;
+  if (visible) {
+    view.removeAttribute("hidden");
+  } else {
+    view.setAttribute("hidden", "");
+  }
+}
+
+function hideAllRoutes() {
+  Object.values(routeViews).forEach((view) => setViewVisibility(view, false));
+}
+
+function showAuthView() {
+  hideAllRoutes();
+  if (authView) {
+    setViewVisibility(authView, true);
+  }
+}
+
+function updateHash(route, { replace = false } = {}) {
+  if (typeof window === "undefined") return;
+  const hash = route === "play" ? "#/play" : `#/${route}`;
+  suppressHash = true;
+  if (replace && typeof history !== "undefined" && history.replaceState) {
+    history.replaceState(null, "", hash);
+  } else {
+    window.location.hash = hash;
+  }
+  setTimeout(() => {
+    suppressHash = false;
+  }, 0);
+}
+
+async function setRoute(route, { replaceHash = false } = {}) {
+  if (!routeViews[route]) {
+    route = "play";
+  }
+  if (!currentUser && route !== "auth") {
+    showAuthView();
+    currentRoute = "auth";
+    if (!replaceHash) {
+      updateHash("play", { replace: true });
+    }
+    return;
+  }
+  hideAllRoutes();
+  if (authView) {
+    setViewVisibility(authView, false);
+  }
+  setViewVisibility(routeViews[route], true);
+  currentRoute = route;
+  if (!replaceHash) {
+    updateHash(route);
+  }
+  if (route === "dashboard") {
+    await loadDashboard();
+  } else if (route === "prizes") {
+    await loadPrizeShop();
+  }
+}
+
+function getRouteFromHash() {
+  if (typeof window === "undefined") return "play";
+  const hash = window.location.hash || "";
+  const match = hash.match(/#\/(\w+)/);
+  return match ? match[1] : "play";
+}
+
+function handleHashChange() {
+  if (suppressHash) return;
+  const route = getRouteFromHash();
+  if (!currentUser) {
+    showAuthView();
+    return;
+  }
+  setRoute(route, { replaceHash: true });
+}
+
+async function refreshCurrentUser() {
+  const { data, error } = await supabase.auth.getUser();
+  if (error) {
+    console.error(error);
+    currentUser = null;
+    showAuthView();
+    return null;
+  }
+  currentUser = data?.user ?? null;
+  if (!currentUser) {
+    showAuthView();
+  }
+  return currentUser;
+}
+
+async function ensureProfile(user) {
+  if (!user) return null;
+  const { data: existing, error } = await supabase
+    .from("profiles")
+    .select("*")
+    .eq("id", user.id)
+    .maybeSingle();
+  if (error) {
+    console.error(error);
+    showToast("Unable to load profile", "error");
+    return null;
+  }
+  if (existing) {
+    currentProfile = existing;
+    return existing;
+  }
+  const { data: inserted, error: insertError } = await supabase
+    .from("profiles")
+    .insert({
+      id: user.id,
+      username: user.email,
+      credits: 0
+    })
+    .select()
+    .maybeSingle();
+  if (insertError) {
+    console.error(insertError);
+    showToast("Unable to create profile", "error");
+    return null;
+  }
+  currentProfile = inserted;
+  return inserted;
+}
+
+async function handleAuthSubmit(event) {
+  event.preventDefault();
+  if (!authEmailInput || !authPasswordInput || !authSubmitButton) return;
+  const email = authEmailInput.value.trim();
+  const password = authPasswordInput.value;
+  if (!email || !password) return;
+  authSubmitButton.disabled = true;
+  if (authErrorEl) {
+    authErrorEl.hidden = true;
+    authErrorEl.textContent = "";
+  }
+  try {
+    let { error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) {
+      const { error: signUpError } = await supabase.auth.signUp({ email, password });
+      if (signUpError) {
+        throw signUpError;
+      }
+    }
+    const user = await refreshCurrentUser();
+    if (user) {
+      await ensureProfile(user);
+      updateHash("dashboard", { replace: true });
+      await setRoute("dashboard", { replaceHash: true });
+      showToast("Signed in", "success");
+    }
+  } catch (error) {
+    console.error(error);
+    if (authErrorEl) {
+      authErrorEl.hidden = false;
+      authErrorEl.textContent = error.message || "Authentication failed";
+    }
+  } finally {
+    authSubmitButton.disabled = false;
+  }
+}
+
+async function loadDashboard(force = false) {
+  const {
+    data: { user }
+  } = await supabase.auth.getUser();
+  if (!user) {
+    showAuthView();
+    return;
+  }
+  currentUser = user;
+  if (dashboardLoaded && !force) {
+    if (dashboardEmailEl) {
+      dashboardEmailEl.textContent = currentUser.email || "";
+    }
+    if (dashboardCreditsEl && currentProfile) {
+      dashboardCreditsEl.textContent = currentProfile.credits ?? 0;
+    }
+    return;
+  }
+  dashboardLoaded = true;
+  if (dashboardEmailEl) {
+    dashboardEmailEl.textContent = currentUser.email || "";
+  }
+  const { data: profile, error: profileError } = await supabase
+    .from("profiles")
+    .select("*")
+    .eq("id", currentUser.id)
+    .single();
+  if (profileError) {
+    console.error(profileError);
+    showToast("Unable to load profile", "error");
+  } else {
+    currentProfile = profile;
+    if (dashboardCreditsEl) {
+      dashboardCreditsEl.textContent = profile.credits ?? 0;
+    }
+  }
+  const { data: runs, error: runsError } = await supabase
+    .from("game_runs")
+    .select("*")
+    .eq("user_id", currentUser.id)
+    .order("created_at", { ascending: false })
+    .limit(10);
+  if (runsError) {
+    console.error(runsError);
+    showToast("Unable to load game runs", "error");
+  } else if (dashboardRunsEl) {
+    dashboardRunsEl.innerHTML = "";
+    if (runs.length === 0) {
+      const empty = document.createElement("li");
+      empty.textContent = "No game runs recorded yet.";
+      dashboardRunsEl.appendChild(empty);
+    } else {
+      runs.forEach((run) => {
+        const item = document.createElement("li");
+        const date = run.created_at ? new Date(run.created_at).toLocaleString() : "";
+        item.innerHTML = `<span class="run-score">Score: ${run.score}</span><span class="run-date">${date}</span>`;
+        dashboardRunsEl.appendChild(item);
+      });
+    }
+  }
+}
+
+function renderPrize(prize) {
+  const item = document.createElement("li");
+  item.className = "prize-item";
+  const button = document.createElement("button");
+  button.type = "button";
+  button.textContent = `Buy for ${prize.cost} credits`;
+  button.className = "link-button";
+  button.addEventListener("click", () => handlePurchase(prize, button));
+  item.innerHTML = `<h3>${prize.name}</h3><p>${prize.description || ""}</p>`;
+  item.appendChild(button);
+  return item;
+}
+
+async function loadPrizeShop(force = false) {
+  const {
+    data: { user }
+  } = await supabase.auth.getUser();
+  if (!user) {
+    showAuthView();
+    return;
+  }
+  currentUser = user;
+  if (prizesLoaded && !force) return;
+  prizesLoaded = true;
+  if (!prizeListEl) return;
+  prizeListEl.innerHTML = "";
+  const loadingItem = document.createElement("li");
+  loadingItem.textContent = "Loading prizes...";
+  prizeListEl.appendChild(loadingItem);
+  const { data: prizes, error } = await supabase
+    .from("prizes")
+    .select("*")
+    .eq("active", true)
+    .order("cost", { ascending: true });
+  if (error) {
+    console.error(error);
+    prizeListEl.innerHTML = "";
+    const errorItem = document.createElement("li");
+    errorItem.textContent = "Unable to load prizes.";
+    prizeListEl.appendChild(errorItem);
+    showToast("Unable to load prizes", "error");
+    return;
+  }
+  prizeListEl.innerHTML = "";
+  if (!prizes || prizes.length === 0) {
+    const empty = document.createElement("li");
+    empty.textContent = "No active prizes right now.";
+    prizeListEl.appendChild(empty);
+    return;
+  }
+  prizes.forEach((prize) => {
+    prizeListEl.appendChild(renderPrize(prize));
+  });
+}
+
+async function handlePurchase(prize, button) {
+  if (!currentUser) {
+    showToast("Please sign in first", "error");
+    return;
+  }
+  if (button) {
+    button.disabled = true;
+  }
+  try {
+    const { error } = await supabase.rpc("purchase_prize", { _prize_id: prize.id });
+    if (error) {
+      throw error;
+    }
+    showToast(`Purchased ${prize.name}!`, "success");
+    prizesLoaded = false;
+    dashboardLoaded = false;
+    await loadDashboard(true);
+    await loadPrizeShop(true);
+  } catch (error) {
+    console.error(error);
+    showToast(error?.message || "Unable to purchase prize", "error");
+  } finally {
+    if (button) {
+      button.disabled = false;
+    }
+  }
+}
+
+async function handleSignOut() {
+  await supabase.auth.signOut();
+  currentUser = null;
+  currentProfile = null;
+  dashboardLoaded = false;
+  prizesLoaded = false;
+  if (dashboardRunsEl) {
+    dashboardRunsEl.innerHTML = "";
+  }
+  if (dashboardCreditsEl) {
+    dashboardCreditsEl.textContent = "0";
+  }
+  showAuthView();
+  updateHash("play", { replace: true });
+  showToast("Signed out", "info");
+}
+
+export async function logGameRun(score, metadata = {}) {
+  const {
+    data: { user }
+  } = await supabase.auth.getUser();
+  if (!user) {
+    throw new Error("User not logged in");
+  }
+  await supabase.from("game_runs").insert({
+    user_id: user.id,
+    score,
+    metadata
+  });
 }
 
 function applyTheme(theme) {
@@ -196,6 +556,27 @@ const paytableCancelButton = document.getElementById("paytable-cancel");
 const paytableCloseButton = document.getElementById("paytable-close");
 const activePaytableNameEl = document.getElementById("active-paytable-name");
 const activePaytableStepsEl = document.getElementById("active-paytable-steps");
+const toastContainer = document.getElementById("toast-container");
+const authView = document.getElementById("auth-view");
+const authForm = document.getElementById("auth-form");
+const authEmailInput = document.getElementById("auth-email");
+const authPasswordInput = document.getElementById("auth-password");
+const authErrorEl = document.getElementById("auth-error");
+const authSubmitButton = document.getElementById("auth-submit");
+const gameView = document.getElementById("game-view");
+const dashboardView = document.getElementById("dashboard-view");
+const prizeView = document.getElementById("prize-view");
+const routeViews = {
+  play: gameView,
+  dashboard: dashboardView,
+  prizes: prizeView
+};
+const routeButtons = Array.from(document.querySelectorAll("[data-route-target]"));
+const signOutButtons = Array.from(document.querySelectorAll('[data-action="sign-out"]'));
+const dashboardEmailEl = document.getElementById("dashboard-email");
+const dashboardCreditsEl = document.getElementById("dashboard-credits");
+const dashboardRunsEl = document.getElementById("dashboard-runs");
+const prizeListEl = document.getElementById("prize-list");
 
 const THEME_CLASS_MAP = {
   blue: "theme-blue",
@@ -235,6 +616,12 @@ let pendingPaytableId = activePaytable.id;
 let openDrawerPanel = null;
 let openDrawerToggle = null;
 let currentTheme = "blue";
+let currentUser = null;
+let currentRoute = "play";
+let dashboardLoaded = false;
+let prizesLoaded = false;
+let currentProfile = null;
+let suppressHash = false;
 
 const MAX_HISTORY_POINTS = 500;
 
@@ -1183,6 +1570,22 @@ function endHand(stopperCard, context = {}) {
   dealing = false;
   animateBankrollOutcome(netThisHand);
   recordBankrollHistoryPoint();
+  const metadata = {
+    stopper: stopperCard.label,
+    suit: stopperCard.suitName ?? null,
+    totalCards: context.totalCards ?? null,
+    bets: bets.map((bet) => ({
+      key: bet.key,
+      type: bet.type,
+      units: bet.units,
+      hits: bet.hits,
+      paid: bet.paid
+    }))
+  };
+  logGameRun(netThisHand, metadata).catch((error) => {
+    console.error(error);
+    showToast("Could not record game run", "error");
+  });
   resetBets();
   setBettingEnabled(true);
   updateRebetButtonState();
@@ -1520,6 +1923,29 @@ if (graphToggle && chartPanel && chartClose) {
   });
 }
 
+if (authForm) {
+  authForm.addEventListener("submit", handleAuthSubmit);
+}
+
+routeButtons.forEach((button) => {
+  button.addEventListener("click", async () => {
+    const target = button.dataset.routeTarget;
+    closeActiveDrawer();
+    await setRoute(target);
+  });
+});
+
+signOutButtons.forEach((button) => {
+  button.addEventListener("click", async () => {
+    closeActiveDrawer();
+    await handleSignOut();
+  });
+});
+
+if (typeof window !== "undefined") {
+  window.addEventListener("hashchange", handleHashChange);
+}
+
 if (panelScrim) {
   panelScrim.addEventListener("click", () => {
     closeActiveDrawer();
@@ -1567,6 +1993,40 @@ document.addEventListener("keydown", (event) => {
   }
 });
 
+supabase.auth.onAuthStateChange(async (_event, session) => {
+  currentUser = session?.user ?? null;
+  if (currentUser) {
+    if (authEmailInput && currentUser.email) {
+      authEmailInput.value = currentUser.email;
+    }
+    await ensureProfile(currentUser);
+    const route = getRouteFromHash();
+    await setRoute(route, { replaceHash: true });
+  } else {
+    currentProfile = null;
+    dashboardLoaded = false;
+    prizesLoaded = false;
+    if (dashboardRunsEl) {
+      dashboardRunsEl.innerHTML = "";
+    }
+    if (dashboardCreditsEl) {
+      dashboardCreditsEl.textContent = "0";
+    }
+    showAuthView();
+  }
+});
+
+async function bootstrapAuth() {
+  const user = await refreshCurrentUser();
+  if (user) {
+    await ensureProfile(user);
+    const route = getRouteFromHash();
+    await setRoute(route, { replaceHash: true });
+  } else {
+    showAuthView();
+  }
+}
+
 initTheme();
 setActivePaytable(activePaytable.id, { announce: false });
 updatePaytableAvailability();
@@ -1577,3 +2037,4 @@ resetTable();
 updateStatsUI();
 resetBankrollHistory();
 window.addEventListener("resize", drawBankrollChart);
+bootstrapAuth();
