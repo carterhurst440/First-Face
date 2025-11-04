@@ -340,6 +340,23 @@ async function handleAuthFormSubmit(event) {
 
     if (data?.user) {
       currentUser = data.user;
+    } else {
+      const {
+        data: { user }
+      } = await supabase.auth.getUser();
+      if (user) {
+        currentUser = user;
+      }
+    }
+
+    if (!currentUser) {
+      const message = "Signed in, but unable to load your session. Please try again.";
+      showToast(message, "error");
+      if (authErrorEl) {
+        authErrorEl.hidden = false;
+        authErrorEl.textContent = message;
+      }
+      return;
     }
 
     showToast("Signed in", "success");
@@ -2274,17 +2291,20 @@ supabase.auth.onAuthStateChange(async (_event, session) => {
     if (authEmailInput && currentUser.email) {
       authEmailInput.value = currentUser.email;
     }
-    const profile = await waitForProfile(currentUser, {
+    const route = getRouteFromHash();
+    await setRoute(route, { replaceHash: true });
+    waitForProfile(currentUser, {
       interval: 1000,
       maxAttempts: 10,
-      notify: false
+      notify: true
+    }).then((profile) => {
+      if (profile) {
+        currentProfile = profile;
+        if (currentRoute === "dashboard") {
+          loadDashboard(true);
+        }
+      }
     });
-    if (profile) {
-      const route = getRouteFromHash();
-      await setRoute(route, { replaceHash: true });
-    } else {
-      showAuthView("login");
-    }
   } else {
     currentProfile = null;
     dashboardLoaded = false;
