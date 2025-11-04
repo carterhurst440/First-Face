@@ -93,7 +93,7 @@ function redirectIfSessionExists() {
       }
       if (session?.user) {
         currentUser = session.user;
-        window.location.hash = "#/dashboard";
+        await setRoute("dashboard");
       }
     } catch (error) {
       console.error(error);
@@ -120,6 +120,18 @@ function updateHash(route, { replace = false } = {}) {
 async function setRoute(route, { replaceHash = false } = {}) {
   if (!routeViews[route]) {
     route = "home";
+  }
+  if (!currentUser && route !== "auth-callback") {
+    try {
+      const {
+        data: { session }
+      } = await supabase.auth.getSession();
+      if (session?.user) {
+        currentUser = session.user;
+      }
+    } catch (error) {
+      console.error(error);
+    }
   }
   if (!currentUser && route !== "auth-callback") {
     showAuthView();
@@ -396,7 +408,8 @@ async function handleAuthFormSubmit(event) {
         currentUser = signInData.user;
       }
       showToast("Signed in", "success");
-      window.location.hash = "#/dashboard";
+      await bootstrapAuth();
+      await setRoute("dashboard");
       return;
     }
 
@@ -409,8 +422,12 @@ async function handleAuthFormSubmit(event) {
       throw signUpError;
     }
 
+    if (signUpData?.user) {
+      currentUser = signUpData.user;
+    }
     showToast("Account created. Check your email to confirm.", "info");
-    window.location.hash = "#/dashboard";
+    await bootstrapAuth();
+    await setRoute("dashboard");
   } catch (error) {
     console.error(error);
     if (authErrorEl) {
