@@ -45,7 +45,7 @@ async function bootstrapAuth() {
           currentProfile = profile;
         }
       });
-      window.location.hash = "#/dashboard";
+      window.location.hash = "#/home";
       return true;
     }
   } catch (error) {
@@ -283,7 +283,7 @@ async function handleAuthFormSubmit(event) {
         currentUser = signInData.user;
       }
       showToast("Signed in", "success");
-      await setRoute("dashboard");
+      await setRoute("home");
       return;
     }
 
