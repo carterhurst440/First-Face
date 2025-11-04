@@ -1,6 +1,6 @@
 import { supabase } from "./supabaseClient.js";
 
-async function handleSupabaseRedirect() {
+async function bootstrapAuth() {
   if (typeof window === "undefined") {
     return false;
   }
@@ -8,13 +8,7 @@ async function handleSupabaseRedirect() {
   const hash = window.location.hash || "";
   const search = window.location.search || "";
 
-  let params = new URLSearchParams(
-    hash.startsWith("#")
-      ? hash.includes("?")
-        ? hash.slice(hash.indexOf("?") + 1)
-        : hash.slice(1)
-      : ""
-  );
+  let params = new URLSearchParams(hash.startsWith("#") ? hash.slice(1) : "");
 
   if (!params.get("access_token")) {
     const trimmed = search.startsWith("?") ? search.slice(1) : search;
@@ -32,9 +26,51 @@ async function handleSupabaseRedirect() {
 
     if (!error) {
       window.history.replaceState({}, document.title, window.location.pathname);
+      const {
+        data: { user }
+      } = await supabase.auth.getUser();
+      currentUser = user ?? null;
+      if (currentUser) {
+        waitForProfile(currentUser, {
+          interval: 1000,
+          maxAttempts: 10,
+          notify: false
+        }).then((profile) => {
+          if (profile) {
+            currentProfile = profile;
+          }
+        });
+      }
       window.location.hash = "#/dashboard";
       return true;
     }
+  }
+
+  try {
+    const {
+      data: { session },
+      error
+    } = await supabase.auth.getSession();
+    if (error) {
+      console.error(error);
+      return false;
+    }
+    if (session?.user) {
+      currentUser = session.user;
+      waitForProfile(currentUser, {
+        interval: 1000,
+        maxAttempts: 10,
+        notify: false
+      }).then((profile) => {
+        if (profile) {
+          currentProfile = profile;
+        }
+      });
+      window.location.hash = "#/dashboard";
+      return true;
+    }
+  } catch (error) {
+    console.error(error);
   }
 
   return false;
@@ -114,33 +150,6 @@ function showAuthView() {
   if (authView) {
     setViewVisibility(authView, true);
   }
-  checkExistingSession();
-}
-
-function checkExistingSession() {
-  if (authSessionCheckPromise || typeof window === "undefined") {
-    return;
-  }
-  authSessionCheckPromise = (async () => {
-    try {
-      const {
-        data: { session },
-        error
-      } = await supabase.auth.getSession();
-      if (error) {
-        console.error(error);
-        return;
-      }
-      if (session?.user) {
-        currentUser = session.user;
-        window.location.hash = "#/dashboard";
-      }
-    } catch (error) {
-      console.error(error);
-    } finally {
-      authSessionCheckPromise = null;
-    }
-  })();
 }
 
 function updateHash(route, { replace = false } = {}) {
@@ -753,7 +762,6 @@ let prizesLoaded = false;
 let currentProfile = null;
 let suppressHash = false;
 let dashboardProfileRetryTimer = null;
-let authSessionCheckPromise = null;
 
 const MAX_HISTORY_POINTS = 500;
 
@@ -2059,10 +2067,6 @@ if (authForm) {
   authForm.addEventListener("submit", handleAuthFormSubmit);
 }
 
-if (typeof window !== "undefined") {
-  checkExistingSession();
-}
-
 routeButtons.forEach((button) => {
   button.addEventListener("click", async () => {
     const target = button.dataset.routeTarget;
@@ -2164,36 +2168,6 @@ supabase.auth.onAuthStateChange(async (_event, session) => {
   }
 });
 
-async function bootstrapAuth() {
-  try {
-    const {
-      data: { session },
-      error
-    } = await supabase.auth.getSession();
-    if (error) {
-      console.error(error);
-    }
-    currentUser = session?.user ?? null;
-    if (currentUser) {
-      waitForProfile(currentUser, {
-        interval: 1000,
-        maxAttempts: 10,
-        notify: false
-      }).then((profile) => {
-        if (profile) {
-          currentProfile = profile;
-        }
-      });
-    } else {
-      currentProfile = null;
-    }
-  } catch (error) {
-    console.error(error);
-    currentUser = null;
-    currentProfile = null;
-  }
-}
-
 initTheme();
 setActivePaytable(activePaytable.id, { announce: false });
 updatePaytableAvailability();
@@ -2206,8 +2180,10 @@ resetBankrollHistory();
 window.addEventListener("resize", drawBankrollChart);
 
 async function initializeApp() {
-  await handleSupabaseRedirect();
-  await bootstrapAuth();
+  const redirected = await bootstrapAuth();
+  if (redirected) {
+    return;
+  }
   const initialRoute = getRouteFromHash();
   await setRoute(initialRoute, { replaceHash: true });
 }
