@@ -30,7 +30,7 @@ The simulator always uses a freshly shuffled 53-card deck for each hand with onl
 
 The simulator talks directly to your Supabase project from the browser using the anon key and row-level security.
 
-* `supabaseClient.js` creates a single client with `createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)`. When no bundler is present the demo in `index.html` hydrates `window.process.env` with the provided credentials; swap those values or inject the vars at build time in production.
+* `supabaseClient.js` creates a single client with `createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)`. Provide these environment variables through your build/deployment platform (for example, Vercel project settings) before serving the app.
 * Authentication uses email + password. The app first calls `supabase.auth.signInWithPassword`; if that fails it falls back to `supabase.auth.signUp`. After a successful login the client redirects straight into the app shell and continues polling `profiles` behind the scenes until the trigger-created row arrives.
 * Routing is handled client-side with hash fragments. The dashboard and prize shop check `supabase.auth.getUser()` before loading. If the user is missing, the login view is shown.
 * The dashboard queries the current profile and the 10 most recent `game_runs` for the signed-in user. The prize shop lists active prizes sorted by cost and lets players redeem them by calling the `purchase_prize` RPC. Errors such as “Not enough credits” surface as inline toasts.
