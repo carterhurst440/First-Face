@@ -466,6 +466,152 @@ body {
   z-index: 0;
 }
 
+.app-shell {
+  width: 100%;
+}
+
+.app-page {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.play-view {
+  flex: 1;
+}
+
+.play-view > .layout {
+  flex: 1;
+}
+
+.home-view {
+  align-items: center;
+  justify-content: center;
+  padding: clamp(2.5rem, 6vw, 4.5rem);
+  gap: clamp(2rem, 6vw, 3rem);
+  text-align: center;
+}
+
+.home-hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: clamp(1.4rem, 4vw, 2.8rem);
+  max-width: 720px;
+}
+
+.home-title {
+  font-family: "Audiowide", "Play", system-ui, sans-serif;
+  font-size: clamp(2.8rem, 8vw, 4.8rem);
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--text-light);
+  text-shadow:
+    0 0 22px rgba(63, 240, 255, 0.65),
+    0 0 58px rgba(140, 109, 255, 0.48);
+}
+
+.home-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: clamp(1.2rem, 4vw, 2rem);
+}
+
+.home-button {
+  min-width: clamp(9rem, 28vw, 11.5rem);
+  padding: 0.95rem 1.8rem;
+  border-radius: 999px;
+  font-family: "Play", system-ui, sans-serif;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  border: 1px solid var(--secondary-button-border);
+  color: var(--text-light);
+  cursor: pointer;
+  transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease;
+  animation: homePulse 2.4s ease-in-out infinite alternate;
+}
+
+.home-button.home-primary {
+  background: var(--deal-button-bg);
+  box-shadow: 0 20px 42px rgba(63, 240, 255, 0.32);
+  border-color: rgba(114, 254, 255, 0.76);
+}
+
+.home-button.home-secondary {
+  background: var(--secondary-button-bg);
+  box-shadow: 0 16px 34px rgba(63, 240, 255, 0.22);
+  animation-delay: 0.45s;
+}
+
+.home-button:hover,
+.home-button:focus-visible {
+  transform: translateY(-3px);
+  border-color: rgba(160, 248, 255, 0.92);
+  box-shadow: 0 24px 46px rgba(63, 240, 255, 0.4);
+  outline: none;
+}
+
+@keyframes homePulse {
+  from {
+    box-shadow: 0 12px 24px rgba(63, 240, 255, 0.28);
+    transform: translateY(0);
+  }
+  to {
+    box-shadow: 0 22px 48px rgba(140, 109, 255, 0.4);
+    transform: translateY(-4px);
+  }
+}
+
+.store-view {
+  align-items: center;
+  justify-content: center;
+  padding: clamp(2rem, 6vw, 4rem);
+  text-align: center;
+  gap: 2rem;
+}
+
+.store-content {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  align-items: center;
+  max-width: 540px;
+}
+
+.store-back {
+  align-self: flex-start;
+  padding: 0.35rem 0.85rem;
+  border-radius: 999px;
+  border: 1px solid var(--secondary-button-border);
+  background: transparent;
+  color: var(--text-light);
+  font-family: "Play", system-ui, sans-serif;
+  font-size: 0.8rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.store-back:hover,
+.store-back:focus-visible {
+  transform: translateY(-2px);
+  border-color: rgba(160, 248, 255, 0.92);
+  box-shadow: 0 14px 32px rgba(63, 240, 255, 0.3);
+  outline: none;
+}
+
+.store-title {
+  font-family: "Audiowide", "Play", system-ui, sans-serif;
+  font-size: clamp(2rem, 6vw, 3rem);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--text-light);
+  text-shadow: 0 0 18px rgba(63, 240, 255, 0.5);
+}
+
 .header {
   background: var(--header-gradient);
   padding: clamp(0.55rem, 1.6vw, 0.85rem) clamp(1rem, 2.8vw, 1.6rem);
@@ -579,6 +725,29 @@ body {
 .icon.icon-graph::before {
   clip-path: polygon(10% 70%, 10% 100%, 22% 100%, 22% 45%, 34% 45%, 34% 60%, 48% 60%, 48% 25%, 62% 25%,
       62% 40%, 78% 40%, 78% 0%, 90% 0%, 90% 100%, 10% 100%);
+}
+
+.icon.icon-home::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 2px;
+  background: var(--icon-graph-gradient);
+  clip-path: polygon(
+    50% 6%,
+    4% 42%,
+    4% 46%,
+    18% 46%,
+    18% 95%,
+    42% 95%,
+    42% 66%,
+    58% 66%,
+    58% 95%,
+    82% 95%,
+    82% 46%,
+    96% 46%,
+    96% 42%
+  );
 }
 
 .reset-button {

@@ -86,7 +86,7 @@
         </section>
       </div>
     </section>
-    <section id="game-view" class="route-view" hidden>
+    <section id="app-shell" class="route-view app-shell" hidden>
       <div class="app">
       <header class="header" role="banner">
         <div class="header-bar">
@@ -97,6 +97,14 @@
             <span id="bankroll-delta" class="bankroll-delta" aria-hidden="true"></span>
           </div>
           <div class="header-actions">
+            <button
+              type="button"
+              class="icon-button"
+              aria-label="Go to home"
+              data-route-target="home"
+            >
+              <span aria-hidden="true" class="icon icon-home"></span>
+            </button>
             <div class="theme-picker">
               <label class="sr-only" for="theme-select">Select theme</label>
               <select id="theme-select" class="theme-select" aria-label="Select table theme">
@@ -147,6 +155,7 @@
         </div>
         <section class="drawer-section" aria-label="Navigation">
           <div class="drawer-nav">
+            <button type="button" data-route-target="home" class="drawer-link">Home</button>
             <button type="button" data-route-target="play" class="drawer-link">Play table</button>
             <button type="button" data-route-target="dashboard" class="drawer-link">
               Dashboard
@@ -294,7 +303,22 @@
         </div>
       </div>
 
-      <main class="layout" aria-label="Run the Numbers simulator">
+      <section id="home-view" class="app-page home-view" hidden aria-labelledby="home-title">
+        <div class="home-hero">
+          <h1 id="home-title" class="home-title">RUN THE NUMBERS</h1>
+          <div class="home-actions">
+            <button type="button" class="home-button home-primary" data-route-target="play">
+              Play Game
+            </button>
+            <button type="button" class="home-button home-secondary" data-route-target="store">
+              View Store
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <section id="play-view" class="app-page play-view" hidden>
+        <main class="layout" aria-label="Run the Numbers simulator">
         <div class="panels">
           <section class="panel table-panel" aria-label="Table play area">
             <section class="dealer-zone" aria-live="polite">
@@ -801,67 +825,82 @@
             </div>
           </section>
         </div>
-      </main>
+        </main>
 
-      <div class="chip-bar" aria-label="Bet controls">
-        <div
-          class="chip-selector"
-          id="chip-selector"
-          role="radiogroup"
-          aria-label="Choose chip denomination"
-        >
-          <button
-            class="chip-choice"
-            type="button"
-            data-value="5"
-            role="radio"
-            aria-checked="true"
+        <div class="chip-bar" aria-label="Bet controls">
+          <div
+            class="chip-selector"
+            id="chip-selector"
+            role="radiogroup"
+            aria-label="Choose chip denomination"
           >
-            5
-          </button>
-          <button
-            class="chip-choice"
-            type="button"
-            data-value="10"
-            role="radio"
-            aria-checked="false"
-          >
-            10
-          </button>
-          <button
-            class="chip-choice"
-            type="button"
-            data-value="25"
-            role="radio"
-            aria-checked="false"
-          >
-            25
-          </button>
-          <button
-            class="chip-choice"
-            type="button"
-            data-value="100"
-            role="radio"
-            aria-checked="false"
-          >
-            100
-          </button>
+            <button
+              class="chip-choice"
+              type="button"
+              data-value="5"
+              role="radio"
+              aria-checked="true"
+            >
+              5
+            </button>
+            <button
+              class="chip-choice"
+              type="button"
+              data-value="10"
+              role="radio"
+              aria-checked="false"
+            >
+              10
+            </button>
+            <button
+              class="chip-choice"
+              type="button"
+              data-value="25"
+              role="radio"
+              aria-checked="false"
+            >
+              25
+            </button>
+            <button
+              class="chip-choice"
+              type="button"
+              data-value="100"
+              role="radio"
+              aria-checked="false"
+            >
+              100
+            </button>
+          </div>
+          <div class="chip-actions">
+            <button
+              type="button"
+              id="clear-bets-footer"
+              class="clear-bets secondary"
+              data-action="clear-bets"
+            >
+              Clear
+            </button>
+            <button type="button" id="rebet-button" class="secondary" hidden>
+              Rebet
+            </button>
+            <button id="deal-button" class="deal" disabled>Deal Hand</button>
+          </div>
         </div>
-        <div class="chip-actions">
+      </section>
+
+      <section id="store-view" class="app-page store-view" hidden aria-labelledby="store-title">
+        <div class="store-content">
           <button
             type="button"
-            id="clear-bets-footer"
-            class="clear-bets secondary"
-            data-action="clear-bets"
+            class="store-back"
+            data-route-target="home"
+            aria-label="Back to home"
           >
-            Clear
+            ← Back
           </button>
-          <button type="button" id="rebet-button" class="secondary" hidden>
-            Rebet
-          </button>
-          <button id="deal-button" class="deal" disabled>Deal Hand</button>
+          <h2 id="store-title" class="store-title">COMING SOON</h2>
         </div>
-      </div>
+      </section>
     </div>
     </section>
 

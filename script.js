@@ -64,6 +64,9 @@ function setViewVisibility(view, visible) {
 
 function hideAllRoutes() {
   Object.values(routeViews).forEach((view) => setViewVisibility(view, false));
+  if (appShell) {
+    appShell.hidden = true;
+  }
 }
 
 function showAuthView() {
@@ -75,7 +78,7 @@ function showAuthView() {
 
 function updateHash(route, { replace = false } = {}) {
   if (typeof window === "undefined") return;
-  const hash = route === "play" ? "#/play" : `#/${route}`;
+  const hash = `#/${route}`;
   suppressHash = true;
   if (replace && typeof history !== "undefined" && history.replaceState) {
     history.replaceState(null, "", hash);
@@ -89,13 +92,13 @@ function updateHash(route, { replace = false } = {}) {
 
 async function setRoute(route, { replaceHash = false } = {}) {
   if (!routeViews[route]) {
-    route = "play";
+    route = "home";
   }
   if (!currentUser && route !== "auth") {
     showAuthView();
     currentRoute = "auth";
     if (!replaceHash) {
-      updateHash("play", { replace: true });
+      updateHash("home", { replace: true });
     }
     return;
   }
@@ -103,7 +106,13 @@ async function setRoute(route, { replaceHash = false } = {}) {
   if (authView) {
     setViewVisibility(authView, false);
   }
-  setViewVisibility(routeViews[route], true);
+  const targetView = routeViews[route];
+  if (TABLE_ROUTES.has(route) && appShell) {
+    appShell.hidden = false;
+  }
+  if (targetView) {
+    setViewVisibility(targetView, true);
+  }
   currentRoute = route;
   if (!replaceHash) {
     updateHash(route);
@@ -116,10 +125,10 @@ async function setRoute(route, { replaceHash = false } = {}) {
 }
 
 function getRouteFromHash() {
-  if (typeof window === "undefined") return "play";
+  if (typeof window === "undefined") return "home";
   const hash = window.location.hash || "";
   const match = hash.match(/#\/(\w+)/);
-  return match ? match[1] : "play";
+  return match ? match[1] : "home";
 }
 
 function handleHashChange() {
@@ -239,8 +248,8 @@ async function handleAuthSubmit(event) {
       return;
     }
 
-    updateHash("dashboard", { replace: true });
-    await setRoute("dashboard", { replaceHash: true });
+    updateHash("home", { replace: true });
+    await setRoute("home", { replaceHash: true });
     showToast("Signed in", "success");
   } catch (error) {
     console.error(error);
@@ -428,7 +437,7 @@ async function handleSignOut() {
     dashboardCreditsEl.textContent = "0";
   }
   showAuthView();
-  updateHash("play", { replace: true });
+  updateHash("home", { replace: true });
   showToast("Signed out", "info");
 }
 
@@ -615,14 +624,20 @@ const authEmailInput = document.getElementById("auth-email");
 const authPasswordInput = document.getElementById("auth-password");
 const authErrorEl = document.getElementById("auth-error");
 const authSubmitButton = document.getElementById("auth-submit");
-const gameView = document.getElementById("game-view");
+const appShell = document.getElementById("app-shell");
+const homeView = document.getElementById("home-view");
+const playView = document.getElementById("play-view");
+const storeView = document.getElementById("store-view");
 const dashboardView = document.getElementById("dashboard-view");
 const prizeView = document.getElementById("prize-view");
 const routeViews = {
-  play: gameView,
+  home: homeView,
+  play: playView,
+  store: storeView,
   dashboard: dashboardView,
   prizes: prizeView
 };
+const TABLE_ROUTES = new Set(["home", "play", "store"]);
 const routeButtons = Array.from(document.querySelectorAll("[data-route-target]"));
 const signOutButtons = Array.from(document.querySelectorAll('[data-action="sign-out"]'));
 const dashboardEmailEl = document.getElementById("dashboard-email");
@@ -669,7 +684,7 @@ let openDrawerPanel = null;
 let openDrawerToggle = null;
 let currentTheme = "blue";
 let currentUser = null;
-let currentRoute = "play";
+let currentRoute = "home";
 let dashboardLoaded = false;
 let prizesLoaded = false;
 let currentProfile = null;
@@ -2123,7 +2138,7 @@ async function processAuthHash() {
   const refreshToken = params.get("refresh_token");
 
   if (!accessToken || !refreshToken) {
-    replaceHashDirect("#/play");
+    replaceHashDirect("#/home");
     return false;
   }
 
@@ -2137,13 +2152,13 @@ async function processAuthHash() {
       throw error;
     }
 
-    replaceHashDirect("#/dashboard");
+    replaceHashDirect("#/home");
 
     return true;
   } catch (error) {
     console.error("Unable to process Supabase auth callback", error);
     showToast("Unable to finish sign in", "error");
-    replaceHashDirect("#/play");
+    replaceHashDirect("#/home");
     return false;
   }
 }
