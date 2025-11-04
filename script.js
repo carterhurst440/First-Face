@@ -1,16 +1,16 @@
 import { supabase } from "./supabaseClient.js";
 
-async function bootstrapAuth() {
+async function handleSupabaseEmailRedirect() {
   if (typeof window === "undefined") {
     return false;
   }
 
-  const hash = window.location.hash || "";
-  const search = window.location.search || "";
-
-  let params = new URLSearchParams(hash.startsWith("#") ? hash.slice(1) : "");
+  const rawHash = window.location.hash || "";
+  const hash = rawHash.startsWith("#") ? rawHash.slice(1) : rawHash;
+  let params = new URLSearchParams(hash);
 
   if (!params.get("access_token")) {
+    const search = window.location.search || "";
     const trimmed = search.startsWith("?") ? search.slice(1) : search;
     params = new URLSearchParams(trimmed);
   }
@@ -26,24 +26,19 @@ async function bootstrapAuth() {
 
     if (!error) {
       window.history.replaceState({}, document.title, window.location.pathname);
-      const {
-        data: { user }
-      } = await supabase.auth.getUser();
-      currentUser = user ?? null;
-      if (currentUser) {
-        waitForProfile(currentUser, {
-          interval: 1000,
-          maxAttempts: 10,
-          notify: false
-        }).then((profile) => {
-          if (profile) {
-            currentProfile = profile;
-          }
-        });
-      }
       window.location.hash = "#/dashboard";
       return true;
     }
+  }
+
+  return false;
+}
+
+const emailRedirectPromise = handleSupabaseEmailRedirect();
+
+async function bootstrapAuth() {
+  if (typeof window === "undefined") {
+    return false;
   }
 
   try {
@@ -2180,6 +2175,11 @@ resetBankrollHistory();
 window.addEventListener("resize", drawBankrollChart);
 
 async function initializeApp() {
+  const handledRedirect = await emailRedirectPromise;
+  if (handledRedirect) {
+    return;
+  }
+
   const redirected = await bootstrapAuth();
   if (redirected) {
     return;
