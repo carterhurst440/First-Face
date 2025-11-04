@@ -2100,6 +2100,54 @@ async function bootstrapAuth() {
   }
 }
 
+function replaceHashDirect(value) {
+  suppressHash = true;
+  window.location.hash = value;
+  setTimeout(() => {
+    suppressHash = false;
+  }, 0);
+}
+
+async function processAuthHash() {
+  if (typeof window === "undefined") {
+    return false;
+  }
+
+  const hash = window.location.hash || "";
+  if (!hash.startsWith("#access_token=")) {
+    return false;
+  }
+
+  const params = new URLSearchParams(hash.slice(1));
+  const accessToken = params.get("access_token");
+  const refreshToken = params.get("refresh_token");
+
+  if (!accessToken || !refreshToken) {
+    replaceHashDirect("#/play");
+    return false;
+  }
+
+  try {
+    const { error } = await supabase.auth.setSession({
+      access_token: accessToken,
+      refresh_token: refreshToken
+    });
+
+    if (error) {
+      throw error;
+    }
+
+    replaceHashDirect("#/dashboard");
+
+    return true;
+  } catch (error) {
+    console.error("Unable to process Supabase auth callback", error);
+    showToast("Unable to finish sign in", "error");
+    replaceHashDirect("#/play");
+    return false;
+  }
+}
+
 initTheme();
 setActivePaytable(activePaytable.id, { announce: false });
 updatePaytableAvailability();
@@ -2110,4 +2158,10 @@ resetTable();
 updateStatsUI();
 resetBankrollHistory();
 window.addEventListener("resize", drawBankrollChart);
-bootstrapAuth();
+
+async function initializeApp() {
+  await processAuthHash();
+  await bootstrapAuth();
+}
+
+initializeApp();
