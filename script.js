@@ -1,40 +1,24 @@
 import { supabase } from "./supabaseClient.js";
 
-async function handleSupabaseEmailRedirect() {
+function stripSupabaseRedirectHash() {
   if (typeof window === "undefined") {
-    return false;
+    return;
   }
 
   const rawHash = window.location.hash || "";
-  const hash = rawHash.startsWith("#") ? rawHash.slice(1) : rawHash;
-  let params = new URLSearchParams(hash);
+  const search = window.location.search || "";
+  const hashContainsTokens = rawHash.startsWith("#access_token=");
+  const searchContainsTokens = search.includes("access_token=");
 
-  if (!params.get("access_token")) {
-    const search = window.location.search || "";
-    const trimmed = search.startsWith("?") ? search.slice(1) : search;
-    params = new URLSearchParams(trimmed);
+  if (hashContainsTokens || searchContainsTokens) {
+    const cleanedHash = hashContainsTokens ? "" : rawHash;
+    window.history.replaceState(
+      {},
+      document.title,
+      `${window.location.pathname}${cleanedHash}`
+    );
   }
-
-  const access_token = params.get("access_token");
-  const refresh_token = params.get("refresh_token");
-
-  if (access_token && refresh_token) {
-    const { error } = await supabase.auth.setSession({
-      access_token,
-      refresh_token
-    });
-
-    if (!error) {
-      window.history.replaceState({}, document.title, window.location.pathname);
-      window.location.hash = "#/dashboard";
-      return true;
-    }
-  }
-
-  return false;
 }
-
-const emailRedirectPromise = handleSupabaseEmailRedirect();
 
 async function bootstrapAuth() {
   if (typeof window === "undefined") {
@@ -299,8 +283,17 @@ async function handleAuthFormSubmit(event) {
         currentUser = signInData.user;
       }
       showToast("Signed in", "success");
-      await bootstrapAuth();
       await setRoute("dashboard");
+      return;
+    }
+
+    const normalizedMessage = String(signInError.message || "").toLowerCase();
+    if (normalizedMessage.includes("email not confirmed")) {
+      showToast("Email not confirmed. Please check your inbox, then sign in again.", "info");
+      if (authErrorEl) {
+        authErrorEl.hidden = false;
+        authErrorEl.textContent = "Email not confirmed. Check your inbox, then sign in again.";
+      }
       return;
     }
 
@@ -316,9 +309,7 @@ async function handleAuthFormSubmit(event) {
     if (signUpData?.user) {
       currentUser = signUpData.user;
     }
-    showToast("Account created. Check your email to confirm.", "info");
-    await bootstrapAuth();
-    await setRoute("dashboard");
+    showToast("Account created. Check your email to confirm, then sign in.", "info");
   } catch (error) {
     console.error(error);
     if (authErrorEl) {
@@ -2175,11 +2166,7 @@ resetBankrollHistory();
 window.addEventListener("resize", drawBankrollChart);
 
 async function initializeApp() {
-  const handledRedirect = await emailRedirectPromise;
-  if (handledRedirect) {
-    return;
-  }
-
+  stripSupabaseRedirectHash();
   const redirected = await bootstrapAuth();
   if (redirected) {
     return;
