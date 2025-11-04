@@ -5,7 +5,7 @@ Run the Numbers is a web-based simulator for the updated First Face ruleset. Sta
 ## Getting Started
 
 1. Open `index.html` in any modern browser.
-2. Sign in with the email/password form to create or reuse a Supabase account. The first sign-in attempts a password login and falls back to registration automatically. Profiles are created on first login with zero starting credits.
+2. Sign in with the email/password form to create or reuse a Supabase account. The first sign-in attempts a password login and falls back to registration automatically. A Supabase trigger seeds your profile row the moment the account is confirmed, and the UI waits for that record before moving on.
 3. Once authenticated you land on the dashboard, which shows your email, current credit balance, and the ten most recent `game_runs` rows fetched from Supabase. Use the header navigation or hamburger menu to jump back to the live table or open the prize shop.
 4. The compact table header stays pinned to the top of the play view with your bankroll readout, reset button, theme selector, and the combined chart toggle. Flip the theme dropdown to instantly restyle the table with **Blue**, **Pink**, or **Orange** palettes. After each hand the bankroll flashes green or red, counts up or down to the new total, and any panel drawers can be opened or closed without leaving the table.
 5. The left panel shows the active paytable above the dealing lane. Tap **Change Paytable** to open a modal with three ladders: Paytable 1 (3×/4×/15×/50×) is active by default, Paytable 2 offers 2×/6×/36×/100×, and Paytable 3 pays 1×/10×/40×/200×. Pick one and apply it before dealing; the selection locks automatically once a hand begins.
@@ -31,7 +31,7 @@ The simulator always uses a freshly shuffled 53-card deck for each hand with onl
 The simulator talks directly to your Supabase project from the browser using the anon key and row-level security.
 
 * `supabaseClient.js` creates a single client with `createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)`. When no bundler is present the demo in `index.html` hydrates `window.process.env` with the provided credentials; swap those values or inject the vars at build time in production.
-* Authentication uses email + password. The app first calls `supabase.auth.signInWithPassword`; if that fails it falls back to `supabase.auth.signUp`. After a successful login the code fetches `supabase.auth.getUser()`, verifies a `profiles` row exists, and inserts `{ id, username, credits: 0 }` if needed.
+* Authentication uses email + password. The app first calls `supabase.auth.signInWithPassword`; if that fails it falls back to `supabase.auth.signUp`. After a successful login the client polls `profiles` until the server-side trigger populates the row for the user before navigating away from the auth screen.
 * Routing is handled client-side with hash fragments. The dashboard and prize shop check `supabase.auth.getUser()` before loading. If the user is missing, the login view is shown.
 * The dashboard queries the current profile and the 10 most recent `game_runs` for the signed-in user. The prize shop lists active prizes sorted by cost and lets players redeem them by calling the `purchase_prize` RPC. Errors such as “Not enough credits” surface as inline toasts.
 * Every completed hand calls the exported `logGameRun(score, metadata?)` helper. It looks up the current user, inserts a row into `game_runs`, and bubbles an error toast if the player is not logged in.

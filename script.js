@@ -147,38 +147,39 @@ async function refreshCurrentUser() {
   return currentUser;
 }
 
-async function ensureProfile(user) {
+async function waitForProfile(user, { interval = 1000, maxAttempts = 5, notify = false } = {}) {
   if (!user) return null;
-  const { data: existing, error } = await supabase
-    .from("profiles")
-    .select("*")
-    .eq("id", user.id)
-    .maybeSingle();
-  if (error) {
-    console.error(error);
-    showToast("Unable to load profile", "error");
-    return null;
+  let notified = false;
+  for (let attempt = 0; maxAttempts === Infinity || attempt < maxAttempts; attempt++) {
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("*")
+      .eq("id", user.id)
+      .maybeSingle();
+
+    if (error && error.code !== "PGRST116") {
+      console.error(error);
+      showToast("Unable to load profile", "error");
+      return null;
+    }
+
+    if (data) {
+      currentProfile = data;
+      return data;
+    }
+
+    if (!notified) {
+      notified = true;
+      if (notify) {
+        showToast("Setting up your account...", "info");
+      }
+      console.log("Waiting for profile creation by server trigger...");
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, interval));
   }
-  if (existing) {
-    currentProfile = existing;
-    return existing;
-  }
-  const { data: inserted, error: insertError } = await supabase
-    .from("profiles")
-    .insert({
-      id: user.id,
-      username: user.email,
-      credits: 0
-    })
-    .select()
-    .maybeSingle();
-  if (insertError) {
-    console.error(insertError);
-    showToast("Unable to create profile", "error");
-    return null;
-  }
-  currentProfile = inserted;
-  return inserted;
+
+  return null;
 }
 
 async function handleAuthSubmit(event) {
@@ -224,7 +225,20 @@ async function handleAuthSubmit(event) {
       throw new Error("Unable to fetch user after sign in");
     }
 
-    await ensureProfile(user);
+    const profile = await waitForProfile(user, {
+      interval: 1000,
+      maxAttempts: Infinity,
+      notify: true
+    });
+
+    if (!profile) {
+      if (authErrorEl) {
+        authErrorEl.hidden = false;
+        authErrorEl.textContent = "We're still setting up your account. Please try again.";
+      }
+      return;
+    }
+
     updateHash("dashboard", { replace: true });
     await setRoute("dashboard", { replaceHash: true });
     showToast("Signed in", "success");
@@ -261,18 +275,31 @@ async function loadDashboard(force = false) {
   if (dashboardEmailEl) {
     dashboardEmailEl.textContent = currentUser.email || "";
   }
-  const { data: profile, error: profileError } = await supabase
-    .from("profiles")
-    .select("*")
-    .eq("id", currentUser.id)
-    .single();
-  if (profileError) {
-    console.error(profileError);
-    showToast("Unable to load profile", "error");
-  } else {
-    currentProfile = profile;
+  let resolvedProfile = currentProfile;
+  if (!resolvedProfile || force) {
+    resolvedProfile = await waitForProfile(currentUser, {
+      interval: 1000,
+      maxAttempts: 5,
+      notify: false
+    });
+  }
+
+  if (resolvedProfile) {
+    currentProfile = resolvedProfile;
+    if (dashboardProfileRetryTimer) {
+      clearTimeout(dashboardProfileRetryTimer);
+      dashboardProfileRetryTimer = null;
+    }
     if (dashboardCreditsEl) {
-      dashboardCreditsEl.textContent = profile.credits ?? 0;
+      dashboardCreditsEl.textContent = resolvedProfile.credits ?? 0;
+    }
+  } else if (dashboardCreditsEl) {
+    dashboardCreditsEl.textContent = "Setting up your account...";
+    if (!dashboardProfileRetryTimer) {
+      dashboardProfileRetryTimer = setTimeout(() => {
+        dashboardProfileRetryTimer = null;
+        loadDashboard(true);
+      }, 1000);
     }
   }
   const { data: runs, error: runsError } = await supabase
@@ -390,6 +417,10 @@ async function handleSignOut() {
   currentProfile = null;
   dashboardLoaded = false;
   prizesLoaded = false;
+  if (dashboardProfileRetryTimer) {
+    clearTimeout(dashboardProfileRetryTimer);
+    dashboardProfileRetryTimer = null;
+  }
   if (dashboardRunsEl) {
     dashboardRunsEl.innerHTML = "";
   }
@@ -643,6 +674,7 @@ let dashboardLoaded = false;
 let prizesLoaded = false;
 let currentProfile = null;
 let suppressHash = false;
+let dashboardProfileRetryTimer = null;
 
 const MAX_HISTORY_POINTS = 500;
 
@@ -2020,13 +2052,25 @@ supabase.auth.onAuthStateChange(async (_event, session) => {
     if (authEmailInput && currentUser.email) {
       authEmailInput.value = currentUser.email;
     }
-    await ensureProfile(currentUser);
-    const route = getRouteFromHash();
-    await setRoute(route, { replaceHash: true });
+    const profile = await waitForProfile(currentUser, {
+      interval: 1000,
+      maxAttempts: 10,
+      notify: false
+    });
+    if (profile) {
+      const route = getRouteFromHash();
+      await setRoute(route, { replaceHash: true });
+    } else {
+      showAuthView();
+    }
   } else {
     currentProfile = null;
     dashboardLoaded = false;
     prizesLoaded = false;
+    if (dashboardProfileRetryTimer) {
+      clearTimeout(dashboardProfileRetryTimer);
+      dashboardProfileRetryTimer = null;
+    }
     if (dashboardRunsEl) {
       dashboardRunsEl.innerHTML = "";
     }
@@ -2040,9 +2084,17 @@ supabase.auth.onAuthStateChange(async (_event, session) => {
 async function bootstrapAuth() {
   const user = await refreshCurrentUser();
   if (user) {
-    await ensureProfile(user);
-    const route = getRouteFromHash();
-    await setRoute(route, { replaceHash: true });
+    const profile = await waitForProfile(user, {
+      interval: 1000,
+      maxAttempts: 10,
+      notify: false
+    });
+    if (profile) {
+      const route = getRouteFromHash();
+      await setRoute(route, { replaceHash: true });
+    } else {
+      showAuthView();
+    }
   } else {
     showAuthView();
   }
