@@ -204,7 +204,7 @@ async function setRoute(route, { replaceHash = false } = {}) {
   if (!replaceHash) {
     updateHash(route);
   }
-  if (route === "dashboard") {
+  if (route === "home") {
     await loadDashboard();
   } else if (route === "prizes") {
     await loadPrizeShop();
@@ -282,7 +282,7 @@ async function handleAuthFormSubmit(event) {
   event.preventDefault();
   event.stopPropagation();
   const form = event.currentTarget instanceof HTMLFormElement ? event.currentTarget : authForm;
-  if (!form || !authSubmitButton) return;
+  if (!form) return;
 
   const formData = new FormData(form);
   const email = String(formData.get("email") ?? "").trim();
@@ -296,7 +296,9 @@ async function handleAuthFormSubmit(event) {
     return;
   }
 
-  authSubmitButton.disabled = true;
+  if (authSubmitButton) {
+    authSubmitButton.disabled = true;
+  }
   if (authErrorEl) {
     authErrorEl.hidden = true;
     authErrorEl.textContent = "";
@@ -370,7 +372,9 @@ async function handleAuthFormSubmit(event) {
       authErrorEl.textContent = message;
     }
   } finally {
-    authSubmitButton.disabled = false;
+    if (authSubmitButton) {
+      authSubmitButton.disabled = false;
+    }
   }
 }
 
