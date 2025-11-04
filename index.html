@@ -339,22 +339,23 @@
         </div>
       </div>
 
-      <section id="home-view" class="app-page home-view" hidden aria-labelledby="home-title">
-        <div class="home-hero">
-          <h1 id="home-title" class="home-title">RUN THE NUMBERS</h1>
-          <div class="home-actions">
-            <button type="button" class="home-button home-primary" data-route-target="play">
-              Play Game
-            </button>
-            <button type="button" class="home-button home-secondary" data-route-target="store">
-              View Store
-            </button>
+      <main class="app-main">
+        <section id="home-view" class="route-view app-page home-view" hidden aria-labelledby="home-title">
+          <div class="home-hero">
+            <h1 id="home-title" class="home-title">RUN THE NUMBERS</h1>
+            <div class="home-actions">
+              <button type="button" class="home-button home-primary" data-route-target="play">
+                Play Game
+              </button>
+              <button type="button" class="home-button home-secondary" data-route-target="store">
+                View Store
+              </button>
+            </div>
           </div>
-        </div>
-      </section>
+        </section>
 
-      <section id="play-view" class="app-page play-view" hidden>
-        <main class="layout" aria-label="Run the Numbers simulator">
+        <section id="play-view" class="route-view app-page play-view" hidden>
+          <main class="layout" aria-label="Run the Numbers simulator">
         <div class="panels">
           <section class="panel table-panel" aria-label="Table play area">
             <section class="dealer-zone" aria-live="polite">
@@ -922,21 +923,22 @@
             <button id="deal-button" class="deal" disabled>Deal Hand</button>
           </div>
         </div>
-      </section>
+        </section>
 
-      <section id="store-view" class="app-page store-view" hidden aria-labelledby="store-title">
-        <div class="store-content">
-          <button
-            type="button"
-            class="store-back"
-            data-route-target="home"
-            aria-label="Back to home"
-          >
-            ← Back
-          </button>
-          <h2 id="store-title" class="store-title">COMING SOON</h2>
-        </div>
-      </section>
+        <section id="store-view" class="route-view app-page store-view" hidden aria-labelledby="store-title">
+          <div class="store-content">
+            <button
+              type="button"
+              class="store-back"
+              data-route-target="home"
+              aria-label="Back to home"
+            >
+              ← Back
+            </button>
+            <h2 id="store-title" class="store-title">COMING SOON</h2>
+          </div>
+        </section>
+      </main>
     </div>
     </section>
 

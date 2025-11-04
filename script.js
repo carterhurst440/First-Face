@@ -119,13 +119,13 @@ function setViewVisibility(view, visible) {
 
 function hideAllRoutes() {
   Object.values(routeViews).forEach((view) => setViewVisibility(view, false));
-  if (appShell) {
-    appShell.hidden = true;
-  }
 }
 
 function showAuthView(mode = "login") {
   hideAllRoutes();
+  if (appShell) {
+    setViewVisibility(appShell, false);
+  }
   if (authView) {
     setViewVisibility(authView, mode === "login");
   }
@@ -193,10 +193,11 @@ async function setRoute(route, { replaceHash = false } = {}) {
   if (authView) {
     setViewVisibility(authView, false);
   }
-  const targetView = routeViews[route];
-  if (TABLE_ROUTES.has(route) && appShell) {
-    appShell.hidden = false;
+  const shouldShowAppShell = TABLE_ROUTES.has(route);
+  if (appShell) {
+    setViewVisibility(appShell, shouldShowAppShell);
   }
+  const targetView = routeViews[route];
   if (targetView) {
     setViewVisibility(targetView, true);
   }
