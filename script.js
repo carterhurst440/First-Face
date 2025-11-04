@@ -289,10 +289,25 @@ async function handleAuthFormSubmit(event) {
 
     const normalizedMessage = String(signInError.message || "").toLowerCase();
     if (normalizedMessage.includes("email not confirmed")) {
-      showToast("Email not confirmed. Please check your inbox, then sign in again.", "info");
+      const message = "Email not confirmed. Please check your inbox, then sign in again.";
+      showToast(message, "info");
       if (authErrorEl) {
         authErrorEl.hidden = false;
-        authErrorEl.textContent = "Email not confirmed. Check your inbox, then sign in again.";
+        authErrorEl.textContent = message;
+      }
+      return;
+    }
+
+    if (
+      signInError?.status === 400 ||
+      normalizedMessage.includes("invalid login credentials") ||
+      normalizedMessage.includes("invalid login")
+    ) {
+      const message = "Invalid email or password. Please try again.";
+      showToast(message, "error");
+      if (authErrorEl) {
+        authErrorEl.hidden = false;
+        authErrorEl.textContent = message;
       }
       return;
     }
