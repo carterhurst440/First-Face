@@ -371,11 +371,14 @@ async function runAuthCallbackFlow() {
   }
 }
 
-async function handleAuthSubmit(event) {
+async function handleAuthFormSubmit(event) {
   event.preventDefault();
-  if (!authEmailInput || !authPasswordInput || !authSubmitButton) return;
-  const email = authEmailInput.value.trim();
-  const password = authPasswordInput.value;
+  event.stopPropagation();
+  if (!authForm || !authSubmitButton) return;
+
+  const formData = new FormData(authForm);
+  const email = String(formData.get("email") ?? "").trim();
+  const password = String(formData.get("password") ?? "");
   if (!email || !password) return;
   authSubmitButton.disabled = true;
   if (authErrorEl) {
@@ -780,7 +783,6 @@ const authCallbackView = document.getElementById("auth-callback-view");
 const authCallbackStatusEl = document.getElementById("auth-callback-status");
 const authForm = document.getElementById("auth-form");
 const authEmailInput = document.getElementById("auth-email");
-const authPasswordInput = document.getElementById("auth-password");
 const authErrorEl = document.getElementById("auth-error");
 const authSubmitButton = document.getElementById("auth-submit");
 const appShell = document.getElementById("app-shell");
@@ -2155,7 +2157,7 @@ if (graphToggle && chartPanel && chartClose) {
 }
 
 if (authForm) {
-  authForm.addEventListener("submit", handleAuthSubmit);
+  authForm.addEventListener("submit", handleAuthFormSubmit);
 }
 
 routeButtons.forEach((button) => {
