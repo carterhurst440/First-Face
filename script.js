@@ -74,6 +74,33 @@ function showAuthView() {
   if (authView) {
     setViewVisibility(authView, true);
   }
+  redirectIfSessionExists();
+}
+
+function redirectIfSessionExists() {
+  if (authSessionCheckPromise || typeof window === "undefined") {
+    return;
+  }
+  authSessionCheckPromise = (async () => {
+    try {
+      const {
+        data: { session },
+        error
+      } = await supabase.auth.getSession();
+      if (error) {
+        console.error(error);
+        return;
+      }
+      if (session?.user) {
+        currentUser = session.user;
+        window.location.hash = "#/dashboard";
+      }
+    } catch (error) {
+      console.error(error);
+    } finally {
+      authSessionCheckPromise = null;
+    }
+  })();
 }
 
 function updateHash(route, { replace = false } = {}) {
@@ -94,7 +121,7 @@ async function setRoute(route, { replaceHash = false } = {}) {
   if (!routeViews[route]) {
     route = "home";
   }
-  if (!currentUser && route !== "auth") {
+  if (!currentUser && route !== "auth-callback") {
     showAuthView();
     currentRoute = "auth";
     if (!replaceHash) {
@@ -114,8 +141,12 @@ async function setRoute(route, { replaceHash = false } = {}) {
     setViewVisibility(targetView, true);
   }
   currentRoute = route;
-  if (!replaceHash) {
+  if (route !== "auth-callback" && !replaceHash) {
     updateHash(route);
+  }
+  if (route === "auth-callback") {
+    await runAuthCallbackFlow();
+    return;
   }
   if (route === "dashboard") {
     await loadDashboard();
@@ -127,14 +158,14 @@ async function setRoute(route, { replaceHash = false } = {}) {
 function getRouteFromHash() {
   if (typeof window === "undefined") return "home";
   const hash = window.location.hash || "";
-  const match = hash.match(/#\/(\w+)/);
+  const match = hash.match(/#\/([\w-]+)/);
   return match ? match[1] : "home";
 }
 
 function handleHashChange() {
   if (suppressHash) return;
   const route = getRouteFromHash();
-  if (!currentUser) {
+  if (!currentUser && route !== "auth-callback") {
     showAuthView();
     return;
   }
@@ -191,6 +222,155 @@ async function waitForProfile(user, { interval = 1000, maxAttempts = 5, notify =
   return null;
 }
 
+function captureAuthTokensFromUrl() {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  const hash = window.location.hash || "";
+  const search = window.location.search || "";
+  const candidates = [];
+
+  if (hash) {
+    if (hash.startsWith("#access_token=")) {
+      candidates.push(new URLSearchParams(hash.slice(1)));
+    } else if (hash.startsWith("#/")) {
+      const queryIndex = hash.indexOf("?");
+      if (queryIndex !== -1) {
+        candidates.push(new URLSearchParams(hash.slice(queryIndex + 1)));
+      }
+    }
+  }
+
+  if (search) {
+    const trimmed = search.startsWith("?") ? search.slice(1) : search;
+    if (trimmed) {
+      const params = new URLSearchParams(trimmed);
+      if (params.get("access_token")) {
+        candidates.push(params);
+      }
+    }
+  }
+
+  for (const params of candidates) {
+    if (!params) continue;
+    const accessToken = params.get("access_token");
+    const refreshToken = params.get("refresh_token");
+    if (accessToken && refreshToken) {
+      return {
+        accessToken,
+        refreshToken,
+        type: params.get("type") || null
+      };
+    }
+  }
+
+  return null;
+}
+
+function replaceUrlHash(hashFragment = "") {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  const normalized = hashFragment
+    ? hashFragment.startsWith("#")
+      ? hashFragment
+      : `#${hashFragment}`
+    : "";
+  const { pathname } = window.location;
+  window.history.replaceState(null, "", `${pathname}${normalized}`);
+}
+
+async function runAuthCallbackFlow() {
+  if (authCallbackRunning) {
+    return;
+  }
+
+  authCallbackRunning = true;
+
+  const updateStatus = (message) => {
+    if (authCallbackStatusEl) {
+      authCallbackStatusEl.textContent = message;
+    }
+  };
+
+  if (!pendingAuthTokens) {
+    pendingAuthTokens = captureAuthTokensFromUrl();
+  }
+
+  if (!pendingAuthTokens) {
+    updateStatus("Missing authentication details. Redirecting to sign in…");
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+    replaceUrlHash("#/home");
+    await bootstrapAuth();
+    authCallbackRunning = false;
+    return;
+  }
+
+  updateStatus("Completing sign in…");
+
+  try {
+    const { error: sessionError } = await supabase.auth.setSession({
+      access_token: pendingAuthTokens.accessToken,
+      refresh_token: pendingAuthTokens.refreshToken
+    });
+
+    if (sessionError) {
+      throw sessionError;
+    }
+
+    updateStatus("Setting up your account…");
+
+    const { data, error: userError } = await supabase.auth.getUser();
+
+    if (userError) {
+      throw userError;
+    }
+
+    const user = data?.user;
+
+    if (!user) {
+      throw new Error("User session not available after sign in.");
+    }
+
+    let profile = await waitForProfile(user, {
+      interval: 1000,
+      maxAttempts: 10,
+      notify: false
+    });
+
+    if (!profile) {
+      profile = await waitForProfile(user, {
+        interval: 1000,
+        maxAttempts: 5,
+        notify: false
+      });
+    }
+
+    if (!profile) {
+      throw new Error("Profile not ready.");
+    }
+
+    currentUser = user;
+    currentProfile = profile;
+    pendingAuthTokens = null;
+    updateStatus("Signed in! Redirecting…");
+    replaceUrlHash("#/home");
+    await bootstrapAuth();
+  } catch (error) {
+    console.error("Failed to finish Supabase auth callback", error);
+    pendingAuthTokens = null;
+    updateStatus("Unable to finish sign in. Redirecting…");
+    showToast("Unable to finish sign in", "error");
+    await new Promise((resolve) => setTimeout(resolve, 1800));
+    replaceUrlHash("#/home");
+    await bootstrapAuth();
+  } finally {
+    authCallbackRunning = false;
+  }
+}
+
 async function handleAuthSubmit(event) {
   event.preventDefault();
   if (!authEmailInput || !authPasswordInput || !authSubmitButton) return;
@@ -208,49 +388,26 @@ async function handleAuthSubmit(event) {
       password
     });
 
-    if (signInError) {
-      const { error: signUpError } = await supabase.auth.signUp({
-        email,
-        password
-      });
-
-      if (signUpError) {
-        throw signUpError;
+    if (!signInError) {
+      if (signInData?.user) {
+        currentUser = signInData.user;
       }
-
-      showToast("Check your email to confirm your account", "info");
+      showToast("Signed in", "success");
+      window.location.hash = "#/dashboard";
       return;
     }
 
-    let user = signInData?.user ?? null;
-
-    if (!user) {
-      user = await refreshCurrentUser();
-    } else {
-      currentUser = user;
-    }
-
-    if (!user) {
-      throw new Error("Unable to fetch user after sign in");
-    }
-
-    const profile = await waitForProfile(user, {
-      interval: 1000,
-      maxAttempts: Infinity,
-      notify: true
+    const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+      email,
+      password
     });
 
-    if (!profile) {
-      if (authErrorEl) {
-        authErrorEl.hidden = false;
-        authErrorEl.textContent = "We're still setting up your account. Please try again.";
-      }
-      return;
+    if (signUpError) {
+      throw signUpError;
     }
 
-    updateHash("home", { replace: true });
-    await setRoute("home", { replaceHash: true });
-    showToast("Signed in", "success");
+    showToast("Account created. Check your email to confirm.", "info");
+    window.location.hash = "#/dashboard";
   } catch (error) {
     console.error(error);
     if (authErrorEl) {
@@ -619,6 +776,8 @@ const activePaytableNameEl = document.getElementById("active-paytable-name");
 const activePaytableStepsEl = document.getElementById("active-paytable-steps");
 const toastContainer = document.getElementById("toast-container");
 const authView = document.getElementById("auth-view");
+const authCallbackView = document.getElementById("auth-callback-view");
+const authCallbackStatusEl = document.getElementById("auth-callback-status");
 const authForm = document.getElementById("auth-form");
 const authEmailInput = document.getElementById("auth-email");
 const authPasswordInput = document.getElementById("auth-password");
@@ -631,6 +790,7 @@ const storeView = document.getElementById("store-view");
 const dashboardView = document.getElementById("dashboard-view");
 const prizeView = document.getElementById("prize-view");
 const routeViews = {
+  "auth-callback": authCallbackView,
   home: homeView,
   play: playView,
   store: storeView,
@@ -690,6 +850,9 @@ let prizesLoaded = false;
 let currentProfile = null;
 let suppressHash = false;
 let dashboardProfileRetryTimer = null;
+let pendingAuthTokens = null;
+let authCallbackRunning = false;
+let authSessionCheckPromise = null;
 
 const MAX_HISTORY_POINTS = 500;
 
@@ -2097,69 +2260,32 @@ supabase.auth.onAuthStateChange(async (_event, session) => {
 });
 
 async function bootstrapAuth() {
-  const user = await refreshCurrentUser();
-  if (user) {
-    const profile = await waitForProfile(user, {
-      interval: 1000,
-      maxAttempts: 10,
-      notify: false
-    });
-    if (profile) {
-      const route = getRouteFromHash();
-      await setRoute(route, { replaceHash: true });
-    } else {
-      showAuthView();
-    }
-  } else {
-    showAuthView();
-  }
-}
-
-function replaceHashDirect(value) {
-  suppressHash = true;
-  window.location.hash = value;
-  setTimeout(() => {
-    suppressHash = false;
-  }, 0);
-}
-
-async function processAuthHash() {
-  if (typeof window === "undefined") {
-    return false;
-  }
-
-  const hash = window.location.hash || "";
-  if (!hash.startsWith("#access_token=")) {
-    return false;
-  }
-
-  const params = new URLSearchParams(hash.slice(1));
-  const accessToken = params.get("access_token");
-  const refreshToken = params.get("refresh_token");
-
-  if (!accessToken || !refreshToken) {
-    replaceHashDirect("#/home");
-    return false;
-  }
-
   try {
-    const { error } = await supabase.auth.setSession({
-      access_token: accessToken,
-      refresh_token: refreshToken
-    });
-
+    const {
+      data: { session },
+      error
+    } = await supabase.auth.getSession();
     if (error) {
-      throw error;
+      console.error(error);
     }
-
-    replaceHashDirect("#/home");
-
-    return true;
+    currentUser = session?.user ?? null;
+    if (currentUser) {
+      waitForProfile(currentUser, {
+        interval: 1000,
+        maxAttempts: 10,
+        notify: false
+      }).then((profile) => {
+        if (profile) {
+          currentProfile = profile;
+        }
+      });
+    } else {
+      currentProfile = null;
+    }
   } catch (error) {
-    console.error("Unable to process Supabase auth callback", error);
-    showToast("Unable to finish sign in", "error");
-    replaceHashDirect("#/home");
-    return false;
+    console.error(error);
+    currentUser = null;
+    currentProfile = null;
   }
 }
 
@@ -2175,8 +2301,13 @@ resetBankrollHistory();
 window.addEventListener("resize", drawBankrollChart);
 
 async function initializeApp() {
-  await processAuthHash();
+  pendingAuthTokens = captureAuthTokensFromUrl();
+  if (pendingAuthTokens) {
+    replaceUrlHash("#/auth-callback");
+  }
   await bootstrapAuth();
+  const initialRoute = pendingAuthTokens ? "auth-callback" : getRouteFromHash();
+  await setRoute(initialRoute, { replaceHash: true });
 }
 
 initializeApp();
