@@ -16,7 +16,7 @@
     <div id="toast-container" class="toast-container" role="status" aria-live="polite"></div>
     <section id="auth-view" class="auth-view" hidden>
       <div class="auth-card">
-        <h1>Sign in to continue</h1>
+        <h1>Welcome back</h1>
         <form id="auth-form" class="auth-form">
           <label for="auth-email">Email</label>
           <input type="email" id="auth-email" name="email" autocomplete="email" required />
@@ -28,9 +28,48 @@
             autocomplete="current-password"
             required
           />
-          <button type="submit" id="auth-submit">Sign In / Sign Up</button>
+          <button type="submit" id="auth-submit">Log In</button>
           <p id="auth-error" class="auth-error" role="alert" hidden></p>
         </form>
+        <p class="auth-switch">
+          New here?
+          <button type="button" id="show-signup" class="auth-switch-button">Create an account</button>
+        </p>
+      </div>
+    </section>
+    <section id="signup-view" class="auth-view" hidden>
+      <div class="auth-card">
+        <h1>Create your account</h1>
+        <form id="signup-form" class="auth-form">
+          <label for="signup-first">First name</label>
+          <input type="text" id="signup-first" name="firstName" autocomplete="given-name" required />
+          <label for="signup-last">Last name</label>
+          <input type="text" id="signup-last" name="lastName" autocomplete="family-name" required />
+          <label for="signup-email">Email</label>
+          <input type="email" id="signup-email" name="email" autocomplete="email" required />
+          <label for="signup-password">Password</label>
+          <input
+            type="password"
+            id="signup-password"
+            name="password"
+            autocomplete="new-password"
+            required
+          />
+          <label for="signup-confirm">Confirm password</label>
+          <input
+            type="password"
+            id="signup-confirm"
+            name="confirmPassword"
+            autocomplete="new-password"
+            required
+          />
+          <button type="submit" id="signup-submit">Sign Up</button>
+          <p id="signup-error" class="auth-error" role="alert" hidden></p>
+        </form>
+        <p class="auth-switch">
+          Already have an account?
+          <button type="button" id="show-login" class="auth-switch-button">Log in</button>
+        </p>
       </div>
     </section>
     <section id="auth-callback-view" class="route-view auth-callback-view" hidden>

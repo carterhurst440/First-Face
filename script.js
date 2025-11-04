@@ -124,10 +124,30 @@ function hideAllRoutes() {
   }
 }
 
-function showAuthView() {
+function showAuthView(mode = "login") {
   hideAllRoutes();
   if (authView) {
-    setViewVisibility(authView, true);
+    setViewVisibility(authView, mode === "login");
+  }
+  if (signupView) {
+    setViewVisibility(signupView, mode === "signup");
+  }
+  if (mode === "login") {
+    if (authErrorEl) {
+      authErrorEl.hidden = true;
+      authErrorEl.textContent = "";
+    }
+    if (authSubmitButton) {
+      authSubmitButton.disabled = false;
+    }
+  } else if (mode === "signup") {
+    if (signupErrorEl) {
+      signupErrorEl.hidden = true;
+      signupErrorEl.textContent = "";
+    }
+    if (signupSubmitButton) {
+      signupSubmitButton.disabled = false;
+    }
   }
 }
 
@@ -162,7 +182,7 @@ async function setRoute(route, { replaceHash = false } = {}) {
     }
   }
   if (!currentUser) {
-    showAuthView();
+    showAuthView("login");
     currentRoute = "auth";
     if (!replaceHash) {
       updateHash("home", { replace: true });
@@ -202,7 +222,7 @@ function handleHashChange() {
   if (suppressHash) return;
   const route = getRouteFromHash();
   if (!currentUser) {
-    showAuthView();
+    showAuthView("login");
     return;
   }
   setRoute(route, { replaceHash: true });
@@ -213,12 +233,12 @@ async function refreshCurrentUser() {
   if (error) {
     console.error(error);
     currentUser = null;
-    showAuthView();
+    showAuthView("login");
     return null;
   }
   currentUser = data?.user ?? null;
   if (!currentUser) {
-    showAuthView();
+    showAuthView("login");
   }
   return currentUser;
 }
@@ -261,78 +281,156 @@ async function waitForProfile(user, { interval = 1000, maxAttempts = 5, notify =
 async function handleAuthFormSubmit(event) {
   event.preventDefault();
   event.stopPropagation();
-  if (!authForm || !authSubmitButton) return;
+  const form = event.currentTarget instanceof HTMLFormElement ? event.currentTarget : authForm;
+  if (!form || !authSubmitButton) return;
 
-  const formData = new FormData(authForm);
+  const formData = new FormData(form);
   const email = String(formData.get("email") ?? "").trim();
   const password = String(formData.get("password") ?? "");
-  if (!email || !password) return;
+
+  if (!email || !password) {
+    if (authErrorEl) {
+      authErrorEl.hidden = false;
+      authErrorEl.textContent = "Please enter your email and password.";
+    }
+    return;
+  }
+
   authSubmitButton.disabled = true;
   if (authErrorEl) {
     authErrorEl.hidden = true;
     authErrorEl.textContent = "";
   }
+
   try {
-    const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+    const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password
     });
 
-    if (!signInError) {
-      if (signInData?.user) {
-        currentUser = signInData.user;
+    if (error) {
+      const normalizedMessage = String(error.message || "").toLowerCase();
+
+      if (normalizedMessage.includes("email not confirmed")) {
+        const message = "Email not confirmed. Please check your inbox, then sign in again.";
+        showToast(message, "info");
+        if (authErrorEl) {
+          authErrorEl.hidden = false;
+          authErrorEl.textContent = message;
+        }
+        return;
       }
-      showToast("Signed in", "success");
-      await setRoute("home");
-      return;
-    }
 
-    const normalizedMessage = String(signInError.message || "").toLowerCase();
-    if (normalizedMessage.includes("email not confirmed")) {
-      const message = "Email not confirmed. Please check your inbox, then sign in again.";
-      showToast(message, "info");
-      if (authErrorEl) {
-        authErrorEl.hidden = false;
-        authErrorEl.textContent = message;
+      if (
+        error?.status === 400 ||
+        normalizedMessage.includes("invalid login credentials") ||
+        normalizedMessage.includes("invalid login")
+      ) {
+        const message = "Invalid email or password. Please try again.";
+        showToast(message, "error");
+        if (authErrorEl) {
+          authErrorEl.hidden = false;
+          authErrorEl.textContent = message;
+        }
+        return;
       }
-      return;
+
+      throw error;
     }
 
-    if (
-      signInError?.status === 400 ||
-      normalizedMessage.includes("invalid login credentials") ||
-      normalizedMessage.includes("invalid login")
-    ) {
-      const message = "Invalid email or password. Please try again.";
-      showToast(message, "error");
-      if (authErrorEl) {
-        authErrorEl.hidden = false;
-        authErrorEl.textContent = message;
-      }
-      return;
+    if (data?.user) {
+      currentUser = data.user;
     }
 
-    const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
-      email,
-      password
-    });
-
-    if (signUpError) {
-      throw signUpError;
-    }
-
-    if (signUpData?.user) {
-      currentUser = signUpData.user;
-    }
-    showToast("Account created. Check your email to confirm, then sign in.", "info");
+    showToast("Signed in", "success");
+    await setRoute("home");
   } catch (error) {
     console.error(error);
+    const message = error?.message || "Authentication failed";
+    showToast(message, "error");
     if (authErrorEl) {
       authErrorEl.hidden = false;
-      authErrorEl.textContent = error.message || "Authentication failed";
+      authErrorEl.textContent = message;
     }
   } finally {
     authSubmitButton.disabled = false;
+  }
+}
+
+async function handleSignUpFormSubmit(event) {
+  event.preventDefault();
+  event.stopPropagation();
+
+  const form = event.currentTarget instanceof HTMLFormElement ? event.currentTarget : signupForm;
+  if (!form || !signupSubmitButton) {
+    return;
+  }
+
+  const formData = new FormData(form);
+  const firstName = String(formData.get("firstName") ?? "").trim();
+  const lastName = String(formData.get("lastName") ?? "").trim();
+  const email = String(formData.get("email") ?? "").trim();
+  const password = String(formData.get("password") ?? "");
+  const confirmPassword = String(formData.get("confirmPassword") ?? "");
+
+  if (!firstName || !lastName || !email || !password || !confirmPassword) {
+    const message = "Please complete all fields.";
+    if (signupErrorEl) {
+      signupErrorEl.hidden = false;
+      signupErrorEl.textContent = message;
+    }
+    return;
+  }
+
+  if (password !== confirmPassword) {
+    const message = "Passwords do not match.";
+    if (signupErrorEl) {
+      signupErrorEl.hidden = false;
+      signupErrorEl.textContent = message;
+    }
+    return;
+  }
+
+  signupSubmitButton.disabled = true;
+  if (signupErrorEl) {
+    signupErrorEl.hidden = true;
+    signupErrorEl.textContent = "";
+  }
+
+  try {
+    const { error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: {
+          first_name: firstName,
+          last_name: lastName
+        }
+      }
+    });
+
+    if (error) {
+      throw error;
+    }
+
+    showToast("Account created. Check your email to confirm, then sign in.", "info");
+    if (signupForm) {
+      signupForm.reset();
+    }
+    if (authEmailInput) {
+      authEmailInput.value = email;
+    }
+    showAuthView("login");
+  } catch (error) {
+    console.error(error);
+    const message = error?.message || "Unable to create account";
+    showToast(message, "error");
+    if (signupErrorEl) {
+      signupErrorEl.hidden = false;
+      signupErrorEl.textContent = message;
+    }
+  } finally {
+    signupSubmitButton.disabled = false;
   }
 }
 
@@ -341,7 +439,7 @@ async function loadDashboard(force = false) {
     data: { user }
   } = await supabase.auth.getUser();
   if (!user) {
-    showAuthView();
+    showAuthView("login");
     return;
   }
   currentUser = user;
@@ -429,7 +527,7 @@ async function loadPrizeShop(force = false) {
     data: { user }
   } = await supabase.auth.getUser();
   if (!user) {
-    showAuthView();
+    showAuthView("login");
     return;
   }
   currentUser = user;
@@ -510,7 +608,7 @@ async function handleSignOut() {
   if (dashboardCreditsEl) {
     dashboardCreditsEl.textContent = "0";
   }
-  showAuthView();
+  showAuthView("login");
   updateHash("home", { replace: true });
   showToast("Signed out", "info");
 }
@@ -697,6 +795,13 @@ const authForm = document.getElementById("auth-form");
 const authEmailInput = document.getElementById("auth-email");
 const authErrorEl = document.getElementById("auth-error");
 const authSubmitButton = document.getElementById("auth-submit");
+const signupView = document.getElementById("signup-view");
+const signupForm = document.getElementById("signup-form");
+const signupErrorEl = document.getElementById("signup-error");
+const signupSubmitButton = document.getElementById("signup-submit");
+const signupFirstInput = document.getElementById("signup-first");
+const showSignUpButton = document.getElementById("show-signup");
+const showLoginButton = document.getElementById("show-login");
 const appShell = document.getElementById("app-shell");
 const homeView = document.getElementById("home-view");
 const playView = document.getElementById("play-view");
@@ -2068,6 +2173,35 @@ if (authForm) {
   authForm.addEventListener("submit", handleAuthFormSubmit);
 }
 
+if (signupForm) {
+  signupForm.addEventListener("submit", handleSignUpFormSubmit);
+}
+
+if (showSignUpButton) {
+  showSignUpButton.addEventListener("click", () => {
+    if (signupForm) {
+      signupForm.reset();
+    }
+    if (signupErrorEl) {
+      signupErrorEl.hidden = true;
+      signupErrorEl.textContent = "";
+    }
+    showAuthView("signup");
+    signupFirstInput?.focus();
+  });
+}
+
+if (showLoginButton) {
+  showLoginButton.addEventListener("click", () => {
+    showAuthView("login");
+    if (authErrorEl) {
+      authErrorEl.hidden = true;
+      authErrorEl.textContent = "";
+    }
+    authEmailInput?.focus();
+  });
+}
+
 routeButtons.forEach((button) => {
   button.addEventListener("click", async () => {
     const target = button.dataset.routeTarget;
@@ -2149,7 +2283,7 @@ supabase.auth.onAuthStateChange(async (_event, session) => {
       const route = getRouteFromHash();
       await setRoute(route, { replaceHash: true });
     } else {
-      showAuthView();
+      showAuthView("login");
     }
   } else {
     currentProfile = null;
@@ -2165,7 +2299,7 @@ supabase.auth.onAuthStateChange(async (_event, session) => {
     if (dashboardCreditsEl) {
       dashboardCreditsEl.textContent = "0";
     }
-    showAuthView();
+    showAuthView("login");
   }
 });
 

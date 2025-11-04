@@ -2748,6 +2748,29 @@ body.modal-open {
   cursor: progress;
 }
 
+.auth-switch {
+  text-align: center;
+  font-size: 0.95rem;
+  color: var(--muted);
+}
+
+.auth-switch-button {
+  border: none;
+  background: none;
+  color: var(--neon-cyan);
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0;
+  margin-left: 0.35rem;
+  transition: color 0.2s ease, transform 0.2s ease;
+}
+
+.auth-switch-button:hover,
+.auth-switch-button:focus-visible {
+  color: var(--text-light);
+  transform: translateY(-1px);
+}
+
 .auth-error {
   margin: 0;
   color: var(--danger);
