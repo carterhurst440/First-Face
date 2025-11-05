@@ -71,6 +71,16 @@ const NUMBER_RANKS = ["A", "2", "3", "4", "5", "6", "7", "8", "9", "10"];
 const DENOMINATIONS = [5, 10, 25, 100];
 const INITIAL_BANKROLL = 1000;
 const ADMIN_EMAIL = "carterwarrenhurst@gmail.com";
+const PRIZE_CURRENCIES = {
+  units: {
+    key: "units",
+    label: "Units"
+  },
+  carter_cash: {
+    key: "carter_cash",
+    label: "Carter Cash"
+  }
+};
 const DEAL_DELAY = 420;
 const DEAL_DELAY_STEP = 40;
 const SUITS = [
@@ -284,7 +294,7 @@ async function setRoute(route, { replaceHash = false } = {}) {
 
   if (resolvedRoute === "home") {
     await loadDashboard();
-  } else if (resolvedRoute === "prizes") {
+  } else if (resolvedRoute === "store") {
     await loadPrizeShop();
   }
 }
@@ -528,6 +538,204 @@ async function handleSignUpFormSubmit(event) {
   }
 }
 
+async function resolvePurchaseRecord(prize, rpcResult) {
+  if (!currentUser) {
+    return null;
+  }
+
+  const unwrap = (value) => {
+    if (!value) return null;
+    if (Array.isArray(value)) {
+      return value[0] ?? null;
+    }
+    return value;
+  };
+
+  const candidate = unwrap(rpcResult);
+  if (candidate && typeof candidate === "object") {
+    if (candidate.id) {
+      return candidate;
+    }
+    if (candidate.purchase_id) {
+      return { ...candidate, id: candidate.purchase_id };
+    }
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from("prize_purchases")
+      .select("id, prize_id, user_id, shipping_address, shipping_phone, created_at")
+      .eq("user_id", currentUser.id)
+      .eq("prize_id", prize.id)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (error) {
+      console.error("Unable to resolve purchase record", error);
+      return null;
+    }
+
+    return data ?? null;
+  } catch (error) {
+    console.error("Unable to resolve purchase record", error);
+    return null;
+  }
+}
+
+function openShippingModalForPurchase(purchase, prize) {
+  if (!shippingModal || !purchase?.id) {
+    return;
+  }
+
+  activeShippingPurchase = {
+    id: purchase.id,
+    prize,
+    record: purchase
+  };
+
+  const currencyKey = (prize?.cost_currency ?? "units").toLowerCase();
+  const currencyDetails = PRIZE_CURRENCIES[currencyKey] ?? PRIZE_CURRENCIES.units;
+  const formattedCost = formatCurrency(Math.max(0, Math.round(Number(prize?.cost ?? 0))));
+
+  if (shippingSummaryEl) {
+    shippingSummaryEl.textContent = `${prize?.name ?? "Prize"} · ${formattedCost} ${currencyDetails.label}`;
+  }
+
+  if (shippingForm) {
+    shippingForm.reset();
+  }
+
+  shippingModalTrigger = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+  shippingModal.hidden = false;
+  shippingModal.classList.add("is-open");
+  shippingModal.setAttribute("aria-hidden", "false");
+  document.body.classList.add("modal-open");
+  if (shippingPhoneInput) {
+    shippingPhoneInput.focus();
+  }
+}
+
+function closeShippingModal({ restoreFocus = false } = {}) {
+  if (!shippingModal) {
+    return;
+  }
+
+  shippingModal.classList.remove("is-open");
+  shippingModal.setAttribute("aria-hidden", "true");
+  shippingModal.hidden = true;
+  activeShippingPurchase = null;
+
+  if (
+    (!resetModal || resetModal.hidden) &&
+    (!paytableModal || paytableModal.hidden)
+  ) {
+    document.body.classList.remove("modal-open");
+  }
+
+  if (restoreFocus && shippingModalTrigger instanceof HTMLElement) {
+    shippingModalTrigger.focus();
+  }
+  shippingModalTrigger = null;
+}
+
+async function notifyAdminPurchase({ purchase, prize, shipping }) {
+  if (!currentUser) {
+    return;
+  }
+
+  const payload = {
+    adminEmail: ADMIN_EMAIL,
+    user: {
+      id: currentUser.id,
+      email: currentUser.email,
+      first_name: currentProfile?.first_name ?? null,
+      last_name: currentProfile?.last_name ?? null
+    },
+    prize: {
+      id: prize?.id ?? null,
+      name: prize?.name ?? null,
+      description: prize?.description ?? null,
+      cost: prize?.cost ?? null,
+      currency: prize?.cost_currency ?? "units"
+    },
+    purchase: {
+      id: purchase?.id ?? null,
+      user_id: purchase?.user_id ?? currentUser.id,
+      created_at: purchase?.created_at ?? null
+    },
+    balances: {
+      units: bankroll,
+      carter_cash: carterCash
+    },
+    shipping
+  };
+
+  try {
+    const { error } = await supabase.functions.invoke("send_admin_purchase_email", {
+      body: payload
+    });
+    if (error) {
+      throw error;
+    }
+  } catch (error) {
+    console.error("Unable to notify admin", error);
+  }
+}
+
+async function handleShippingSubmit(event) {
+  event.preventDefault();
+  if (!shippingForm) return;
+
+  if (!activeShippingPurchase?.id) {
+    closeShippingModal({ restoreFocus: true });
+    return;
+  }
+
+  const phone = shippingPhoneInput ? shippingPhoneInput.value.trim() : "";
+  const address = shippingAddressInput ? shippingAddressInput.value.trim() : "";
+
+  if (!phone || !address) {
+    showToast("Please provide both a phone number and shipping address.", "error");
+    return;
+  }
+
+  if (shippingSubmitButton) {
+    shippingSubmitButton.disabled = true;
+  }
+
+  try {
+    const { error } = await supabase
+      .from("prize_purchases")
+      .update({ shipping_phone: phone, shipping_address: address })
+      .eq("id", activeShippingPurchase.id);
+
+    if (error) {
+      throw error;
+    }
+
+    const purchasePayload = activeShippingPurchase.record
+      ? { ...activeShippingPurchase.record }
+      : { id: activeShippingPurchase.id, user_id: currentUser?.id ?? null };
+
+    await notifyAdminPurchase({
+      purchase: purchasePayload,
+      prize: activeShippingPurchase.prize,
+      shipping: { phone, address }
+    });
+
+    showToast("Shipping details saved!", "success");
+    closeShippingModal({ restoreFocus: true });
+  } catch (error) {
+    console.error(error);
+    showToast(error?.message || "Unable to save shipping details", "error");
+  } finally {
+    if (shippingSubmitButton) {
+      shippingSubmitButton.disabled = false;
+    }
+  }
+}
+
 async function loadDashboard(force = false) {
   const {
     data: { user }
@@ -607,13 +815,80 @@ async function loadDashboard(force = false) {
 function renderPrize(prize) {
   const item = document.createElement("li");
   item.className = "prize-item";
+
+  const isActive = prize?.active !== false;
+  if (!isActive) {
+    item.classList.add("prize-item--sold");
+  }
+
+  const media = document.createElement("div");
+  media.className = "prize-media";
+  const imageUrl = typeof prize?.image_url === "string" ? prize.image_url.trim() : "";
+  if (imageUrl) {
+    const img = document.createElement("img");
+    img.src = imageUrl;
+    img.alt = prize?.name ? `${prize.name} prize` : "Prize";
+    img.className = "prize-image";
+    media.appendChild(img);
+  } else {
+    const placeholder = document.createElement("div");
+    placeholder.className = "prize-placeholder";
+    placeholder.textContent = "Prize";
+    media.appendChild(placeholder);
+  }
+  item.appendChild(media);
+
+  const body = document.createElement("div");
+  body.className = "prize-body";
+
+  const titleEl = document.createElement("h3");
+  titleEl.className = "prize-title";
+  titleEl.textContent = prize?.name ?? "Prize";
+  body.appendChild(titleEl);
+
+  if (prize?.description) {
+    const descEl = document.createElement("p");
+    descEl.className = "prize-description";
+    descEl.textContent = prize.description;
+    body.appendChild(descEl);
+  }
+
+  const meta = document.createElement("div");
+  meta.className = "prize-meta";
+
+  const costValue = Number(prize?.cost ?? 0);
+  const formattedCost = formatCurrency(Math.max(0, Math.round(costValue)));
+  const costEl = document.createElement("span");
+  costEl.className = "prize-cost";
+  costEl.textContent = formattedCost;
+
+  const currencyKey = (prize?.cost_currency ?? "units").toLowerCase();
+  const currencyDetails = PRIZE_CURRENCIES[currencyKey] ?? PRIZE_CURRENCIES.units;
+  const currencyEl = document.createElement("span");
+  currencyEl.className = "prize-currency";
+  currencyEl.textContent = currencyDetails.label;
+
+  meta.append(costEl, currencyEl);
+  body.appendChild(meta);
+
+  const actions = document.createElement("div");
+  actions.className = "prize-actions";
   const button = document.createElement("button");
   button.type = "button";
-  button.textContent = `Buy for ${prize.cost} credits`;
-  button.className = "link-button";
-  button.addEventListener("click", () => handlePurchase(prize, button));
-  item.innerHTML = `<h3>${prize.name}</h3><p>${prize.description || ""}</p>`;
-  item.appendChild(button);
+  button.className = "prize-button";
+
+  if (isActive) {
+    button.textContent = `Redeem for ${formattedCost} ${currencyDetails.label}`;
+    button.addEventListener("click", () => handlePurchase(prize, button));
+  } else {
+    button.textContent = "Sold";
+    button.disabled = true;
+  }
+
+  actions.appendChild(button);
+  body.appendChild(actions);
+  item.appendChild(body);
+
   return item;
 }
 
@@ -636,7 +911,7 @@ async function loadPrizeShop(force = false) {
   const { data: prizes, error } = await supabase
     .from("prizes")
     .select("*")
-    .eq("active", true)
+    .order("active", { ascending: false })
     .order("cost", { ascending: true });
   if (error) {
     console.error(error);
@@ -650,10 +925,12 @@ async function loadPrizeShop(force = false) {
   prizeListEl.innerHTML = "";
   if (!prizes || prizes.length === 0) {
     const empty = document.createElement("li");
-    empty.textContent = "No active prizes right now.";
+    empty.className = "prize-empty";
+    empty.textContent = "No prizes are available right now. Check back soon.";
     prizeListEl.appendChild(empty);
     return;
   }
+
   prizes.forEach((prize) => {
     prizeListEl.appendChild(renderPrize(prize));
   });
@@ -664,19 +941,58 @@ async function handlePurchase(prize, button) {
     showToast("Please sign in first", "error");
     return;
   }
+  if (!prize || !prize.id) {
+    showToast("Unable to identify prize", "error");
+    return;
+  }
+
+  const currencyKey = (prize.cost_currency ?? "units").toLowerCase();
+  const currencyDetails = PRIZE_CURRENCIES[currencyKey] ?? PRIZE_CURRENCIES.units;
+  const costValue = Math.max(0, Math.round(Number(prize.cost ?? 0)));
+  const available = currencyDetails.key === "carter_cash" ? carterCash : bankroll;
+
+  if (costValue > available) {
+    showToast(
+      `Not enough ${currencyDetails.label} to purchase ${prize.name}.`,
+      "error"
+    );
+    return;
+  }
+
+  if (prize.active === false) {
+    showToast("This prize has already been sold.", "error");
+    return;
+  }
+
   if (button) {
     button.disabled = true;
   }
   try {
-    const { error } = await supabase.rpc("purchase_prize", { _prize_id: prize.id });
+    const { data, error } = await supabase.rpc("purchase_prize", { _prize_id: prize.id });
     if (error) {
       throw error;
     }
+
+    if (currencyDetails.key === "carter_cash") {
+      deductCarterCash(costValue);
+    } else {
+      bankroll = Math.max(0, bankroll - costValue);
+      handleBankrollChanged();
+    }
+
+    await persistBankroll();
+
     showToast(`Purchased ${prize.name}!`, "success");
     prizesLoaded = false;
     dashboardLoaded = false;
+    const purchaseRecord = await resolvePurchaseRecord(prize, data);
     await loadDashboard(true);
     await loadPrizeShop(true);
+    if (purchaseRecord) {
+      openShippingModalForPurchase(purchaseRecord, prize);
+    } else {
+      showToast("Purchase recorded. Please contact support to provide shipping details.", "warning");
+    }
   } catch (error) {
     console.error(error);
     showToast(error?.message || "Unable to purchase prize", "error");
@@ -704,8 +1020,13 @@ async function handleAdminPrizeSubmit(event) {
   const name = String(formData.get("name") ?? "").trim();
   const descriptionRaw = formData.get("description");
   const description = descriptionRaw ? String(descriptionRaw).trim() : null;
+  const imageUrlRaw = formData.get("imageUrl");
+  const imageUrl = imageUrlRaw ? String(imageUrlRaw).trim() : "";
   const costValue = Number(formData.get("cost"));
   const active = formData.get("active") === "on";
+  const currencyRaw = formData.get("currency");
+  const currencyKey = typeof currencyRaw === "string" ? currencyRaw.toLowerCase() : "units";
+  const currencyDetails = PRIZE_CURRENCIES[currencyKey];
 
   if (!name) {
     showToast("Name is required", "error");
@@ -723,6 +1044,14 @@ async function handleAdminPrizeSubmit(event) {
     return;
   }
 
+  if (!currencyDetails) {
+    showToast("Select a valid currency", "error");
+    if (adminPrizeMessage) {
+      adminPrizeMessage.textContent = "Choose a valid cost currency.";
+    }
+    return;
+  }
+
   const submitButton = adminPrizeForm.querySelector('button[type="submit"]');
   if (submitButton) {
     submitButton.disabled = true;
@@ -733,7 +1062,9 @@ async function handleAdminPrizeSubmit(event) {
       name,
       description: description || null,
       cost: Math.round(costValue),
-      active
+      active,
+      cost_currency: currencyDetails.key,
+      image_url: imageUrl || null
     });
     if (error) {
       throw error;
@@ -746,6 +1077,10 @@ async function handleAdminPrizeSubmit(event) {
     const activeInput = adminPrizeForm.querySelector('input[name="active"]');
     if (activeInput) {
       activeInput.checked = true;
+    }
+    const currencySelect = adminPrizeForm.querySelector('select[name="currency"]');
+    if (currencySelect) {
+      currencySelect.value = "units";
     }
     prizesLoaded = false;
     await loadPrizeShop(true);
@@ -957,6 +1292,9 @@ function applySignedOutState() {
   }
   if (resetModal && !resetModal.hidden) {
     closeResetModal({ restoreFocus: false });
+  }
+  if (shippingModal && !shippingModal.hidden) {
+    closeShippingModal({ restoreFocus: false });
   }
 
   setSelectedChip(DENOMINATIONS[0], false);
@@ -1206,14 +1544,12 @@ const homeView = document.getElementById("home-view");
 const playView = document.getElementById("play-view");
 const storeView = document.getElementById("store-view");
 const dashboardView = document.getElementById("dashboard-view");
-const prizeView = document.getElementById("prize-view");
 const adminView = document.getElementById("admin-view");
 const routeViews = {
   home: homeView,
   play: playView,
   store: storeView,
   dashboard: dashboardView,
-  prizes: prizeView,
   admin: adminView
 };
 const headerEl = document.querySelector(".header");
@@ -1231,6 +1567,14 @@ const prizeListEl = document.getElementById("prize-list");
 const adminNavButton = document.getElementById("admin-nav");
 const adminPrizeForm = document.getElementById("admin-prize-form");
 const adminPrizeMessage = document.getElementById("admin-prize-message");
+const shippingModal = document.getElementById("shipping-modal");
+const shippingForm = document.getElementById("shipping-form");
+const shippingSummaryEl = document.getElementById("shipping-summary");
+const shippingPhoneInput = document.getElementById("shipping-phone");
+const shippingAddressInput = document.getElementById("shipping-address");
+const shippingCloseButton = document.getElementById("shipping-close");
+const shippingCancelButton = document.getElementById("shipping-cancel");
+const shippingSubmitButton = document.getElementById("shipping-submit");
 
 const THEME_CLASS_MAP = {
   blue: "theme-blue",
@@ -1286,6 +1630,9 @@ let dashboardProfileRetryTimer = null;
 let leaderboardRefreshTimeout = null;
 let leaderboardSubscription = null;
 let resetModalTrigger = null;
+
+let shippingModalTrigger = null;
+let activeShippingPurchase = null;
 
 const MAX_HISTORY_POINTS = 500;
 const LEADERBOARD_LIMIT = 20;
@@ -1492,6 +1839,24 @@ function updateCarterCashDisplay() {
     carterCashEl.textContent = formatCurrency(safeValue);
   }
   updateDashboardCarterDisplay(carterCash);
+}
+
+function handleCarterCashChanged() {
+  updateCarterCashDisplay();
+  if (currentProfile) {
+    currentProfile.carter_cash = carterCash;
+  }
+  if (currentUser) {
+    scheduleLeaderboardRefresh();
+  }
+}
+
+function deductCarterCash(amount) {
+  if (!Number.isFinite(amount) || amount <= 0) {
+    return;
+  }
+  carterCash = Math.max(0, Math.round(carterCash - amount));
+  handleCarterCashChanged();
 }
 
 function updateDashboardCreditsDisplay(value = bankroll) {
@@ -2485,10 +2850,10 @@ function applyPlaythrough(amount) {
   if (earned > 0) {
     carterCash += earned;
     carterCashProgress -= earned * 1000;
-    updateCarterCashDisplay();
+    handleCarterCashChanged();
     animateCarterCashGain(earned);
   } else if (!carterCashAnimating) {
-    updateCarterCashDisplay();
+    handleCarterCashChanged();
   }
 
   if (currentProfile) {
@@ -2915,6 +3280,22 @@ if (signupForm) {
 
 if (adminPrizeForm) {
   adminPrizeForm.addEventListener("submit", handleAdminPrizeSubmit);
+}
+
+if (shippingForm) {
+  shippingForm.addEventListener("submit", handleShippingSubmit);
+}
+
+if (shippingCancelButton) {
+  shippingCancelButton.addEventListener("click", () => {
+    closeShippingModal({ restoreFocus: true });
+  });
+}
+
+if (shippingCloseButton) {
+  shippingCloseButton.addEventListener("click", () => {
+    closeShippingModal({ restoreFocus: true });
+  });
 }
 
 if (showSignUpButton) {

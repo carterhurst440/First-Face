@@ -116,23 +116,6 @@
         </section>
       </div>
     </section>
-    <section id="prize-view" class="route-view" hidden>
-      <div class="route-shell">
-        <header class="route-header">
-          <div>
-            <h1>Prize Shop</h1>
-            <p class="route-subheading">Redeem credits for prizes.</p>
-          </div>
-          <div class="route-actions">
-            <button type="button" data-route-target="play" class="link-button">Back to table</button>
-            <button type="button" data-action="sign-out" class="link-button">Sign out</button>
-          </div>
-        </header>
-        <section class="route-section">
-          <ul id="prize-list" class="prize-list"></ul>
-        </section>
-      </div>
-    </section>
     <section id="app-shell" class="app-shell" data-hidden="true">
       <div class="app">
       <header class="header" role="banner">
@@ -1005,15 +988,21 @@
 
         <section id="store-view" class="route-view app-page store-view" hidden aria-labelledby="store-title">
           <div class="store-content">
-            <button
-              type="button"
-              class="store-back"
-              data-route-target="home"
-              aria-label="Back to home"
-            >
-              ← Back
-            </button>
-            <h2 id="store-title" class="store-title">COMING SOON</h2>
+            <header class="store-header">
+              <button
+                type="button"
+                class="store-back"
+                data-route-target="home"
+                aria-label="Back to home"
+              >
+                ← Back
+              </button>
+              <div class="store-heading">
+                <h2 id="store-title" class="store-title">Prize Shop</h2>
+                <p class="store-subtitle">Redeem Units or Carter Cash for limited rewards.</p>
+              </div>
+            </header>
+            <ul id="prize-list" class="prize-list" aria-live="polite"></ul>
           </div>
         </section>
 
@@ -1039,9 +1028,20 @@
                   <span>Description</span>
                   <textarea name="description" rows="3" placeholder="Optional"></textarea>
                 </label>
+                <label class="admin-field">
+                  <span>Image URL</span>
+                  <input type="url" name="imageUrl" placeholder="https://example.com/prize.jpg" />
+                </label>
                 <div class="admin-row">
                   <label class="admin-field">
-                    <span>Cost (credits)</span>
+                    <span>Cost currency</span>
+                    <select name="currency" required>
+                      <option value="units">Units</option>
+                      <option value="carter_cash">Carter Cash</option>
+                    </select>
+                  </label>
+                  <label class="admin-field">
+                    <span>Cost</span>
                     <input type="number" name="cost" min="0" step="1" required />
                   </label>
                   <label class="admin-checkbox">
@@ -1058,6 +1058,39 @@
       </main>
     </div>
     </section>
+
+    <div
+      class="modal"
+      id="shipping-modal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="shipping-modal-title"
+      hidden
+    >
+      <div class="modal-content">
+        <div class="modal-header">
+          <h2 id="shipping-modal-title">Shipping details</h2>
+          <button type="button" class="modal-close" id="shipping-close" aria-label="Close shipping form">×</button>
+        </div>
+        <div class="modal-body shipping-body">
+          <p id="shipping-summary" class="shipping-summary"></p>
+          <form id="shipping-form" class="shipping-form">
+            <label>
+              <span>Phone number</span>
+              <input type="tel" name="phone" id="shipping-phone" autocomplete="tel" required />
+            </label>
+            <label>
+              <span>Shipping address</span>
+              <textarea name="address" id="shipping-address" rows="4" autocomplete="street-address" required></textarea>
+            </label>
+          </form>
+        </div>
+        <div class="modal-actions">
+          <button type="button" id="shipping-cancel" class="secondary">Cancel</button>
+          <button type="submit" form="shipping-form" id="shipping-submit" class="primary">Submit</button>
+        </div>
+      </div>
+    </div>
 
     <template id="card-template">
       <div class="card">
