@@ -215,6 +215,9 @@
             <button type="button" data-route-target="home" class="drawer-link">Home</button>
             <button type="button" data-route-target="play" class="drawer-link">Play</button>
             <button type="button" data-route-target="store" class="drawer-link">Store</button>
+            <button type="button" data-route-target="admin" class="drawer-link" id="admin-nav" hidden>
+              Admin
+            </button>
             <button type="button" data-action="sign-out" class="drawer-link">Sign out</button>
           </div>
         </section>
@@ -1011,6 +1014,45 @@
               ← Back
             </button>
             <h2 id="store-title" class="store-title">COMING SOON</h2>
+          </div>
+        </section>
+
+        <section id="admin-view" class="route-view app-page admin-view" hidden aria-labelledby="admin-title">
+          <div class="route-shell">
+            <header class="route-header">
+              <div>
+                <h1 id="admin-title">Admin</h1>
+                <p class="route-subheading">Create and manage prize listings.</p>
+              </div>
+              <div class="route-actions">
+                <button type="button" data-route-target="home" class="link-button">Back to home</button>
+              </div>
+            </header>
+            <section class="route-section">
+              <h2>Add a prize</h2>
+              <form id="admin-prize-form" class="admin-form">
+                <label class="admin-field">
+                  <span>Name</span>
+                  <input type="text" name="name" required />
+                </label>
+                <label class="admin-field">
+                  <span>Description</span>
+                  <textarea name="description" rows="3" placeholder="Optional"></textarea>
+                </label>
+                <div class="admin-row">
+                  <label class="admin-field">
+                    <span>Cost (credits)</span>
+                    <input type="number" name="cost" min="0" step="1" required />
+                  </label>
+                  <label class="admin-checkbox">
+                    <input type="checkbox" name="active" checked />
+                    <span>Active</span>
+                  </label>
+                </div>
+                <button type="submit" class="primary">Create prize</button>
+              </form>
+              <p id="admin-prize-message" class="admin-message" role="status" aria-live="polite"></p>
+            </section>
           </div>
         </section>
       </main>

@@ -70,6 +70,7 @@ const PAYTABLES = [
 const NUMBER_RANKS = ["A", "2", "3", "4", "5", "6", "7", "8", "9", "10"];
 const DENOMINATIONS = [5, 10, 25, 100];
 const INITIAL_BANKROLL = 1000;
+const ADMIN_EMAIL = "carterwarrenhurst@gmail.com";
 const DEAL_DELAY = 420;
 const DEAL_DELAY_STEP = 40;
 const SUITS = [
@@ -84,6 +85,11 @@ const RANK_LABELS = {
 
 function describeRank(rank) {
   return RANK_LABELS[rank] ?? String(rank);
+}
+
+function isAdmin(user = currentUser) {
+  if (!user?.email) return false;
+  return user.email.toLowerCase() === ADMIN_EMAIL.toLowerCase();
 }
 
 function showToast(message, tone = "info") {
@@ -144,6 +150,15 @@ function setViewVisibility(view, visible) {
 
 function hideAllRoutes() {
   Object.values(routeViews).forEach((view) => setViewVisibility(view, false));
+}
+
+function updateAdminVisibility(user = currentUser) {
+  if (!adminNavButton) return;
+  if (isAdmin(user)) {
+    adminNavButton.removeAttribute("hidden");
+  } else {
+    adminNavButton.setAttribute("hidden", "");
+  }
 }
 
 function showAuthView(mode = "login") {
@@ -211,12 +226,19 @@ async function setRoute(route, { replaceHash = false } = {}) {
     }
   }
 
+  updateAdminVisibility(currentUser);
+
   if (!currentUser) {
     const authMode = nextRoute === "signup" ? "signup" : "auth";
     showAuthView(authMode === "signup" ? "signup" : "login");
     currentRoute = authMode;
     updateHash(authMode, { replace: true });
     return;
+  }
+
+  if (!isAuthRoute && nextRoute === "admin" && !isAdmin()) {
+    showToast("Admin access only", "error");
+    nextRoute = "home";
   }
 
   hideAllRoutes();
@@ -665,6 +687,82 @@ async function handlePurchase(prize, button) {
   }
 }
 
+async function handleAdminPrizeSubmit(event) {
+  event.preventDefault();
+  if (!adminPrizeForm) return;
+
+  if (!isAdmin()) {
+    showToast("Admin access only", "error");
+    return;
+  }
+
+  if (adminPrizeMessage) {
+    adminPrizeMessage.textContent = "";
+  }
+
+  const formData = new FormData(adminPrizeForm);
+  const name = String(formData.get("name") ?? "").trim();
+  const descriptionRaw = formData.get("description");
+  const description = descriptionRaw ? String(descriptionRaw).trim() : null;
+  const costValue = Number(formData.get("cost"));
+  const active = formData.get("active") === "on";
+
+  if (!name) {
+    showToast("Name is required", "error");
+    if (adminPrizeMessage) {
+      adminPrizeMessage.textContent = "Please provide a name.";
+    }
+    return;
+  }
+
+  if (!Number.isFinite(costValue) || costValue < 0) {
+    showToast("Enter a valid cost", "error");
+    if (adminPrizeMessage) {
+      adminPrizeMessage.textContent = "Enter a non-negative cost.";
+    }
+    return;
+  }
+
+  const submitButton = adminPrizeForm.querySelector('button[type="submit"]');
+  if (submitButton) {
+    submitButton.disabled = true;
+  }
+
+  try {
+    const { error } = await supabase.from("prizes").insert({
+      name,
+      description: description || null,
+      cost: Math.round(costValue),
+      active
+    });
+    if (error) {
+      throw error;
+    }
+    showToast("Prize created", "success");
+    if (adminPrizeMessage) {
+      adminPrizeMessage.textContent = `Created ${name}.`;
+    }
+    adminPrizeForm.reset();
+    const activeInput = adminPrizeForm.querySelector('input[name="active"]');
+    if (activeInput) {
+      activeInput.checked = true;
+    }
+    prizesLoaded = false;
+    await loadPrizeShop(true);
+  } catch (error) {
+    console.error(error);
+    const message = error?.message || "Unable to create prize";
+    showToast(message, "error");
+    if (adminPrizeMessage) {
+      adminPrizeMessage.textContent = `Error: ${message}`;
+    }
+  } finally {
+    if (submitButton) {
+      submitButton.disabled = false;
+    }
+  }
+}
+
 function mergeCurrentUserIntoLeaderboard(entries = []) {
   const list = Array.isArray(entries) ? entries.slice() : [];
   if (!currentUser) {
@@ -879,6 +977,7 @@ function applySignedOutState() {
 
   currentRoute = "auth";
   showAuthView("login");
+  updateAdminVisibility(null);
 
   if (typeof window !== "undefined") {
     suppressHash = true;
@@ -1108,18 +1207,20 @@ const playView = document.getElementById("play-view");
 const storeView = document.getElementById("store-view");
 const dashboardView = document.getElementById("dashboard-view");
 const prizeView = document.getElementById("prize-view");
+const adminView = document.getElementById("admin-view");
 const routeViews = {
   home: homeView,
   play: playView,
   store: storeView,
   dashboard: dashboardView,
-  prizes: prizeView
+  prizes: prizeView,
+  admin: adminView
 };
 const headerEl = document.querySelector(".header");
 const chipBarEl = document.querySelector(".chip-bar");
 const playLayout = playView ? playView.querySelector(".layout") : null;
 const AUTH_ROUTES = new Set(["auth", "signup"]);
-const TABLE_ROUTES = new Set(["home", "play", "store"]);
+const TABLE_ROUTES = new Set(["home", "play", "store", "admin"]);
 const routeButtons = Array.from(document.querySelectorAll("[data-route-target]"));
 const signOutButtons = Array.from(document.querySelectorAll('[data-action="sign-out"]'));
 const dashboardEmailEl = document.getElementById("dashboard-email");
@@ -1127,6 +1228,9 @@ const dashboardCreditsEl = document.getElementById("dashboard-credits");
 const dashboardCarterEl = document.getElementById("dashboard-carter-cash");
 const dashboardRunsEl = document.getElementById("dashboard-runs");
 const prizeListEl = document.getElementById("prize-list");
+const adminNavButton = document.getElementById("admin-nav");
+const adminPrizeForm = document.getElementById("admin-prize-form");
+const adminPrizeMessage = document.getElementById("admin-prize-message");
 
 const THEME_CLASS_MAP = {
   blue: "theme-blue",
@@ -2809,6 +2913,10 @@ if (signupForm) {
   signupForm.addEventListener("submit", handleSignUpFormSubmit);
 }
 
+if (adminPrizeForm) {
+  adminPrizeForm.addEventListener("submit", handleAdminPrizeSubmit);
+}
+
 if (showSignUpButton) {
   showSignUpButton.addEventListener("click", async () => {
     if (signupForm) {
@@ -2925,12 +3033,15 @@ document.addEventListener("keydown", (event) => {
   }
 });
 
+updateAdminVisibility(currentUser);
+
 supabase.auth.onAuthStateChange(async (_event, session) => {
   if (session?.user) {
     currentUser = session.user;
     if (authEmailInput && currentUser.email) {
       authEmailInput.value = currentUser.email;
     }
+    updateAdminVisibility(currentUser);
     if (appShell) {
       appShell.removeAttribute("data-hidden");
     }
