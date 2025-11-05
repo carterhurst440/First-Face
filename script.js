@@ -2362,7 +2362,7 @@ function applyPlaythrough(amount) {
   }
 }
 
-function endHand(stopperCard, context = {}) {
+async function endHand(stopperCard, context = {}) {
   setHandPaused(false);
   settleAdvancedBets(stopperCard, context);
   const totalWagerThisHand = bets.reduce((sum, bet) => sum + bet.units, 0);
@@ -2391,7 +2391,7 @@ function endHand(stopperCard, context = {}) {
   dealing = false;
   animateBankrollOutcome(netThisHand);
   recordBankrollHistoryPoint();
-  void flushBankrollSync();
+  await flushBankrollSync();
   const metadata = {
     stopper: stopperCard.label,
     suit: stopperCard.suitName ?? null,
@@ -2414,7 +2414,7 @@ function endHand(stopperCard, context = {}) {
   updatePauseButton();
 }
 
-function processCard(card, context) {
+async function processCard(card, context) {
   if (context) {
     context.totalCards = (context.totalCards ?? 0) + 1;
   }
@@ -2422,7 +2422,7 @@ function processCard(card, context) {
   renderDraw(card);
 
   if (card.stopper) {
-    endHand(card, context);
+    await endHand(card, context);
     return true;
   }
 
@@ -2482,7 +2482,7 @@ async function dealHand() {
 
   for (const card of deck) {
     await waitWhilePaused();
-    const shouldStop = processCard(card, currentHandContext);
+    const shouldStop = await processCard(card, currentHandContext);
     if (shouldStop) {
       break;
     }
