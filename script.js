@@ -36,14 +36,10 @@ async function bootstrapAuth() {
     }
     if (session?.user) {
       currentUser = session.user;
-      waitForProfile(currentUser, {
+      await waitForProfile(currentUser, {
         interval: 1000,
         maxAttempts: 10,
         notify: false
-      }).then((profile) => {
-        if (profile) {
-          currentProfile = profile;
-        }
       });
       return true;
     }
@@ -282,8 +278,7 @@ async function waitForProfile(user, { interval = 1000, maxAttempts = 5, notify =
     }
 
     if (data) {
-      currentProfile = data;
-      return data;
+      return applyProfileCredits(data, { resetHistory: !bankrollInitialized });
     }
 
     if (!notified) {
@@ -490,8 +485,8 @@ async function loadDashboard(force = false) {
     if (dashboardEmailEl) {
       dashboardEmailEl.textContent = currentUser.email || "";
     }
-    if (dashboardCreditsEl && currentProfile) {
-      dashboardCreditsEl.textContent = currentProfile.credits ?? 0;
+    if (currentProfile) {
+      updateDashboardCreditsDisplay(currentProfile.credits ?? 0);
     }
     return;
   }
@@ -514,9 +509,7 @@ async function loadDashboard(force = false) {
       clearTimeout(dashboardProfileRetryTimer);
       dashboardProfileRetryTimer = null;
     }
-    if (dashboardCreditsEl) {
-      dashboardCreditsEl.textContent = resolvedProfile.credits ?? 0;
-    }
+    updateDashboardCreditsDisplay(resolvedProfile.credits ?? 0);
   } else if (dashboardCreditsEl) {
     dashboardCreditsEl.textContent = "Setting up your account...";
     if (!dashboardProfileRetryTimer) {
@@ -635,11 +628,82 @@ async function handlePurchase(prize, button) {
   }
 }
 
+function applySignedOutState() {
+  const clearFn = typeof window !== "undefined" ? window.clearTimeout : clearTimeout;
+  if (bankrollSyncTimeout !== null) {
+    clearFn(bankrollSyncTimeout);
+    bankrollSyncTimeout = null;
+  }
+  lastSyncedBankroll = null;
+  bankrollInitialized = false;
+  currentUser = null;
+  currentProfile = null;
+  dashboardLoaded = false;
+  prizesLoaded = false;
+
+  if (dashboardProfileRetryTimer) {
+    clearFn(dashboardProfileRetryTimer);
+    dashboardProfileRetryTimer = null;
+  }
+
+  stats = { hands: 0, wagered: 0, paid: 0 };
+  updateStatsUI();
+
+  resetBets();
+  lastBetLayout = [];
+  currentOpeningLayout = [];
+  setAdvancedMode(false);
+  historyList.innerHTML = "";
+
+  bankroll = INITIAL_BANKROLL;
+  handleBankrollChanged({ sync: false });
+  updateDashboardCreditsDisplay(0);
+  resetBankrollHistory();
+  stopBankrollAnimation();
+
+  if (paytableModal && !paytableModal.hidden) {
+    closePaytableModal({ restoreFocus: false });
+  }
+
+  setSelectedChip(DENOMINATIONS[0], false);
+  resetTable("Select a chip and place your bets in the betting panel.", { clearDraws: true });
+  closeUtilityPanel();
+  closeActiveDrawer();
+  updateRebetButtonState();
+  updatePauseButton();
+
+  if (dashboardRunsEl) {
+    dashboardRunsEl.innerHTML = "";
+  }
+
+  if (appShell) {
+    appShell.setAttribute("data-hidden", "true");
+  }
+
+  currentRoute = "auth";
+  showAuthView("login");
+
+  if (typeof window !== "undefined") {
+    suppressHash = true;
+    window.location.hash = "#/auth";
+    setTimeout(() => {
+      suppressHash = false;
+      if (authEmailInput) {
+        authEmailInput.focus();
+      }
+    }, 0);
+  }
+}
+
 async function handleSignOut() {
   const { error } = await supabase.auth.signOut();
   if (error) {
     console.error(error);
+    showToast("Unable to sign out", "error");
+    return;
   }
+  applySignedOutState();
+  showToast("Signed out", "info");
 }
 
 export async function logGameRun(score, metadata = {}) {
@@ -900,6 +964,11 @@ let suppressHash = false;
 let dashboardProfileRetryTimer = null;
 
 const MAX_HISTORY_POINTS = 500;
+const BANKROLL_SYNC_DELAY = 400;
+
+let bankrollInitialized = false;
+let bankrollSyncTimeout = null;
+let lastSyncedBankroll = null;
 
 function getPaytableById(id) {
   return PAYTABLES.find((table) => table.id === id) ?? PAYTABLES[0];
@@ -1021,6 +1090,85 @@ function updateBankroll() {
     stopBankrollAnimation();
   }
   bankrollEl.textContent = formatCurrency(bankroll);
+}
+
+function updateDashboardCreditsDisplay(value = bankroll) {
+  if (!dashboardCreditsEl) return;
+  if (Number.isFinite(value)) {
+    dashboardCreditsEl.textContent = Number(value).toString();
+  } else if (typeof value === "string") {
+    dashboardCreditsEl.textContent = value;
+  } else {
+    dashboardCreditsEl.textContent = "0";
+  }
+}
+
+async function persistBankroll() {
+  if (!currentUser) return;
+  if (!Number.isFinite(bankroll)) return;
+  if (bankroll === lastSyncedBankroll) return;
+  try {
+    const { error } = await supabase
+      .from("profiles")
+      .update({ credits: bankroll })
+      .eq("id", currentUser.id);
+    if (error) {
+      throw error;
+    }
+    lastSyncedBankroll = bankroll;
+    if (currentProfile) {
+      currentProfile.credits = bankroll;
+    }
+  } catch (error) {
+    console.error("Unable to sync bankroll", error);
+  }
+}
+
+function scheduleBankrollSync() {
+  if (!currentUser) return;
+  const clearFn = typeof window !== "undefined" ? window.clearTimeout : clearTimeout;
+  if (bankrollSyncTimeout !== null) {
+    clearFn(bankrollSyncTimeout);
+    bankrollSyncTimeout = null;
+  }
+  const timeoutFn = typeof window !== "undefined" ? window.setTimeout : setTimeout;
+  bankrollSyncTimeout = timeoutFn(() => {
+    bankrollSyncTimeout = null;
+    void persistBankroll();
+  }, BANKROLL_SYNC_DELAY);
+}
+
+function handleBankrollChanged({ sync = true } = {}) {
+  updateBankroll();
+  updateDashboardCreditsDisplay(bankroll);
+  if (currentProfile) {
+    currentProfile.credits = bankroll;
+  }
+  if (sync) {
+    scheduleBankrollSync();
+  }
+}
+
+function applyProfileCredits(profile, { resetHistory = false } = {}) {
+  if (!profile) return null;
+  currentProfile = profile;
+  const numericCredits = Number(profile.credits);
+  const nextBankroll = Number.isFinite(numericCredits) ? Math.round(numericCredits) : INITIAL_BANKROLL;
+  bankroll = nextBankroll;
+  updateBankroll();
+  updateDashboardCreditsDisplay(nextBankroll);
+  lastSyncedBankroll = bankroll;
+  const shouldResetHistory = resetHistory || !bankrollInitialized;
+  if (shouldResetHistory) {
+    bankrollHistory = [bankroll];
+  } else if (bankrollHistory.length > 0) {
+    bankrollHistory[bankrollHistory.length - 1] = bankroll;
+  } else {
+    bankrollHistory = [bankroll];
+  }
+  drawBankrollChart();
+  bankrollInitialized = true;
+  return currentProfile;
 }
 
 function getBetDefinition(key) {
@@ -1209,7 +1357,7 @@ function addBet(key, units) {
     bets.push(bet);
   }
   bankroll -= units;
-  updateBankroll();
+  handleBankrollChanged();
   renderBets();
   addChipToSpot(key, units);
   return bet;
@@ -1217,7 +1365,7 @@ function addBet(key, units) {
 
 function restoreUnits(units) {
   bankroll += units;
-  updateBankroll();
+  handleBankrollChanged();
 }
 
 function resetBetCounters() {
@@ -1814,7 +1962,7 @@ function settleAdvancedBets(stopperCard, context = {}) {
       const totalReturn = payout + bet.units;
       bet.paid += totalReturn;
       bankroll += totalReturn;
-      updateBankroll();
+      handleBankrollChanged();
     }
   });
 }
@@ -1898,7 +2046,7 @@ function processCard(card, context) {
       bet.paid += pay;
       bet.hits += 1;
       bankroll += pay;
-      updateBankroll();
+      handleBankrollChanged();
       totalHitPayout += pay;
       hitsRecorded += 1;
     }
@@ -2077,7 +2225,7 @@ rebetButton.addEventListener("click", () => {
 resetAccountButton.addEventListener("click", () => {
   if (dealing) return;
   bankroll = INITIAL_BANKROLL;
-  updateBankroll();
+  handleBankrollChanged();
   stats = { hands: 0, wagered: 0, paid: 0 };
   updateStatsUI();
   lastBetLayout = [];
@@ -2337,43 +2485,7 @@ supabase.auth.onAuthStateChange(async (_event, session) => {
     return;
   }
 
-  currentUser = null;
-  currentProfile = null;
-  dashboardLoaded = false;
-  prizesLoaded = false;
-
-  if (dashboardProfileRetryTimer) {
-    clearTimeout(dashboardProfileRetryTimer);
-    dashboardProfileRetryTimer = null;
-  }
-
-  if (dashboardRunsEl) {
-    dashboardRunsEl.innerHTML = "";
-  }
-
-  if (dashboardCreditsEl) {
-    dashboardCreditsEl.textContent = "0";
-  }
-
-  if (appShell) {
-    appShell.setAttribute("data-hidden", "true");
-  }
-
-  showAuthView("login");
-  if (signupView) {
-    setViewVisibility(signupView, false);
-  }
-
-  if (typeof window !== "undefined") {
-    suppressHash = true;
-    window.location.hash = "#/auth";
-    setTimeout(() => {
-      suppressHash = false;
-      if (authEmailInput) {
-        authEmailInput.focus();
-      }
-    }, 0);
-  }
+  applySignedOutState();
 });
 
 initTheme();
