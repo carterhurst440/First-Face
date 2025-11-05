@@ -813,10 +813,6 @@ function cleanupLeaderboardSubscription() {
 
 function applySignedOutState() {
   const clearFn = typeof window !== "undefined" ? window.clearTimeout : clearTimeout;
-  if (bankrollSyncTimeout !== null) {
-    clearFn(bankrollSyncTimeout);
-    bankrollSyncTimeout = null;
-  }
   lastSyncedBankroll = null;
   bankrollInitialized = false;
   currentUser = null;
@@ -839,7 +835,7 @@ function applySignedOutState() {
   historyList.innerHTML = "";
 
   bankroll = INITIAL_BANKROLL;
-  handleBankrollChanged({ sync: false });
+  handleBankrollChanged();
   updateDashboardCreditsDisplay(0);
   carterCash = 0;
   carterCashProgress = 0;
@@ -1178,11 +1174,9 @@ let leaderboardSubscription = null;
 let resetModalTrigger = null;
 
 const MAX_HISTORY_POINTS = 500;
-const BANKROLL_SYNC_DELAY = 400;
 const LEADERBOARD_LIMIT = 20;
 
 let bankrollInitialized = false;
-let bankrollSyncTimeout = null;
 let lastSyncedBankroll = null;
 
 function getPaytableById(id) {
@@ -1386,40 +1380,11 @@ async function persistBankroll() {
   }
 }
 
-function scheduleBankrollSync() {
-  if (!currentUser) return;
-  const clearFn = typeof window !== "undefined" ? window.clearTimeout : clearTimeout;
-  if (bankrollSyncTimeout !== null) {
-    clearFn(bankrollSyncTimeout);
-    bankrollSyncTimeout = null;
-  }
-  const timeoutFn = typeof window !== "undefined" ? window.setTimeout : setTimeout;
-  bankrollSyncTimeout = timeoutFn(() => {
-    bankrollSyncTimeout = null;
-    void persistBankroll();
-  }, BANKROLL_SYNC_DELAY);
-}
-
-function flushBankrollSync() {
-  if (!currentUser) {
-    return Promise.resolve();
-  }
-  const clearFn = typeof window !== "undefined" ? window.clearTimeout : clearTimeout;
-  if (bankrollSyncTimeout !== null) {
-    clearFn(bankrollSyncTimeout);
-    bankrollSyncTimeout = null;
-  }
-  return persistBankroll();
-}
-
-function handleBankrollChanged({ sync = true } = {}) {
+function handleBankrollChanged() {
   updateBankroll();
   updateDashboardCreditsDisplay(bankroll);
   if (currentProfile) {
     currentProfile.credits = bankroll;
-  }
-  if (sync) {
-    scheduleBankrollSync();
   }
   if (currentUser) {
     scheduleLeaderboardRefresh();
@@ -2212,7 +2177,7 @@ function resetTable(
   updateRebetButtonState();
 }
 
-function performAccountReset() {
+async function performAccountReset() {
   bankroll = INITIAL_BANKROLL;
   handleBankrollChanged();
   stats = { hands: 0, wagered: 0, paid: 0 };
@@ -2230,19 +2195,18 @@ function performAccountReset() {
     currentProfile.carter_cash_progress = carterCashProgress;
     currentProfile.credits = bankroll;
   }
-  void flushBankrollSync();
+  await persistBankroll();
   resetTable("Account reset. Select a chip and place your bets in the betting panel.", {
     clearDraws: true
   });
   resetBankrollHistory();
-  scheduleBankrollSync();
   closeUtilityPanel();
   showToast("Account reset. Bankroll restored to 1,000 units and Carter Cash cleared.", "info");
 }
 
 function openResetModal() {
   if (!resetModal) {
-    performAccountReset();
+    void performAccountReset();
     return;
   }
   if (!resetModal.hidden) {
@@ -2356,10 +2320,6 @@ function applyPlaythrough(amount) {
     currentProfile.carter_cash = carterCash;
     currentProfile.carter_cash_progress = carterCashProgress;
   }
-
-  if (carterCash !== previousCash || carterCashProgress !== previousProgress) {
-    scheduleBankrollSync();
-  }
 }
 
 async function endHand(stopperCard, context = {}) {
@@ -2391,7 +2351,7 @@ async function endHand(stopperCard, context = {}) {
   dealing = false;
   animateBankrollOutcome(netThisHand);
   recordBankrollHistoryPoint();
-  await flushBankrollSync();
+  await persistBankroll();
   const metadata = {
     stopper: stopperCard.label,
     suit: stopperCard.suitName ?? null,
@@ -2855,9 +2815,9 @@ if (changePaytableButton && paytableModal && paytableApplyButton && paytableCanc
 }
 
 if (resetConfirmButton) {
-  resetConfirmButton.addEventListener("click", () => {
+  resetConfirmButton.addEventListener("click", async () => {
     closeResetModal({ restoreFocus: false });
-    performAccountReset();
+    await performAccountReset();
     resetAccountButton?.focus();
   });
 }
