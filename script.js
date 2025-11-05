@@ -662,7 +662,11 @@ async function handleSignOut() {
     appShell.setAttribute("data-hidden", "true");
   }
 
-  await setRoute("auth", { replaceHash: true });
+  window.location.hash = "#/auth";
+
+  if (authEmailInput) {
+    authEmailInput.focus();
+  }
 
   showToast("Signed out", "info");
 }
@@ -2153,8 +2157,21 @@ function closeDrawer(panel = openDrawerPanel, toggle = openDrawerToggle) {
 
 function closeActiveDrawer({ returnFocus = false } = {}) {
   if (!openDrawerPanel) return;
+
+  const panel = openDrawerPanel;
   const toggle = openDrawerToggle;
-  closeDrawer(openDrawerPanel, openDrawerToggle);
+  const activeElement = document.activeElement;
+
+  if (activeElement && panel.contains(activeElement)) {
+    if (toggle) {
+      toggle.focus();
+    } else {
+      document.body.focus?.();
+    }
+  }
+
+  closeDrawer(panel, toggle);
+
   if (returnFocus && toggle) {
     toggle.focus();
   }
