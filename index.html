@@ -97,6 +97,10 @@
               <dt>Credits</dt>
               <dd id="dashboard-credits">0</dd>
             </div>
+            <div>
+              <dt>Carter Cash</dt>
+              <dd id="dashboard-carter-cash">0</dd>
+            </div>
           </dl>
         </section>
         <section class="route-section">
@@ -126,11 +130,19 @@
       <div class="app">
       <header class="header" role="banner">
         <div class="header-bar">
-          <div class="bankroll" role="status" aria-live="polite">
-            <span class="bankroll-label">Bank:</span>
-            <span id="bankroll" class="bankroll-value">1000</span>
-            <span class="bankroll-units">units</span>
-            <span id="bankroll-delta" class="bankroll-delta" aria-hidden="true"></span>
+          <div class="header-metrics" role="status" aria-live="polite">
+            <div class="bankroll">
+              <span class="bankroll-label">Bank:</span>
+              <span id="bankroll" class="bankroll-value">1000</span>
+              <span class="bankroll-units">units</span>
+              <span id="bankroll-delta" class="bankroll-delta" aria-hidden="true"></span>
+            </div>
+            <div class="carter-cash" aria-live="polite">
+              <span class="carter-label">Carter Cash:</span>
+              <span id="carter-cash" class="carter-value">0</span>
+              <span class="carter-units">USD</span>
+              <span id="carter-cash-delta" class="carter-delta" aria-hidden="true"></span>
+            </div>
           </div>
           <div class="header-actions">
             <button
@@ -141,14 +153,16 @@
             >
               <span aria-hidden="true" class="icon icon-home"></span>
             </button>
-            <div class="theme-picker">
-              <label class="sr-only" for="theme-select">Select theme</label>
-              <select id="theme-select" class="theme-select" aria-label="Select table theme">
-                <option value="blue">Blue</option>
-                <option value="pink">Pink</option>
-                <option value="orange">Orange</option>
-              </select>
-            </div>
+            <button
+              type="button"
+              id="leaderboard-toggle"
+              class="icon-button"
+              aria-label="Open leaderboard"
+              aria-expanded="false"
+              aria-controls="leaderboard-panel"
+            >
+              <span aria-hidden="true" class="icon icon-leaderboard"></span>
+            </button>
             <button
               type="button"
               id="graph-toggle"
@@ -222,6 +236,18 @@
           </div>
           <ul id="history-list" class="history-list" aria-live="polite"></ul>
         </section>
+        <section class="drawer-section" aria-labelledby="theme-heading">
+          <div class="section-heading">
+            <h3 id="theme-heading">Theme</h3>
+            <p class="section-sub">Switch the table glow.</p>
+          </div>
+          <label class="drawer-theme-label" for="theme-select">Select theme</label>
+          <select id="theme-select" class="drawer-theme-select" aria-label="Select table theme">
+            <option value="blue">Blue</option>
+            <option value="pink">Pink</option>
+            <option value="orange">Orange</option>
+          </select>
+        </section>
       </aside>
 
       <aside
@@ -272,6 +298,25 @@
               <span id="house-edge" class="value">0%</span>
             </div>
           </div>
+        </section>
+      </aside>
+
+      <aside
+        class="drawer leaderboard-panel"
+        id="leaderboard-panel"
+        aria-hidden="true"
+        aria-labelledby="leaderboard-title"
+      >
+        <div class="drawer-header">
+          <h2 id="leaderboard-title">Leaderboard</h2>
+          <button type="button" class="drawer-close" id="leaderboard-close">
+            <span class="sr-only">Close leaderboard</span>
+            <span aria-hidden="true">×</span>
+          </button>
+        </div>
+        <section class="drawer-section" aria-label="Top bankrolls">
+          <p class="drawer-subhead">Sorted by units balance in descending order.</p>
+          <ol id="leaderboard-list" class="leaderboard-list"></ol>
         </section>
       </aside>
 

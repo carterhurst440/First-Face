@@ -487,6 +487,7 @@ async function loadDashboard(force = false) {
     }
     if (currentProfile) {
       updateDashboardCreditsDisplay(currentProfile.credits ?? 0);
+      updateDashboardCarterDisplay(currentProfile.carter_cash ?? 0);
     }
     return;
   }
@@ -510,8 +511,10 @@ async function loadDashboard(force = false) {
       dashboardProfileRetryTimer = null;
     }
     updateDashboardCreditsDisplay(resolvedProfile.credits ?? 0);
+    updateDashboardCarterDisplay(resolvedProfile.carter_cash ?? 0);
   } else if (dashboardCreditsEl) {
     dashboardCreditsEl.textContent = "Setting up your account...";
+    updateDashboardCarterDisplay("–");
     if (!dashboardProfileRetryTimer) {
       dashboardProfileRetryTimer = setTimeout(() => {
         dashboardProfileRetryTimer = null;
@@ -628,6 +631,107 @@ async function handlePurchase(prize, button) {
   }
 }
 
+function renderLeaderboard(entries = []) {
+  if (!leaderboardList) return;
+
+  leaderboardList.innerHTML = "";
+
+  if (!entries.length) {
+    const item = document.createElement("li");
+    item.className = "leaderboard-item";
+    item.innerHTML =
+      '<span class="leaderboard-rank">–</span><span class="leaderboard-name">No leaderboard data yet.</span><span class="leaderboard-balance">0</span>';
+    leaderboardList.appendChild(item);
+    return;
+  }
+
+  entries.forEach((entry, index) => {
+    const item = document.createElement("li");
+    item.className = "leaderboard-item";
+
+    const rank = document.createElement("span");
+    rank.className = "leaderboard-rank";
+    rank.textContent = `${index + 1}`;
+
+    const name = document.createElement("span");
+    name.className = "leaderboard-name";
+    const first = typeof entry.first_name === "string" ? entry.first_name.trim() : "";
+    const last = typeof entry.last_name === "string" ? entry.last_name.trim() : "";
+    const username = typeof entry.username === "string" ? entry.username.trim() : "";
+    const displayName = [first, last].filter(Boolean).join(" ") || username || "Player";
+    name.textContent = displayName;
+
+    const balance = document.createElement("span");
+    balance.className = "leaderboard-balance";
+    const credits = Number(entry.credits);
+    balance.textContent = formatCurrency(Number.isFinite(credits) ? Math.max(0, Math.round(credits)) : 0);
+
+    item.append(rank, name, balance);
+    leaderboardList.appendChild(item);
+  });
+}
+
+async function refreshLeaderboard() {
+  if (!leaderboardList) return;
+  if (!currentUser) {
+    renderLeaderboard([]);
+    return;
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("id, first_name, last_name, username, credits")
+      .order("credits", { ascending: false })
+      .limit(LEADERBOARD_LIMIT);
+    if (error) {
+      throw error;
+    }
+    renderLeaderboard(Array.isArray(data) ? data : []);
+  } catch (error) {
+    console.error("Unable to load leaderboard", error);
+    renderLeaderboard([]);
+  }
+}
+
+function scheduleLeaderboardRefresh() {
+  if (!leaderboardList) return;
+  if (leaderboardRefreshTimeout !== null) return;
+  const timeoutFn = typeof window !== "undefined" ? window.setTimeout : setTimeout;
+  leaderboardRefreshTimeout = timeoutFn(async () => {
+    leaderboardRefreshTimeout = null;
+    await refreshLeaderboard();
+  }, 400);
+}
+
+function ensureLeaderboardSubscription() {
+  if (leaderboardSubscription) return;
+  if (!supabase || typeof supabase.channel !== "function") return;
+  leaderboardSubscription = supabase
+    .channel("leaderboard-updates")
+    .on(
+      "postgres_changes",
+      { event: "*", schema: "public", table: "profiles" },
+      () => scheduleLeaderboardRefresh()
+    )
+    .subscribe();
+}
+
+function cleanupLeaderboardSubscription() {
+  const clearFn = typeof window !== "undefined" ? window.clearTimeout : clearTimeout;
+  if (leaderboardRefreshTimeout !== null) {
+    clearFn(leaderboardRefreshTimeout);
+    leaderboardRefreshTimeout = null;
+  }
+  if (leaderboardSubscription) {
+    supabase.removeChannel(leaderboardSubscription);
+    leaderboardSubscription = null;
+  }
+  if (leaderboardList) {
+    leaderboardList.innerHTML = "";
+  }
+}
+
 function applySignedOutState() {
   const clearFn = typeof window !== "undefined" ? window.clearTimeout : clearTimeout;
   if (bankrollSyncTimeout !== null) {
@@ -658,8 +762,16 @@ function applySignedOutState() {
   bankroll = INITIAL_BANKROLL;
   handleBankrollChanged({ sync: false });
   updateDashboardCreditsDisplay(0);
+  carterCash = 0;
+  carterCashProgress = 0;
+  lastSyncedCarterCash = 0;
+  lastSyncedCarterProgress = 0;
+  stopCarterCashAnimation();
+  updateCarterCashDisplay();
   resetBankrollHistory();
   stopBankrollAnimation();
+
+  cleanupLeaderboardSubscription();
 
   if (paytableModal && !paytableModal.hidden) {
     closePaytableModal({ restoreFocus: false });
@@ -776,6 +888,8 @@ function initTheme() {
 
 const bankrollEl = document.getElementById("bankroll");
 const bankrollDeltaEl = document.getElementById("bankroll-delta");
+const carterCashEl = document.getElementById("carter-cash");
+const carterCashDeltaEl = document.getElementById("carter-cash-delta");
 const betsBody = document.getElementById("bets-body");
 const dealButton = document.getElementById("deal-button");
 const rebetButton = document.getElementById("rebet-button");
@@ -860,6 +974,10 @@ const themeSelect = document.getElementById("theme-select");
 const graphToggle = document.getElementById("graph-toggle");
 const chartPanel = document.getElementById("chart-panel");
 const chartClose = document.getElementById("chart-close");
+const leaderboardToggle = document.getElementById("leaderboard-toggle");
+const leaderboardPanel = document.getElementById("leaderboard-panel");
+const leaderboardClose = document.getElementById("leaderboard-close");
+const leaderboardList = document.getElementById("leaderboard-list");
 const panelScrim = document.getElementById("panel-scrim");
 const bankrollChartCanvas = document.getElementById("bankroll-chart");
 const bankrollChartWrapper = document.getElementById("bankroll-chart-wrapper");
@@ -914,6 +1032,7 @@ const routeButtons = Array.from(document.querySelectorAll("[data-route-target]")
 const signOutButtons = Array.from(document.querySelectorAll('[data-action="sign-out"]'));
 const dashboardEmailEl = document.getElementById("dashboard-email");
 const dashboardCreditsEl = document.getElementById("dashboard-credits");
+const dashboardCarterEl = document.getElementById("dashboard-carter-cash");
 const dashboardRunsEl = document.getElementById("dashboard-runs");
 const prizeListEl = document.getElementById("prize-list");
 
@@ -946,6 +1065,12 @@ let bankrollAnimating = false;
 let bankrollAnimationFrame = null;
 let bankrollDeltaTimeout = null;
 let bankrollHistory = [];
+let carterCash = 0;
+let carterCashProgress = 0;
+let carterCashAnimating = false;
+let carterCashDeltaTimeout = null;
+let lastSyncedCarterCash = 0;
+let lastSyncedCarterProgress = 0;
 let advancedMode = false;
 let handPaused = false;
 let pauseResolvers = [];
@@ -962,9 +1087,12 @@ let prizesLoaded = false;
 let currentProfile = null;
 let suppressHash = false;
 let dashboardProfileRetryTimer = null;
+let leaderboardRefreshTimeout = null;
+let leaderboardSubscription = null;
 
 const MAX_HISTORY_POINTS = 500;
 const BANKROLL_SYNC_DELAY = 400;
+const LEADERBOARD_LIMIT = 20;
 
 let bankrollInitialized = false;
 let bankrollSyncTimeout = null;
@@ -1092,6 +1220,25 @@ function updateBankroll() {
   bankrollEl.textContent = formatCurrency(bankroll);
 }
 
+function updateDashboardCarterDisplay(value = carterCash) {
+  if (!dashboardCarterEl) return;
+  if (Number.isFinite(value)) {
+    dashboardCarterEl.textContent = Number(value).toString();
+  } else if (typeof value === "string") {
+    dashboardCarterEl.textContent = value;
+  } else {
+    dashboardCarterEl.textContent = "0";
+  }
+}
+
+function updateCarterCashDisplay() {
+  if (carterCashEl) {
+    const safeValue = Number.isFinite(carterCash) ? Math.max(0, Math.round(carterCash)) : 0;
+    carterCashEl.textContent = formatCurrency(safeValue);
+  }
+  updateDashboardCarterDisplay(carterCash);
+}
+
 function updateDashboardCreditsDisplay(value = bankroll) {
   if (!dashboardCreditsEl) return;
   if (Number.isFinite(value)) {
@@ -1105,19 +1252,47 @@ function updateDashboardCreditsDisplay(value = bankroll) {
 
 async function persistBankroll() {
   if (!currentUser) return;
-  if (!Number.isFinite(bankroll)) return;
-  if (bankroll === lastSyncedBankroll) return;
+
+  const updates = {};
+  if (Number.isFinite(bankroll) && bankroll !== lastSyncedBankroll) {
+    updates.credits = bankroll;
+  }
+  if (Number.isFinite(carterCash) && carterCash !== lastSyncedCarterCash) {
+    updates.carter_cash = carterCash;
+  }
+  if (
+    Number.isFinite(carterCashProgress) &&
+    carterCashProgress !== lastSyncedCarterProgress
+  ) {
+    updates.carter_cash_progress = carterCashProgress;
+  }
+
+  if (Object.keys(updates).length === 0) {
+    return;
+  }
+
   try {
-    const { error } = await supabase
-      .from("profiles")
-      .update({ credits: bankroll })
-      .eq("id", currentUser.id);
+    const { error } = await supabase.from("profiles").update(updates).eq("id", currentUser.id);
     if (error) {
       throw error;
     }
-    lastSyncedBankroll = bankroll;
-    if (currentProfile) {
-      currentProfile.credits = bankroll;
+    if (Object.prototype.hasOwnProperty.call(updates, "credits")) {
+      lastSyncedBankroll = bankroll;
+      if (currentProfile) {
+        currentProfile.credits = bankroll;
+      }
+    }
+    if (Object.prototype.hasOwnProperty.call(updates, "carter_cash")) {
+      lastSyncedCarterCash = carterCash;
+      if (currentProfile) {
+        currentProfile.carter_cash = carterCash;
+      }
+    }
+    if (Object.prototype.hasOwnProperty.call(updates, "carter_cash_progress")) {
+      lastSyncedCarterProgress = carterCashProgress;
+      if (currentProfile) {
+        currentProfile.carter_cash_progress = carterCashProgress;
+      }
     }
   } catch (error) {
     console.error("Unable to sync bankroll", error);
@@ -1158,6 +1333,14 @@ function applyProfileCredits(profile, { resetHistory = false } = {}) {
   updateBankroll();
   updateDashboardCreditsDisplay(nextBankroll);
   lastSyncedBankroll = bankroll;
+  const numericCarter = Number(profile.carter_cash);
+  carterCash = Number.isFinite(numericCarter) ? Math.round(numericCarter) : 0;
+  const numericProgress = Number(profile.carter_cash_progress);
+  carterCashProgress = Number.isFinite(numericProgress) && numericProgress >= 0 ? numericProgress : 0;
+  lastSyncedCarterCash = carterCash;
+  lastSyncedCarterProgress = carterCashProgress;
+  stopCarterCashAnimation();
+  updateCarterCashDisplay();
   const shouldResetHistory = resetHistory || !bankrollInitialized;
   if (shouldResetHistory) {
     bankrollHistory = [bankroll];
@@ -1727,6 +1910,53 @@ function stopBankrollAnimation(restoreDisplay = true) {
   }
 }
 
+function stopCarterCashAnimation() {
+  const clearFn = typeof window !== "undefined" ? window.clearTimeout : clearTimeout;
+  if (carterCashDeltaTimeout !== null) {
+    clearFn(carterCashDeltaTimeout);
+    carterCashDeltaTimeout = null;
+  }
+  carterCashAnimating = false;
+  if (carterCashEl) {
+    carterCashEl.classList.remove("carter-cash-pulse");
+  }
+  if (carterCashDeltaEl) {
+    carterCashDeltaEl.classList.remove("visible");
+    carterCashDeltaEl.textContent = "";
+  }
+}
+
+function animateCarterCashGain(amount) {
+  if (!carterCashEl || amount <= 0) {
+    return;
+  }
+
+  stopCarterCashAnimation();
+
+  carterCashAnimating = true;
+  carterCashEl.classList.remove("carter-cash-pulse");
+  void carterCashEl.offsetWidth;
+  carterCashEl.classList.add("carter-cash-pulse");
+
+  if (carterCashDeltaEl) {
+    carterCashDeltaEl.textContent = `+${formatCurrency(amount)}`;
+    carterCashDeltaEl.classList.add("visible");
+  }
+
+  const timeoutFn = typeof window !== "undefined" ? window.setTimeout : setTimeout;
+  carterCashDeltaTimeout = timeoutFn(() => {
+    if (carterCashEl) {
+      carterCashEl.classList.remove("carter-cash-pulse");
+    }
+    if (carterCashDeltaEl) {
+      carterCashDeltaEl.classList.remove("visible");
+      carterCashDeltaEl.textContent = "";
+    }
+    carterCashAnimating = false;
+    carterCashDeltaTimeout = null;
+  }, 1400);
+}
+
 function animateBankrollOutcome(delta) {
   if (!bankrollEl) return;
 
@@ -1967,12 +2197,43 @@ function settleAdvancedBets(stopperCard, context = {}) {
   });
 }
 
+function applyPlaythrough(amount) {
+  if (!Number.isFinite(amount) || amount <= 0) {
+    return;
+  }
+
+  const previousCash = carterCash;
+  const previousProgress = carterCashProgress;
+
+  carterCashProgress += amount;
+  const earned = Math.floor(carterCashProgress / 1000);
+  if (earned > 0) {
+    carterCash += earned;
+    carterCashProgress -= earned * 1000;
+    updateCarterCashDisplay();
+    animateCarterCashGain(earned);
+  } else if (!carterCashAnimating) {
+    updateCarterCashDisplay();
+  }
+
+  if (currentProfile) {
+    currentProfile.carter_cash = carterCash;
+    currentProfile.carter_cash_progress = carterCashProgress;
+  }
+
+  if (carterCash !== previousCash || carterCashProgress !== previousProgress) {
+    scheduleBankrollSync();
+  }
+}
+
 function endHand(stopperCard, context = {}) {
   setHandPaused(false);
   settleAdvancedBets(stopperCard, context);
   const totalWagerThisHand = bets.reduce((sum, bet) => sum + bet.units, 0);
   const totalPaidThisHand = bets.reduce((sum, bet) => sum + bet.paid, 0);
   const netThisHand = totalPaidThisHand - totalWagerThisHand;
+
+  applyPlaythrough(totalWagerThisHand);
 
   stats.hands += 1;
   stats.wagered += totalWagerThisHand;
@@ -2255,6 +2516,9 @@ function openDrawer(panel, toggle) {
     requestAnimationFrame(() => {
       drawBankrollChart();
     });
+  } else if (panel === leaderboardPanel) {
+    scheduleLeaderboardRefresh();
+    void refreshLeaderboard();
   }
 }
 
@@ -2357,6 +2621,23 @@ if (graphToggle && chartPanel && chartClose) {
 
   chartClose.addEventListener("click", () => {
     closeDrawer(chartPanel, graphToggle);
+  });
+}
+
+if (leaderboardToggle && leaderboardPanel && leaderboardClose) {
+  leaderboardToggle.addEventListener("click", () => {
+    const isOpen = leaderboardPanel.classList.contains("is-open");
+    if (isOpen) {
+      closeDrawer(leaderboardPanel, leaderboardToggle);
+    } else {
+      openDrawer(leaderboardPanel, leaderboardToggle);
+      scheduleLeaderboardRefresh();
+      void refreshLeaderboard();
+    }
+  });
+
+  leaderboardClose.addEventListener("click", () => {
+    closeDrawer(leaderboardPanel, leaderboardToggle);
   });
 }
 
@@ -2468,6 +2749,8 @@ supabase.auth.onAuthStateChange(async (_event, session) => {
     if (appShell) {
       appShell.removeAttribute("data-hidden");
     }
+    ensureLeaderboardSubscription();
+    scheduleLeaderboardRefresh();
     const route = getRouteFromHash();
     await setRoute(route, { replaceHash: true });
     waitForProfile(currentUser, {
@@ -2494,6 +2777,7 @@ updatePaytableAvailability();
 setSelectedChip(selectedChip, false);
 renderBets();
 updateBankroll();
+updateCarterCashDisplay();
 resetTable();
 updateStatsUI();
 resetBankrollHistory();
