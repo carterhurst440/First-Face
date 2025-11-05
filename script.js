@@ -246,6 +246,12 @@ async function setRoute(route, { replaceHash = false } = {}) {
     setViewVisibility(targetView, true);
   }
 
+  if (resolvedRoute === "play") {
+    schedulePlayAreaHeightUpdate();
+  } else {
+    clearPlayAreaHeight();
+  }
+
   currentRoute = resolvedRoute;
 
   if (isAuthRoute) {
@@ -859,6 +865,7 @@ function applySignedOutState() {
   resetTable("Select a chip and place your bets in the betting panel.", { clearDraws: true });
   closeUtilityPanel();
   closeActiveDrawer();
+  clearPlayAreaHeight();
   updateRebetButtonState();
   updatePauseButton();
 
@@ -1108,6 +1115,9 @@ const routeViews = {
   dashboard: dashboardView,
   prizes: prizeView
 };
+const headerEl = document.querySelector(".header");
+const chipBarEl = document.querySelector(".chip-bar");
+const playLayout = playView ? playView.querySelector(".layout") : null;
 const AUTH_ROUTES = new Set(["auth", "signup"]);
 const TABLE_ROUTES = new Set(["home", "play", "store"]);
 const routeButtons = Array.from(document.querySelectorAll("[data-route-target]"));
@@ -1178,6 +1188,66 @@ const LEADERBOARD_LIMIT = 20;
 
 let bankrollInitialized = false;
 let lastSyncedBankroll = null;
+
+let playAreaUpdateFrame = null;
+
+function clearPlayAreaHeight() {
+  if (playAreaUpdateFrame !== null && typeof window !== "undefined") {
+    window.cancelAnimationFrame(playAreaUpdateFrame);
+    playAreaUpdateFrame = null;
+  }
+  if (playLayout) {
+    playLayout.style.removeProperty("--play-area-height");
+  }
+}
+
+function updatePlayAreaHeight() {
+  if (!playLayout) {
+    return;
+  }
+
+  if (currentRoute !== "play") {
+    clearPlayAreaHeight();
+    return;
+  }
+
+  const viewportHeight = typeof window !== "undefined" ? window.innerHeight : 0;
+  if (!viewportHeight) {
+    return;
+  }
+
+  const headerHeight = headerEl ? headerEl.offsetHeight : 0;
+  const chipBarHeight = chipBarEl ? chipBarEl.offsetHeight : 0;
+  const available = Math.max(viewportHeight - headerHeight - chipBarHeight, 0);
+  playLayout.style.setProperty("--play-area-height", `${available}px`);
+}
+
+function schedulePlayAreaHeightUpdate() {
+  if (typeof window === "undefined") {
+    return;
+  }
+  if (playAreaUpdateFrame !== null) {
+    window.cancelAnimationFrame(playAreaUpdateFrame);
+  }
+  playAreaUpdateFrame = window.requestAnimationFrame(() => {
+    playAreaUpdateFrame = null;
+    updatePlayAreaHeight();
+  });
+}
+
+const layoutResizeObserver =
+  typeof ResizeObserver !== "undefined"
+    ? new ResizeObserver(() => schedulePlayAreaHeightUpdate())
+    : null;
+
+if (layoutResizeObserver) {
+  if (headerEl) {
+    layoutResizeObserver.observe(headerEl);
+  }
+  if (chipBarEl) {
+    layoutResizeObserver.observe(chipBarEl);
+  }
+}
 
 function getPaytableById(id) {
   return PAYTABLES.find((table) => table.id === id) ?? PAYTABLES[0];
@@ -1527,6 +1597,7 @@ function updateRebetButtonState() {
   const disabled = !hasLayout || dealing;
   rebetButton.disabled = disabled;
   rebetButton.setAttribute("aria-disabled", String(disabled));
+  schedulePlayAreaHeightUpdate();
 }
 
 function updateChipSelectionUI() {
@@ -2895,6 +2966,7 @@ updateCarterCashDisplay();
 resetTable();
 updateStatsUI();
 resetBankrollHistory();
+window.addEventListener("resize", schedulePlayAreaHeightUpdate);
 window.addEventListener("resize", drawBankrollChart);
 
 async function initializeApp() {
