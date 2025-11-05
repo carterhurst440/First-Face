@@ -1029,8 +1029,23 @@
                   <textarea name="description" rows="3" placeholder="Optional"></textarea>
                 </label>
                 <label class="admin-field">
+                  <span>Upload image</span>
+                  <input
+                    type="file"
+                    id="prize-image-file"
+                    name="imageFile"
+                    accept="image/*"
+                  />
+                  <span class="admin-hint">Upload to fill the image URL automatically.</span>
+                </label>
+                <label class="admin-field">
                   <span>Image URL</span>
-                  <input type="url" name="imageUrl" placeholder="https://example.com/prize.jpg" />
+                  <input
+                    type="url"
+                    id="prize-image-url"
+                    name="imageUrl"
+                    placeholder="https://example.com/prize.jpg"
+                  />
                 </label>
                 <div class="admin-row">
                   <label class="admin-field">

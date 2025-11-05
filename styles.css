@@ -3329,6 +3329,12 @@ body.modal-open {
   letter-spacing: 0.05em;
 }
 
+.admin-hint {
+  font-size: 0.8rem;
+  color: var(--muted);
+  letter-spacing: 0.04em;
+}
+
 .admin-field input,
 .admin-field textarea {
   width: 100%;

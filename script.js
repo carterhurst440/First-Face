@@ -81,6 +81,7 @@ const PRIZE_CURRENCIES = {
     label: "Carter Cash"
   }
 };
+const PRIZE_IMAGE_BUCKET = "prize-images";
 const DEAL_DELAY = 420;
 const DEAL_DELAY_STEP = 40;
 const SUITS = [
@@ -117,6 +118,60 @@ function showToast(message, tone = "info") {
       toast.remove();
     }, 300);
   }, 3200);
+}
+
+function createPrizeImagePath(originalName = "image") {
+  const baseName = typeof originalName === "string" ? originalName : "image";
+  const extensionMatch = baseName.match(/\.([a-zA-Z0-9]+)$/);
+  const extension = extensionMatch ? `.${extensionMatch[1].toLowerCase()}` : "";
+  const stem = baseName
+    .replace(/\.[^/.]+$/, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  const safeStem = stem || "prize";
+  const randomPart =
+    typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+      ? crypto.randomUUID()
+      : Math.random().toString(36).slice(2, 10);
+  return `${Date.now()}-${randomPart}-${safeStem}${extension}`;
+}
+
+async function uploadPrizeImage(file) {
+  if (!file) {
+    throw new Error("No file selected");
+  }
+  if (!PRIZE_IMAGE_BUCKET) {
+    throw new Error("Storage bucket is not configured.");
+  }
+
+  const path = createPrizeImagePath(file.name);
+  const { error } = await supabase.storage
+    .from(PRIZE_IMAGE_BUCKET)
+    .upload(path, file, {
+      cacheControl: "3600",
+      upsert: false,
+      contentType: file.type || "application/octet-stream"
+    });
+
+  if (error) {
+    throw error;
+  }
+
+  const { data: publicData, error: publicError } = supabase.storage
+    .from(PRIZE_IMAGE_BUCKET)
+    .getPublicUrl(path);
+
+  if (publicError) {
+    throw publicError;
+  }
+
+  const publicUrl = publicData?.publicUrl;
+  if (!publicUrl) {
+    throw new Error("Unable to resolve uploaded image URL");
+  }
+
+  return publicUrl;
 }
 
 function showHandOutcomeToast(delta) {
@@ -1003,6 +1058,52 @@ async function handlePurchase(prize, button) {
   }
 }
 
+async function handlePrizeImageSelection(event) {
+  const input = event?.currentTarget;
+  if (!(input instanceof HTMLInputElement)) {
+    return;
+  }
+
+  const file = input.files?.[0];
+  if (!file) {
+    return;
+  }
+
+  if (!isAdmin()) {
+    showToast("Admin access only", "error");
+    input.value = "";
+    return;
+  }
+
+  if (adminPrizeMessage) {
+    adminPrizeMessage.textContent = "Uploading image...";
+  }
+
+  input.disabled = true;
+
+  try {
+    const publicUrl = await uploadPrizeImage(file);
+    if (adminPrizeImageUrlInput) {
+      adminPrizeImageUrlInput.value = publicUrl;
+      adminPrizeImageUrlInput.dispatchEvent(new Event("input", { bubbles: true }));
+    }
+    showToast("Image uploaded", "success");
+    if (adminPrizeMessage) {
+      adminPrizeMessage.textContent = "Image uploaded. Review details and create the prize.";
+    }
+  } catch (error) {
+    console.error(error);
+    const message = error?.message || "Unable to upload image";
+    showToast(message, "error");
+    if (adminPrizeMessage) {
+      adminPrizeMessage.textContent = `Image upload failed: ${message}`;
+    }
+  } finally {
+    input.disabled = false;
+    input.value = "";
+  }
+}
+
 async function handleAdminPrizeSubmit(event) {
   event.preventDefault();
   if (!adminPrizeForm) return;
@@ -1567,6 +1668,8 @@ const prizeListEl = document.getElementById("prize-list");
 const adminNavButton = document.getElementById("admin-nav");
 const adminPrizeForm = document.getElementById("admin-prize-form");
 const adminPrizeMessage = document.getElementById("admin-prize-message");
+const adminPrizeImageUrlInput = document.getElementById("prize-image-url");
+const adminPrizeImageFileInput = document.getElementById("prize-image-file");
 const shippingModal = document.getElementById("shipping-modal");
 const shippingForm = document.getElementById("shipping-form");
 const shippingSummaryEl = document.getElementById("shipping-summary");
@@ -3280,6 +3383,10 @@ if (signupForm) {
 
 if (adminPrizeForm) {
   adminPrizeForm.addEventListener("submit", handleAdminPrizeSubmit);
+}
+
+if (adminPrizeImageFileInput) {
+  adminPrizeImageFileInput.addEventListener("change", handlePrizeImageSelection);
 }
 
 if (shippingForm) {
