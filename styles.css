@@ -768,16 +768,16 @@ body {
   background: var(--icon-leaderboard-gradient);
   clip-path: polygon(
     10% 100%,
-    10% 60%,
-    26% 60%,
+    10% 58%,
+    26% 58%,
     26% 100%,
     42% 100%,
-    42% 35%,
-    58% 35%,
+    42% 26%,
+    58% 26%,
     58% 100%,
     74% 100%,
-    74% 15%,
-    90% 15%,
+    74% 72%,
+    90% 72%,
     90% 100%
   );
 }
@@ -939,23 +939,6 @@ body {
   min-width: 3.2ch;
   transition: color 0.3s ease;
   text-shadow: 0 0 12px rgba(31, 241, 255, 0.35);
-}
-
-.bankroll-delta {
-  font-size: 0.82rem;
-  font-weight: 700;
-  opacity: 0;
-  transform: translateY(0.35rem);
-  transition: opacity 0.3s ease, transform 0.3s ease;
-  pointer-events: none;
-  white-space: nowrap;
-  min-height: 1.1em;
-  align-self: flex-start;
-}
-
-.bankroll-delta.visible {
-  opacity: 1;
-  transform: translateY(0);
 }
 
 .carter-cash {
@@ -3197,6 +3180,61 @@ body.modal-open {
 .toast.toast-success {
   border-color: rgba(102, 255, 217, 0.65);
   box-shadow: 0 12px 28px rgba(102, 255, 217, 0.22);
+}
+
+.hand-toast-container {
+  position: fixed;
+  top: clamp(4.5rem, 10vw, 6.25rem);
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.65rem;
+  z-index: 4500;
+  pointer-events: none;
+}
+
+.hand-toast {
+  min-width: 220px;
+  max-width: 360px;
+  padding: 0.7rem 1.4rem;
+  border-radius: 999px;
+  border: 1px solid rgba(63, 240, 255, 0.45);
+  background: linear-gradient(135deg, rgba(6, 26, 78, 0.96), rgba(3, 14, 54, 0.96));
+  color: var(--text-light);
+  font-size: 0.92rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.45);
+  opacity: 0;
+  transform: translateY(-12px) scale(0.96);
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+.hand-toast.visible {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+
+.hand-toast-positive {
+  border-color: rgba(125, 255, 138, 0.8);
+  box-shadow: 0 18px 46px rgba(125, 255, 138, 0.28);
+  color: #0f2615;
+  background: linear-gradient(135deg, rgba(125, 255, 138, 0.92), rgba(63, 240, 255, 0.92));
+}
+
+.hand-toast-negative {
+  border-color: rgba(255, 79, 157, 0.8);
+  box-shadow: 0 18px 46px rgba(255, 79, 157, 0.28);
+  color: #350013;
+  background: linear-gradient(135deg, rgba(255, 116, 180, 0.95), rgba(255, 79, 157, 0.9));
+}
+
+.hand-toast-neutral {
+  border-color: rgba(186, 235, 255, 0.7);
+  color: var(--text-light);
 }
 
 .toast.toast-error {

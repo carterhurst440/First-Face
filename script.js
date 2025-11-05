@@ -103,6 +103,34 @@ function showToast(message, tone = "info") {
   }, 3200);
 }
 
+function showHandOutcomeToast(delta) {
+  if (!handToastContainer) return;
+
+  const value = Math.abs(delta);
+  const tone = delta > 0 ? "positive" : delta < 0 ? "negative" : "neutral";
+  const prefix = delta > 0 ? "+" : delta < 0 ? "−" : "±";
+  const message = `Hand Total ${prefix}${formatCurrency(value)}`;
+
+  handToastContainer.querySelectorAll(".hand-toast").forEach((node) => node.remove());
+
+  const toast = document.createElement("div");
+  toast.className = `hand-toast hand-toast-${tone}`;
+  toast.textContent = message;
+  handToastContainer.appendChild(toast);
+
+  requestAnimationFrame(() => {
+    toast.classList.add("visible");
+  });
+
+  const timeout = typeof window !== "undefined" ? window.setTimeout : setTimeout;
+  timeout(() => {
+    toast.classList.remove("visible");
+    timeout(() => {
+      toast.remove();
+    }, 260);
+  }, 2000);
+}
+
 function setViewVisibility(view, visible) {
   if (!view) return;
   if (visible) {
@@ -941,9 +969,9 @@ function initTheme() {
 }
 
 const bankrollEl = document.getElementById("bankroll");
-const bankrollDeltaEl = document.getElementById("bankroll-delta");
 const carterCashEl = document.getElementById("carter-cash");
 const carterCashDeltaEl = document.getElementById("carter-cash-delta");
+const handToastContainer = document.getElementById("hand-toast-container");
 const betsBody = document.getElementById("bets-body");
 const dealButton = document.getElementById("deal-button");
 const rebetButton = document.getElementById("rebet-button");
@@ -1957,18 +1985,9 @@ function stopBankrollAnimation(restoreDisplay = true) {
       "bankroll-neutral",
       "bankroll-pulse"
     );
-  }
-  if (bankrollDeltaEl) {
-    bankrollDeltaEl.classList.remove(
-      "visible",
-      "bankroll-positive",
-      "bankroll-negative",
-      "bankroll-neutral"
-    );
-    bankrollDeltaEl.textContent = "";
-  }
-  if (restoreDisplay && bankrollEl) {
-    bankrollEl.textContent = formatCurrency(bankroll);
+    if (restoreDisplay) {
+      bankrollEl.textContent = formatCurrency(bankroll);
+    }
   }
 }
 
@@ -2029,18 +2048,16 @@ function animateBankrollOutcome(delta) {
     return;
   }
 
+  showHandOutcomeToast(delta);
+
   if (delta === 0) {
     bankrollAnimating = true;
+    bankrollEl.classList.remove("bankroll-positive", "bankroll-negative");
     bankrollEl.classList.add("bankroll-neutral", "bankroll-pulse");
-    if (bankrollDeltaEl) {
-      bankrollDeltaEl.textContent = "±0";
-      bankrollDeltaEl.classList.add("visible", "bankroll-neutral");
-    }
     bankrollDeltaTimeout = window.setTimeout(() => {
-      bankrollEl.classList.remove("bankroll-neutral", "bankroll-pulse");
-      if (bankrollDeltaEl) {
-        bankrollDeltaEl.classList.remove("visible", "bankroll-neutral");
-        bankrollDeltaEl.textContent = "";
+      if (bankrollEl) {
+        bankrollEl.classList.remove("bankroll-neutral", "bankroll-pulse");
+        bankrollEl.textContent = formatCurrency(bankroll);
       }
       bankrollAnimating = false;
       bankrollDeltaTimeout = null;
@@ -2051,24 +2068,13 @@ function animateBankrollOutcome(delta) {
   const finalValue = bankroll;
   const startValue = finalValue - delta;
   const directionClass = delta > 0 ? "bankroll-positive" : "bankroll-negative";
-  const deltaText = `${delta > 0 ? "+" : "−"}${formatCurrency(Math.abs(delta))}`;
 
   bankrollAnimating = true;
-  bankrollEl.classList.add(directionClass, "bankroll-pulse");
   bankrollEl.classList.remove(
     delta > 0 ? "bankroll-negative" : "bankroll-positive",
     "bankroll-neutral"
   );
-
-  if (bankrollDeltaEl) {
-    bankrollDeltaEl.classList.remove(
-      delta > 0 ? "bankroll-negative" : "bankroll-positive",
-      "bankroll-neutral"
-    );
-    bankrollDeltaEl.classList.add("visible", directionClass);
-    bankrollDeltaEl.textContent = deltaText;
-  }
-
+  bankrollEl.classList.add(directionClass, "bankroll-pulse");
   bankrollEl.textContent = formatCurrency(startValue);
 
   const duration = 900;
@@ -2087,10 +2093,8 @@ function animateBankrollOutcome(delta) {
       bankrollAnimationFrame = null;
       bankrollAnimating = false;
       bankrollDeltaTimeout = window.setTimeout(() => {
-        bankrollEl.classList.remove(directionClass, "bankroll-pulse");
-        if (bankrollDeltaEl) {
-          bankrollDeltaEl.classList.remove("visible", directionClass);
-          bankrollDeltaEl.textContent = "";
+        if (bankrollEl) {
+          bankrollEl.classList.remove(directionClass, "bankroll-pulse");
         }
         bankrollDeltaTimeout = null;
       }, 1400);

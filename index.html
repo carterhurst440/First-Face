@@ -14,6 +14,13 @@
   </head>
   <body class="theme-blue">
     <div id="toast-container" class="toast-container" role="status" aria-live="polite"></div>
+    <div
+      id="hand-toast-container"
+      class="hand-toast-container"
+      role="status"
+      aria-live="polite"
+      aria-atomic="true"
+    ></div>
     <section id="auth-view" class="route-view auth-view auth-screen" hidden>
       <div class="auth-card">
         <h1>Welcome back</h1>
@@ -137,7 +144,6 @@
                 <span id="bankroll" class="bankroll-value">1000</span>
                 <span class="bankroll-units">units</span>
               </div>
-              <span id="bankroll-delta" class="bankroll-delta" aria-hidden="true"></span>
             </div>
             <div class="carter-cash" aria-live="polite">
               <span class="carter-label">Carter Cash:</span>
