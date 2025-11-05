@@ -662,7 +662,7 @@ async function handleSignOut() {
     appShell.setAttribute("data-hidden", "true");
   }
 
-  updateHash("auth", { replace: true });
+  await setRoute("auth", { replaceHash: true });
 
   showToast("Signed out", "info");
 }
