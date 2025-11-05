@@ -132,9 +132,11 @@
         <div class="header-bar">
           <div class="header-metrics" role="status" aria-live="polite">
             <div class="bankroll">
-              <span class="bankroll-label">Bank:</span>
-              <span id="bankroll" class="bankroll-value">1000</span>
-              <span class="bankroll-units">units</span>
+              <div class="bankroll-main">
+                <span class="bankroll-label">Bank:</span>
+                <span id="bankroll" class="bankroll-value">1000</span>
+                <span class="bankroll-units">units</span>
+              </div>
               <span id="bankroll-delta" class="bankroll-delta" aria-hidden="true"></span>
             </div>
             <div class="carter-cash" aria-live="polite">
@@ -377,6 +379,32 @@
           <div class="modal-actions">
             <button type="button" id="paytable-cancel" class="secondary">Cancel</button>
             <button type="button" id="paytable-apply" class="primary">Apply</button>
+          </div>
+        </div>
+      </div>
+
+      <div
+        class="modal"
+        id="reset-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="reset-modal-title"
+        hidden
+      >
+        <div class="modal-content">
+          <div class="modal-header">
+            <h2 id="reset-modal-title">Reset account?</h2>
+            <button type="button" class="modal-close" id="reset-close" aria-label="Cancel reset">×</button>
+          </div>
+          <div class="modal-body">
+            <p>
+              Resetting will restore 1,000 units to your account but will forfeit all Carter Cash you have earned and start your
+              balance again at 0. Do you confirm?
+            </p>
+          </div>
+          <div class="modal-actions">
+            <button type="button" id="reset-cancel" class="secondary">Cancel</button>
+            <button type="button" id="reset-confirm" class="primary danger">Confirm reset</button>
           </div>
         </div>
       </div>

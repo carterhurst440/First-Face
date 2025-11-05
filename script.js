@@ -631,6 +631,51 @@ async function handlePurchase(prize, button) {
   }
 }
 
+function mergeCurrentUserIntoLeaderboard(entries = []) {
+  const list = Array.isArray(entries) ? entries.slice() : [];
+  if (!currentUser) {
+    return list.slice(0, LEADERBOARD_LIMIT);
+  }
+
+  const metadata = currentUser.user_metadata || {};
+  const firstName = (currentProfile?.first_name ?? metadata.first_name ?? "").toString().trim();
+  const lastName = (currentProfile?.last_name ?? metadata.last_name ?? "").toString().trim();
+  const username = (currentProfile?.username ?? currentUser.email ?? "").toString().trim();
+  const profileCredits = Number(currentProfile?.credits);
+  const sessionBankroll = Number(bankroll);
+  const creditSource = Number.isFinite(profileCredits)
+    ? profileCredits
+    : Number.isFinite(sessionBankroll)
+    ? sessionBankroll
+    : 0;
+  const credits = Number.isFinite(creditSource) ? Math.round(creditSource) : 0;
+
+  const selfEntry = {
+    id: currentUser.id,
+    first_name: firstName,
+    last_name: lastName,
+    username,
+    credits
+  };
+
+  const existingIndex = list.findIndex((entry) => entry?.id === currentUser.id);
+  if (existingIndex >= 0) {
+    list[existingIndex] = { ...list[existingIndex], ...selfEntry };
+  } else {
+    list.push(selfEntry);
+  }
+
+  list.sort((a, b) => {
+    const bCredits = Number(b?.credits);
+    const aCredits = Number(a?.credits);
+    const safeB = Number.isFinite(bCredits) ? bCredits : 0;
+    const safeA = Number.isFinite(aCredits) ? aCredits : 0;
+    return safeB - safeA;
+  });
+
+  return list.slice(0, LEADERBOARD_LIMIT);
+}
+
 function renderLeaderboard(entries = []) {
   if (!leaderboardList) return;
 
@@ -666,6 +711,10 @@ function renderLeaderboard(entries = []) {
     const credits = Number(entry.credits);
     balance.textContent = formatCurrency(Number.isFinite(credits) ? Math.max(0, Math.round(credits)) : 0);
 
+    if (currentUser && entry.id === currentUser.id) {
+      item.classList.add("is-self");
+    }
+
     item.append(rank, name, balance);
     leaderboardList.appendChild(item);
   });
@@ -687,10 +736,12 @@ async function refreshLeaderboard() {
     if (error) {
       throw error;
     }
-    renderLeaderboard(Array.isArray(data) ? data : []);
+    const merged = mergeCurrentUserIntoLeaderboard(Array.isArray(data) ? data : []);
+    renderLeaderboard(merged);
   } catch (error) {
     console.error("Unable to load leaderboard", error);
-    renderLeaderboard([]);
+    const fallback = mergeCurrentUserIntoLeaderboard([]);
+    renderLeaderboard(fallback);
   }
 }
 
@@ -775,6 +826,9 @@ function applySignedOutState() {
 
   if (paytableModal && !paytableModal.hidden) {
     closePaytableModal({ restoreFocus: false });
+  }
+  if (resetModal && !resetModal.hidden) {
+    closeResetModal({ restoreFocus: false });
   }
 
   setSelectedChip(DENOMINATIONS[0], false);
@@ -998,6 +1052,10 @@ const paytableForm = document.getElementById("paytable-form");
 const paytableApplyButton = document.getElementById("paytable-apply");
 const paytableCancelButton = document.getElementById("paytable-cancel");
 const paytableCloseButton = document.getElementById("paytable-close");
+const resetModal = document.getElementById("reset-modal");
+const resetConfirmButton = document.getElementById("reset-confirm");
+const resetCancelButton = document.getElementById("reset-cancel");
+const resetCloseButton = document.getElementById("reset-close");
 const activePaytableNameEl = document.getElementById("active-paytable-name");
 const activePaytableStepsEl = document.getElementById("active-paytable-steps");
 const toastContainer = document.getElementById("toast-container");
@@ -1089,6 +1147,7 @@ let suppressHash = false;
 let dashboardProfileRetryTimer = null;
 let leaderboardRefreshTimeout = null;
 let leaderboardSubscription = null;
+let resetModalTrigger = null;
 
 const MAX_HISTORY_POINTS = 500;
 const BANKROLL_SYNC_DELAY = 400;
@@ -1321,6 +1380,9 @@ function handleBankrollChanged({ sync = true } = {}) {
   }
   if (sync) {
     scheduleBankrollSync();
+  }
+  if (currentUser) {
+    scheduleLeaderboardRefresh();
   }
 }
 
@@ -2134,6 +2196,63 @@ function resetTable(
   updateRebetButtonState();
 }
 
+function performAccountReset() {
+  bankroll = INITIAL_BANKROLL;
+  handleBankrollChanged();
+  stats = { hands: 0, wagered: 0, paid: 0 };
+  updateStatsUI();
+  lastBetLayout = [];
+  currentOpeningLayout = [];
+  historyList.innerHTML = "";
+  resetBets();
+  stopCarterCashAnimation();
+  carterCash = 0;
+  carterCashProgress = 0;
+  updateCarterCashDisplay();
+  if (currentProfile) {
+    currentProfile.carter_cash = carterCash;
+    currentProfile.carter_cash_progress = carterCashProgress;
+    currentProfile.credits = bankroll;
+  }
+  resetTable("Account reset. Select a chip and place your bets in the betting panel.", {
+    clearDraws: true
+  });
+  resetBankrollHistory();
+  scheduleBankrollSync();
+  closeUtilityPanel();
+  showToast("Account reset. Bankroll restored to 1,000 units and Carter Cash cleared.", "info");
+}
+
+function openResetModal() {
+  if (!resetModal) {
+    performAccountReset();
+    return;
+  }
+  if (!resetModal.hidden) {
+    return;
+  }
+  resetModalTrigger = document.activeElement instanceof HTMLElement ? document.activeElement : resetAccountButton;
+  resetModal.hidden = false;
+  resetModal.classList.add("is-open");
+  resetModal.setAttribute("aria-hidden", "false");
+  document.body.classList.add("modal-open");
+  resetConfirmButton?.focus();
+}
+
+function closeResetModal({ restoreFocus = false } = {}) {
+  if (!resetModal) return;
+  resetModal.classList.remove("is-open");
+  resetModal.setAttribute("aria-hidden", "true");
+  resetModal.hidden = true;
+  if (!paytableModal || paytableModal.hidden) {
+    document.body.classList.remove("modal-open");
+  }
+  if (restoreFocus && resetModalTrigger instanceof HTMLElement) {
+    resetModalTrigger.focus();
+  }
+  resetModalTrigger = null;
+}
+
 function renderDraw(card) {
   const cardEl = makeCardElement(card);
   const fragment = document.createDocumentFragment();
@@ -2483,22 +2602,12 @@ rebetButton.addEventListener("click", () => {
   dealButton.disabled = false;
 });
 
-resetAccountButton.addEventListener("click", () => {
-  if (dealing) return;
-  bankroll = INITIAL_BANKROLL;
-  handleBankrollChanged();
-  stats = { hands: 0, wagered: 0, paid: 0 };
-  updateStatsUI();
-  lastBetLayout = [];
-  currentOpeningLayout = [];
-  historyList.innerHTML = "";
-  resetBets();
-  resetTable("Account reset. Select a chip and place your bets in the betting panel.", {
-    clearDraws: true
+if (resetAccountButton) {
+  resetAccountButton.addEventListener("click", () => {
+    if (dealing) return;
+    openResetModal();
   });
-  resetBankrollHistory();
-  closeUtilityPanel();
-});
+}
 
 function openDrawer(panel, toggle) {
   if (!panel || !panelScrim) return;
@@ -2587,7 +2696,9 @@ function closePaytableModal({ restoreFocus = false } = {}) {
   paytableModal.classList.remove("is-open");
   paytableModal.setAttribute("aria-hidden", "true");
   paytableModal.hidden = true;
-  document.body.classList.remove("modal-open");
+  if (!resetModal || resetModal.hidden) {
+    document.body.classList.remove("modal-open");
+  }
   updateActivePaytableUI();
   if (restoreFocus && changePaytableButton) {
     changePaytableButton.focus();
@@ -2725,8 +2836,33 @@ if (changePaytableButton && paytableModal && paytableApplyButton && paytableCanc
   }
 }
 
+if (resetConfirmButton) {
+  resetConfirmButton.addEventListener("click", () => {
+    closeResetModal({ restoreFocus: false });
+    performAccountReset();
+    resetAccountButton?.focus();
+  });
+}
+
+if (resetCancelButton) {
+  resetCancelButton.addEventListener("click", () => {
+    closeResetModal({ restoreFocus: true });
+  });
+}
+
+if (resetCloseButton) {
+  resetCloseButton.addEventListener("click", () => {
+    closeResetModal({ restoreFocus: true });
+  });
+}
+
 document.addEventListener("keydown", (event) => {
   if (event.key === "Escape") {
+    if (resetModal && !resetModal.hidden) {
+      closeResetModal({ restoreFocus: true });
+      event.preventDefault();
+      return;
+    }
     if (paytableModal && !paytableModal.hidden) {
       pendingPaytableId = activePaytable.id;
       closePaytableModal({ restoreFocus: true });
