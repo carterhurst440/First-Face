@@ -662,7 +662,7 @@ async function handleSignOut() {
     appShell.setAttribute("data-hidden", "true");
   }
 
-  window.location.hash = "#/auth";
+  await setRoute("auth", { replaceHash: true });
 
   if (authEmailInput) {
     authEmailInput.focus();
