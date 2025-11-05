@@ -636,39 +636,10 @@ async function handlePurchase(prize, button) {
 }
 
 async function handleSignOut() {
-  await supabase.auth.signOut();
-
-  currentUser = null;
-  currentProfile = null;
-  dashboardLoaded = false;
-  prizesLoaded = false;
-
-  if (dashboardProfileRetryTimer) {
-    clearTimeout(dashboardProfileRetryTimer);
-    dashboardProfileRetryTimer = null;
+  const { error } = await supabase.auth.signOut();
+  if (error) {
+    console.error(error);
   }
-
-  if (dashboardRunsEl) {
-    dashboardRunsEl.innerHTML = "";
-  }
-
-  if (dashboardCreditsEl) {
-    dashboardCreditsEl.textContent = "0";
-  }
-
-  showAuthView("login");
-
-  if (appShell) {
-    appShell.setAttribute("data-hidden", "true");
-  }
-
-  window.location.replace("#/auth");
-
-  if (authEmailInput) {
-    setTimeout(() => authEmailInput.focus(), 50);
-  }
-
-  showToast("Signed out", "info");
 }
 
 export async function logGameRun(score, metadata = {}) {
@@ -2341,10 +2312,13 @@ document.addEventListener("keydown", (event) => {
 });
 
 supabase.auth.onAuthStateChange(async (_event, session) => {
-  currentUser = session?.user ?? null;
-  if (currentUser) {
+  if (session?.user) {
+    currentUser = session.user;
     if (authEmailInput && currentUser.email) {
       authEmailInput.value = currentUser.email;
+    }
+    if (appShell) {
+      appShell.removeAttribute("data-hidden");
     }
     const route = getRouteFromHash();
     await setRoute(route, { replaceHash: true });
@@ -2360,32 +2334,45 @@ supabase.auth.onAuthStateChange(async (_event, session) => {
         }
       }
     });
-  } else {
-    currentProfile = null;
-    dashboardLoaded = false;
-    prizesLoaded = false;
-    if (dashboardProfileRetryTimer) {
-      clearTimeout(dashboardProfileRetryTimer);
-      dashboardProfileRetryTimer = null;
-    }
-    if (dashboardRunsEl) {
-      dashboardRunsEl.innerHTML = "";
-    }
-    if (dashboardCreditsEl) {
-      dashboardCreditsEl.textContent = "0";
-    }
-    if (appShell) {
-      appShell.setAttribute("data-hidden", "true");
-    }
-    if (authView) {
-      setViewVisibility(authView, true);
-    }
-    if (signupView) {
-      setViewVisibility(signupView, false);
-    }
-    if (getRouteFromHash() !== "auth") {
-      await setRoute("auth", { replaceHash: true });
-    }
+    return;
+  }
+
+  currentUser = null;
+  currentProfile = null;
+  dashboardLoaded = false;
+  prizesLoaded = false;
+
+  if (dashboardProfileRetryTimer) {
+    clearTimeout(dashboardProfileRetryTimer);
+    dashboardProfileRetryTimer = null;
+  }
+
+  if (dashboardRunsEl) {
+    dashboardRunsEl.innerHTML = "";
+  }
+
+  if (dashboardCreditsEl) {
+    dashboardCreditsEl.textContent = "0";
+  }
+
+  if (appShell) {
+    appShell.setAttribute("data-hidden", "true");
+  }
+
+  showAuthView("login");
+  if (signupView) {
+    setViewVisibility(signupView, false);
+  }
+
+  if (typeof window !== "undefined") {
+    suppressHash = true;
+    window.location.hash = "#/auth";
+    setTimeout(() => {
+      suppressHash = false;
+      if (authEmailInput) {
+        authEmailInput.focus();
+      }
+    }, 0);
   }
 });
 
