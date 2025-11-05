@@ -14,7 +14,7 @@
   </head>
   <body class="theme-blue">
     <div id="toast-container" class="toast-container" role="status" aria-live="polite"></div>
-    <section id="auth-view" class="auth-view" hidden>
+    <section id="auth-view" class="route-view auth-view auth-screen" hidden>
       <div class="auth-card">
         <h1>Welcome back</h1>
         <form id="auth-form" class="auth-form">
@@ -37,7 +37,7 @@
         </p>
       </div>
     </section>
-    <section id="signup-view" class="auth-view" hidden>
+    <section id="signup-view" class="route-view auth-view auth-screen" hidden>
       <div class="auth-card">
         <h1>Create your account</h1>
         <form id="signup-form" class="auth-form">
@@ -72,7 +72,7 @@
         </p>
       </div>
     </section>
-    <section id="auth-callback-view" class="route-view auth-callback-view" hidden>
+    <section id="auth-callback-view" class="route-view auth-screen auth-callback-view" hidden>
       <div class="auth-callback-card" role="status" aria-live="polite">
         <span class="auth-callback-spinner" aria-hidden="true"></span>
         <p id="auth-callback-status">Completing sign in…</p>
@@ -122,7 +122,7 @@
         </section>
       </div>
     </section>
-    <section id="app-shell" class="route-view app-shell" hidden>
+    <section id="app-shell" class="app-shell" data-hidden="true">
       <div class="app">
       <header class="header" role="banner">
         <div class="header-bar">

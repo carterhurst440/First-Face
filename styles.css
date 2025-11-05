@@ -470,6 +470,11 @@ body {
   position: sticky;
   top: 0;
   z-index: 100;
+  width: 100%;
+}
+
+#app-shell[data-hidden="true"] {
+  display: none;
 }
 
 .app-shell {
@@ -486,16 +491,23 @@ body {
   display: none;
 }
 
+.route-view.active {
+  display: block;
+}
+
 .route-view[hidden] {
   display: none;
 }
 
-.route-view:not([hidden]) {
-  display: block;
+.app-page.route-view.active {
+  display: flex;
 }
 
-.app-page.route-view:not([hidden]) {
+.auth-screen {
+  min-height: 100vh;
   display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .app-main {
@@ -2642,8 +2654,7 @@ body.modal-open {
   font-weight: 700;
 }
 
-.route-view {
-  display: block;
+.route-view.active {
   min-height: 100vh;
   color: var(--text-light);
 }

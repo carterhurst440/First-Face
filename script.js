@@ -45,7 +45,6 @@ async function bootstrapAuth() {
           currentProfile = profile;
         }
       });
-      window.location.hash = "#/home";
       return true;
     }
   } catch (error) {
@@ -111,8 +110,10 @@ function showToast(message, tone = "info") {
 function setViewVisibility(view, visible) {
   if (!view) return;
   if (visible) {
+    view.classList.add("active");
     view.removeAttribute("hidden");
   } else {
+    view.classList.remove("active");
     view.setAttribute("hidden", "");
   }
 }
@@ -124,7 +125,7 @@ function hideAllRoutes() {
 function showAuthView(mode = "login") {
   hideAllRoutes();
   if (appShell) {
-    setViewVisibility(appShell, false);
+    appShell.setAttribute("data-hidden", "true");
   }
   if (authView) {
     setViewVisibility(authView, mode === "login");
@@ -166,9 +167,13 @@ function updateHash(route, { replace = false } = {}) {
 }
 
 async function setRoute(route, { replaceHash = false } = {}) {
-  if (!routeViews[route]) {
-    route = "home";
+  let nextRoute = route ?? "home";
+  const isAuthRoute = AUTH_ROUTES.has(nextRoute);
+
+  if (!routeViews[nextRoute] && !isAuthRoute) {
+    nextRoute = "home";
   }
+
   if (!currentUser) {
     try {
       const {
@@ -181,33 +186,53 @@ async function setRoute(route, { replaceHash = false } = {}) {
       console.error(error);
     }
   }
+
   if (!currentUser) {
-    showAuthView("login");
-    currentRoute = "auth";
-    if (!replaceHash) {
-      updateHash("home", { replace: true });
-    }
+    const authMode = nextRoute === "signup" ? "signup" : "auth";
+    showAuthView(authMode === "signup" ? "signup" : "login");
+    currentRoute = authMode;
+    updateHash(authMode, { replace: true });
     return;
   }
+
   hideAllRoutes();
   if (authView) {
     setViewVisibility(authView, false);
   }
-  const shouldShowAppShell = TABLE_ROUTES.has(route);
-  if (appShell) {
-    setViewVisibility(appShell, shouldShowAppShell);
+  if (signupView) {
+    setViewVisibility(signupView, false);
   }
-  const targetView = routeViews[route];
+
+  let resolvedRoute = isAuthRoute ? "home" : nextRoute;
+  if (!routeViews[resolvedRoute]) {
+    resolvedRoute = "home";
+  }
+
+  const shouldShowAppShell = TABLE_ROUTES.has(resolvedRoute);
+  if (appShell) {
+    if (shouldShowAppShell) {
+      appShell.removeAttribute("data-hidden");
+    } else {
+      appShell.setAttribute("data-hidden", "true");
+    }
+  }
+
+  const targetView = routeViews[resolvedRoute];
   if (targetView) {
     setViewVisibility(targetView, true);
   }
-  currentRoute = route;
-  if (!replaceHash) {
-    updateHash(route);
+
+  currentRoute = resolvedRoute;
+
+  if (isAuthRoute) {
+    updateHash(resolvedRoute, { replace: true });
+  } else if (!replaceHash) {
+    updateHash(resolvedRoute);
   }
-  if (route === "home") {
+
+  if (resolvedRoute === "home") {
     await loadDashboard();
-  } else if (route === "prizes") {
+  } else if (resolvedRoute === "prizes") {
     await loadPrizeShop();
   }
 }
@@ -222,10 +247,6 @@ function getRouteFromHash() {
 function handleHashChange() {
   if (suppressHash) return;
   const route = getRouteFromHash();
-  if (!currentUser) {
-    showAuthView("login");
-    return;
-  }
   setRoute(route, { replaceHash: true });
 }
 
@@ -234,12 +255,12 @@ async function refreshCurrentUser() {
   if (error) {
     console.error(error);
     currentUser = null;
-    showAuthView("login");
+    await setRoute("auth", { replaceHash: true });
     return null;
   }
   currentUser = data?.user ?? null;
   if (!currentUser) {
-    showAuthView("login");
+    await setRoute("auth", { replaceHash: true });
   }
   return currentUser;
 }
@@ -442,7 +463,7 @@ async function handleSignUpFormSubmit(event) {
     if (authEmailInput) {
       authEmailInput.value = email;
     }
-    showAuthView("login");
+    await setRoute("auth", { replaceHash: true });
   } catch (error) {
     console.error(error);
     const message = error?.message || "Unable to create account";
@@ -461,7 +482,7 @@ async function loadDashboard(force = false) {
     data: { user }
   } = await supabase.auth.getUser();
   if (!user) {
-    showAuthView("login");
+    await setRoute("auth", { replaceHash: true });
     return;
   }
   currentUser = user;
@@ -549,7 +570,7 @@ async function loadPrizeShop(force = false) {
     data: { user }
   } = await supabase.auth.getUser();
   if (!user) {
-    showAuthView("login");
+    await setRoute("auth", { replaceHash: true });
     return;
   }
   currentUser = user;
@@ -630,8 +651,7 @@ async function handleSignOut() {
   if (dashboardCreditsEl) {
     dashboardCreditsEl.textContent = "0";
   }
-  showAuthView("login");
-  updateHash("home", { replace: true });
+  await setRoute("auth", { replaceHash: true });
   showToast("Signed out", "info");
 }
 
@@ -837,6 +857,7 @@ const routeViews = {
   dashboard: dashboardView,
   prizes: prizeView
 };
+const AUTH_ROUTES = new Set(["auth", "signup"]);
 const TABLE_ROUTES = new Set(["home", "play", "store"]);
 const routeButtons = Array.from(document.querySelectorAll("[data-route-target]"));
 const signOutButtons = Array.from(document.querySelectorAll('[data-action="sign-out"]'));
@@ -2200,7 +2221,7 @@ if (signupForm) {
 }
 
 if (showSignUpButton) {
-  showSignUpButton.addEventListener("click", () => {
+  showSignUpButton.addEventListener("click", async () => {
     if (signupForm) {
       signupForm.reset();
     }
@@ -2208,18 +2229,18 @@ if (showSignUpButton) {
       signupErrorEl.hidden = true;
       signupErrorEl.textContent = "";
     }
-    showAuthView("signup");
+    await setRoute("signup");
     signupFirstInput?.focus();
   });
 }
 
 if (showLoginButton) {
-  showLoginButton.addEventListener("click", () => {
-    showAuthView("login");
+  showLoginButton.addEventListener("click", async () => {
     if (authErrorEl) {
       authErrorEl.hidden = true;
       authErrorEl.textContent = "";
     }
+    await setRoute("auth");
     authEmailInput?.focus();
   });
 }
@@ -2324,7 +2345,7 @@ supabase.auth.onAuthStateChange(async (_event, session) => {
     if (dashboardCreditsEl) {
       dashboardCreditsEl.textContent = "0";
     }
-    showAuthView("login");
+    await setRoute("auth", { replaceHash: true });
   }
 });
 
@@ -2341,10 +2362,7 @@ window.addEventListener("resize", drawBankrollChart);
 
 async function initializeApp() {
   stripSupabaseRedirectHash();
-  const redirected = await bootstrapAuth();
-  if (redirected) {
-    return;
-  }
+  await bootstrapAuth();
   const initialRoute = getRouteFromHash();
   await setRoute(initialRoute, { replaceHash: true });
 }
