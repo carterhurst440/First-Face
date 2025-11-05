@@ -662,10 +662,10 @@ async function handleSignOut() {
     appShell.setAttribute("data-hidden", "true");
   }
 
-  await setRoute("auth", { replaceHash: true });
+  window.location.replace("#/auth");
 
   if (authEmailInput) {
-    authEmailInput.focus();
+    setTimeout(() => authEmailInput.focus(), 50);
   }
 
   showToast("Signed out", "info");
@@ -2374,7 +2374,18 @@ supabase.auth.onAuthStateChange(async (_event, session) => {
     if (dashboardCreditsEl) {
       dashboardCreditsEl.textContent = "0";
     }
-    await setRoute("auth", { replaceHash: true });
+    if (appShell) {
+      appShell.setAttribute("data-hidden", "true");
+    }
+    if (authView) {
+      setViewVisibility(authView, true);
+    }
+    if (signupView) {
+      setViewVisibility(signupView, false);
+    }
+    if (getRouteFromHash() !== "auth") {
+      await setRoute("auth", { replaceHash: true });
+    }
   }
 });
 
