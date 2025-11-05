@@ -1400,6 +1400,18 @@ function scheduleBankrollSync() {
   }, BANKROLL_SYNC_DELAY);
 }
 
+function flushBankrollSync() {
+  if (!currentUser) {
+    return Promise.resolve();
+  }
+  const clearFn = typeof window !== "undefined" ? window.clearTimeout : clearTimeout;
+  if (bankrollSyncTimeout !== null) {
+    clearFn(bankrollSyncTimeout);
+    bankrollSyncTimeout = null;
+  }
+  return persistBankroll();
+}
+
 function handleBankrollChanged({ sync = true } = {}) {
   updateBankroll();
   updateDashboardCreditsDisplay(bankroll);
@@ -2218,6 +2230,7 @@ function performAccountReset() {
     currentProfile.carter_cash_progress = carterCashProgress;
     currentProfile.credits = bankroll;
   }
+  void flushBankrollSync();
   resetTable("Account reset. Select a chip and place your bets in the betting panel.", {
     clearDraws: true
   });
@@ -2378,6 +2391,7 @@ function endHand(stopperCard, context = {}) {
   dealing = false;
   animateBankrollOutcome(netThisHand);
   recordBankrollHistoryPoint();
+  void flushBankrollSync();
   const metadata = {
     stopper: stopperCard.label,
     suit: stopperCard.suitName ?? null,
