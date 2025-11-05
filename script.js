@@ -637,21 +637,33 @@ async function handlePurchase(prize, button) {
 
 async function handleSignOut() {
   await supabase.auth.signOut();
+
   currentUser = null;
   currentProfile = null;
   dashboardLoaded = false;
   prizesLoaded = false;
+
   if (dashboardProfileRetryTimer) {
     clearTimeout(dashboardProfileRetryTimer);
     dashboardProfileRetryTimer = null;
   }
+
   if (dashboardRunsEl) {
     dashboardRunsEl.innerHTML = "";
   }
+
   if (dashboardCreditsEl) {
     dashboardCreditsEl.textContent = "0";
   }
-  await setRoute("auth", { replaceHash: true });
+
+  showAuthView("login");
+
+  if (appShell) {
+    appShell.setAttribute("data-hidden", "true");
+  }
+
+  updateHash("auth", { replace: true });
+
   showToast("Signed out", "info");
 }
 
