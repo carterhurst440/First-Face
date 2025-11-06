@@ -1,0 +1,4342 @@
+import { supabase } from "./supabaseClient.js";
+
+function stripSupabaseRedirectHash() {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  const rawHash = window.location.hash || "";
+  const search = window.location.search || "";
+  const hashContainsTokens = rawHash.startsWith("#access_token=");
+  const searchContainsTokens = search.includes("access_token=");
+
+  if (hashContainsTokens || searchContainsTokens) {
+    const cleanedHash = hashContainsTokens ? "" : rawHash;
+    window.history.replaceState(
+      {},
+      document.title,
+      `${window.location.pathname}${cleanedHash}`
+    );
+  }
+}
+
+function markAppReady() {
+  if (typeof document === "undefined") {
+    return;
+  }
+
+  const { body } = document;
+  if (body) {
+    body.dataset.appState = "ready";
+  }
+}
+
+const PAYTABLES = [
+  {
+    id: "paytable-1",
+    name: "Paytable 1",
+    steps: [3, 4, 15, 50]
+  },
+  {
+    id: "paytable-2",
+    name: "Paytable 2",
+    steps: [2, 6, 36, 100]
+  },
+  {
+    id: "paytable-3",
+    name: "Paytable 3",
+    steps: [1, 10, 40, 200]
+  }
+];
+const NUMBER_RANKS = ["A", "2", "3", "4", "5", "6", "7", "8", "9", "10"];
+const DENOMINATIONS = [5, 10, 25, 100];
+const INITIAL_BANKROLL = 1000;
+const ADMIN_EMAIL = "carterwarrenhurst@gmail.com";
+const PRIZE_CURRENCIES = {
+  units: {
+    key: "units",
+    label: "Units"
+  },
+  carter_cash: {
+    key: "carter_cash",
+    label: "Carter Cash"
+  }
+};
+const PRIZE_IMAGE_BUCKET = "prize-images";
+const DEAL_DELAY = 420;
+const DEAL_DELAY_STEP = 40;
+const SUITS = [
+  { symbol: "♠", color: "black", name: "Spades" },
+  { symbol: "♥", color: "red", name: "Hearts" },
+  { symbol: "♦", color: "red", name: "Diamonds" },
+  { symbol: "♣", color: "black", name: "Clubs" }
+];
+const RANK_LABELS = {
+  A: "Ace"
+};
+
+function describeRank(rank) {
+  return RANK_LABELS[rank] ?? String(rank);
+}
+
+function isAdmin(user = currentUser) {
+  if (!user?.email) return false;
+  return user.email.toLowerCase() === ADMIN_EMAIL.toLowerCase();
+}
+
+function showToast(message, tone = "info") {
+  if (!toastContainer) return;
+  const toast = document.createElement("div");
+  toast.className = `toast toast-${tone}`;
+  toast.textContent = message;
+  toastContainer.appendChild(toast);
+  requestAnimationFrame(() => {
+    toast.classList.add("visible");
+  });
+  setTimeout(() => {
+    toast.classList.remove("visible");
+    setTimeout(() => {
+      toast.remove();
+    }, 300);
+  }, 3200);
+}
+
+function createPrizeImagePath(originalName = "image") {
+  const baseName = typeof originalName === "string" ? originalName : "image";
+  const extensionMatch = baseName.match(/\.([a-zA-Z0-9]+)$/);
+  const extension = extensionMatch ? `.${extensionMatch[1].toLowerCase()}` : "";
+  const stem = baseName
+    .replace(/\.[^/.]+$/, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  const safeStem = stem || "prize";
+  const randomPart =
+    typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+      ? crypto.randomUUID()
+      : Math.random().toString(36).slice(2, 10);
+  return `${Date.now()}-${randomPart}-${safeStem}${extension}`;
+}
+
+async function uploadPrizeImage(file) {
+  if (!file) {
+    throw new Error("No file selected");
+  }
+  if (!PRIZE_IMAGE_BUCKET) {
+    throw new Error("Storage bucket is not configured.");
+  }
+
+  const path = createPrizeImagePath(file.name);
+  const { error } = await supabase.storage
+    .from(PRIZE_IMAGE_BUCKET)
+    .upload(path, file, {
+      cacheControl: "3600",
+      upsert: false,
+      contentType: file.type || "application/octet-stream"
+    });
+
+  if (error) {
+    throw error;
+  }
+
+  const { data: publicData, error: publicError } = supabase.storage
+    .from(PRIZE_IMAGE_BUCKET)
+    .getPublicUrl(path);
+
+  if (publicError) {
+    throw publicError;
+  }
+
+  const publicUrl = publicData?.publicUrl;
+  if (!publicUrl) {
+    throw new Error("Unable to resolve uploaded image URL");
+  }
+
+  return publicUrl;
+}
+
+function showHandOutcomeToast(delta) {
+  if (!handToastContainer) return;
+
+  const value = Math.abs(delta);
+  const tone = delta > 0 ? "positive" : delta < 0 ? "negative" : "neutral";
+  const prefix = delta > 0 ? "+" : delta < 0 ? "−" : "±";
+  const message = `Hand Total ${prefix}${formatCurrency(value)}`;
+
+  handToastContainer.querySelectorAll(".hand-toast").forEach((node) => node.remove());
+
+  const toast = document.createElement("div");
+  toast.className = `hand-toast hand-toast-${tone}`;
+  toast.textContent = message;
+  handToastContainer.appendChild(toast);
+
+  requestAnimationFrame(() => {
+    toast.classList.add("visible");
+  });
+
+  const timeout = typeof window !== "undefined" ? window.setTimeout : setTimeout;
+  timeout(() => {
+    toast.classList.remove("visible");
+    timeout(() => {
+      toast.remove();
+    }, 260);
+  }, 2000);
+}
+
+function setViewVisibility(view, visible) {
+  if (!view) return;
+  if (visible) {
+    view.classList.add("active");
+    view.removeAttribute("hidden");
+  } else {
+    view.classList.remove("active");
+    view.setAttribute("hidden", "");
+  }
+}
+
+function hideAllRoutes() {
+  Object.values(routeViews).forEach((view) => setViewVisibility(view, false));
+}
+
+function updateAdminVisibility(user = currentUser) {
+  if (!adminNavButton) return;
+  if (isAdmin(user)) {
+    adminNavButton.removeAttribute("hidden");
+  } else {
+    adminNavButton.setAttribute("hidden", "");
+  }
+}
+
+function showAuthView(mode = "login") {
+  hideAllRoutes();
+  if (appShell) {
+    appShell.setAttribute("data-hidden", "true");
+  }
+  if (authView) {
+    setViewVisibility(authView, mode === "login");
+  }
+  if (signupView) {
+    setViewVisibility(signupView, mode === "signup");
+  }
+  if (mode === "login") {
+    if (authErrorEl) {
+      authErrorEl.hidden = true;
+      authErrorEl.textContent = "";
+    }
+    if (authSubmitButton) {
+      authSubmitButton.disabled = false;
+    }
+  } else if (mode === "signup") {
+    if (signupErrorEl) {
+      signupErrorEl.hidden = true;
+      signupErrorEl.textContent = "";
+    }
+    if (signupSubmitButton) {
+      signupSubmitButton.disabled = false;
+    }
+  }
+}
+
+function updateHash(route, { replace = false } = {}) {
+  if (typeof window === "undefined") return;
+  const hash = `#/${route}`;
+  suppressHash = true;
+  if (replace && typeof history !== "undefined" && history.replaceState) {
+    history.replaceState(null, "", hash);
+  } else {
+    window.location.hash = hash;
+  }
+  setTimeout(() => {
+    suppressHash = false;
+  }, 0);
+}
+
+async function setRoute(route, { replaceHash = false } = {}) {
+  let nextRoute = route ?? "home";
+  const isAuthRoute = AUTH_ROUTES.has(nextRoute);
+
+  if (!routeViews[nextRoute] && !isAuthRoute) {
+    nextRoute = "home";
+  }
+
+  if (!currentUser) {
+    try {
+      const {
+        data: { session }
+      } = await supabase.auth.getSession();
+      if (session?.user) {
+        currentUser = session.user;
+      }
+    } catch (error) {
+      console.error(error);
+    }
+  }
+
+  updateAdminVisibility(currentUser);
+
+  if (!currentUser) {
+    const authMode = nextRoute === "signup" ? "signup" : "auth";
+    showAuthView(authMode === "signup" ? "signup" : "login");
+    currentRoute = authMode;
+    updateHash(authMode, { replace: true });
+    return;
+  }
+
+  if (!isAuthRoute) {
+    await ensureProfileSynced({ force: !currentProfile });
+  }
+
+  if (!isAuthRoute && nextRoute === "admin" && !isAdmin()) {
+    showToast("Admin access only", "error");
+    nextRoute = "home";
+  }
+
+  hideAllRoutes();
+  if (authView) {
+    setViewVisibility(authView, false);
+  }
+  if (signupView) {
+    setViewVisibility(signupView, false);
+  }
+
+  let resolvedRoute = isAuthRoute ? "home" : nextRoute;
+  if (!routeViews[resolvedRoute]) {
+    resolvedRoute = "home";
+  }
+
+  const shouldShowAppShell = TABLE_ROUTES.has(resolvedRoute);
+  if (appShell) {
+    if (shouldShowAppShell) {
+      appShell.removeAttribute("data-hidden");
+    } else {
+      appShell.setAttribute("data-hidden", "true");
+    }
+  }
+
+  const targetView = routeViews[resolvedRoute];
+  if (targetView) {
+    setViewVisibility(targetView, true);
+  }
+
+  if (resolvedRoute === "play") {
+    schedulePlayAreaHeightUpdate();
+  } else {
+    clearPlayAreaHeight();
+  }
+
+  currentRoute = resolvedRoute;
+
+  if (isAuthRoute) {
+    updateHash(resolvedRoute, { replace: true });
+  } else if (!replaceHash) {
+    updateHash(resolvedRoute);
+  }
+
+  if (resolvedRoute === "home") {
+    await loadDashboard();
+  } else if (resolvedRoute === "store") {
+    await loadPrizeShop();
+  } else if (resolvedRoute === "admin") {
+    closeAdminForm({ resetFields: true, restoreFocus: false });
+    await loadAdminPrizeList(true);
+  }
+}
+
+function getRouteFromHash() {
+  if (typeof window === "undefined") return "home";
+  const hash = window.location.hash || "";
+  const match = hash.match(/#\/([\w-]+)/);
+  return match ? match[1] : "home";
+}
+
+function handleHashChange() {
+  if (suppressHash) return;
+  const route = getRouteFromHash();
+  setRoute(route, { replaceHash: true });
+}
+
+async function refreshCurrentUser() {
+  const { data, error } = await supabase.auth.getUser();
+  if (error) {
+    console.error(error);
+    currentUser = null;
+    await setRoute("auth", { replaceHash: true });
+    return null;
+  }
+  currentUser = data?.user ?? null;
+  if (!currentUser) {
+    await setRoute("auth", { replaceHash: true });
+  }
+  return currentUser;
+}
+
+async function waitForProfile(user, { interval = 1000, maxAttempts = 5, notify = false } = {}) {
+  if (!user) return null;
+  let notified = false;
+  for (let attempt = 0; maxAttempts === Infinity || attempt < maxAttempts; attempt++) {
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("*")
+      .eq("id", user.id)
+      .maybeSingle();
+
+    if (error && error.code !== "PGRST116") {
+      console.error(error);
+      showToast("Unable to load profile", "error");
+      return null;
+    }
+
+    if (data) {
+      return applyProfileCredits(data, { resetHistory: !bankrollInitialized });
+    }
+
+    if (!notified) {
+      notified = true;
+      if (notify) {
+        showToast("Setting up your account...", "info");
+      }
+      console.log("Waiting for profile creation by server trigger...");
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, interval));
+  }
+
+  return null;
+}
+
+async function ensureProfileSynced({ force = false } = {}) {
+  if (!currentUser) {
+    return null;
+  }
+
+  const now = Date.now();
+  if (!force && currentProfile && now - lastProfileSync < PROFILE_SYNC_INTERVAL) {
+    return currentProfile;
+  }
+
+  if (profileSyncPromise && !force) {
+    return profileSyncPromise;
+  }
+
+  const syncPromise = (async () => {
+    try {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("id", currentUser.id)
+        .maybeSingle();
+
+      if (error) {
+        throw error;
+      }
+
+      if (data) {
+        const applied = applyProfileCredits(data);
+        lastProfileSync = Date.now();
+        return applied;
+      }
+
+      return currentProfile;
+    } catch (error) {
+      console.error("Unable to sync profile", error);
+      return currentProfile;
+    } finally {
+      profileSyncPromise = null;
+    }
+  })();
+
+  profileSyncPromise = syncPromise;
+  return syncPromise;
+}
+
+async function handleAuthFormSubmit(event) {
+  event.preventDefault();
+  event.stopPropagation();
+  const form = event.currentTarget instanceof HTMLFormElement ? event.currentTarget : authForm;
+  if (!form) return;
+
+  const formData = new FormData(form);
+  const email = String(formData.get("email") ?? "").trim();
+  const password = String(formData.get("password") ?? "");
+
+  if (!email || !password) {
+    if (authErrorEl) {
+      authErrorEl.hidden = false;
+      authErrorEl.textContent = "Please enter your email and password.";
+    }
+    return;
+  }
+
+  if (authSubmitButton) {
+    authSubmitButton.disabled = true;
+  }
+  if (authErrorEl) {
+    authErrorEl.hidden = true;
+    authErrorEl.textContent = "";
+  }
+
+  try {
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password
+    });
+
+    if (error) {
+      const normalizedMessage = String(error.message || "").toLowerCase();
+
+      if (normalizedMessage.includes("email not confirmed")) {
+        const message = "Email not confirmed. Please check your inbox, then sign in again.";
+        showToast(message, "info");
+        if (authErrorEl) {
+          authErrorEl.hidden = false;
+          authErrorEl.textContent = message;
+        }
+        return;
+      }
+
+      if (
+        error?.status === 400 ||
+        normalizedMessage.includes("invalid login credentials") ||
+        normalizedMessage.includes("invalid login")
+      ) {
+        const message = "Invalid email or password. Please try again.";
+        showToast(message, "error");
+        if (authErrorEl) {
+          authErrorEl.hidden = false;
+          authErrorEl.textContent = message;
+        }
+        return;
+      }
+
+      throw error;
+    }
+
+    if (data?.user) {
+      currentUser = data.user;
+    } else {
+      const {
+        data: { user }
+      } = await supabase.auth.getUser();
+      if (user) {
+        currentUser = user;
+      }
+    }
+
+    if (!currentUser) {
+      const message = "Signed in, but unable to load your session. Please try again.";
+      showToast(message, "error");
+      if (authErrorEl) {
+        authErrorEl.hidden = false;
+        authErrorEl.textContent = message;
+      }
+      return;
+    }
+
+    showToast("Signed in", "success");
+    await setRoute("home");
+  } catch (error) {
+    console.error(error);
+    const message = error?.message || "Authentication failed";
+    showToast(message, "error");
+    if (authErrorEl) {
+      authErrorEl.hidden = false;
+      authErrorEl.textContent = message;
+    }
+  } finally {
+    if (authSubmitButton) {
+      authSubmitButton.disabled = false;
+    }
+  }
+}
+
+async function handleSignUpFormSubmit(event) {
+  event.preventDefault();
+  event.stopPropagation();
+
+  const form = event.currentTarget instanceof HTMLFormElement ? event.currentTarget : signupForm;
+  if (!form || !signupSubmitButton) {
+    return;
+  }
+
+  const formData = new FormData(form);
+  const firstName = String(formData.get("firstName") ?? "").trim();
+  const lastName = String(formData.get("lastName") ?? "").trim();
+  const email = String(formData.get("email") ?? "").trim();
+  const password = String(formData.get("password") ?? "");
+  const confirmPassword = String(formData.get("confirmPassword") ?? "");
+
+  if (!firstName || !lastName || !email || !password || !confirmPassword) {
+    const message = "Please complete all fields.";
+    if (signupErrorEl) {
+      signupErrorEl.hidden = false;
+      signupErrorEl.textContent = message;
+    }
+    return;
+  }
+
+  if (password !== confirmPassword) {
+    const message = "Passwords do not match.";
+    if (signupErrorEl) {
+      signupErrorEl.hidden = false;
+      signupErrorEl.textContent = message;
+    }
+    return;
+  }
+
+  signupSubmitButton.disabled = true;
+  if (signupErrorEl) {
+    signupErrorEl.hidden = true;
+    signupErrorEl.textContent = "";
+  }
+
+  try {
+    const { error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: {
+          first_name: firstName,
+          last_name: lastName
+        }
+      }
+    });
+
+    if (error) {
+      throw error;
+    }
+
+    showToast("Account created. Check your email to confirm, then sign in.", "info");
+    if (signupForm) {
+      signupForm.reset();
+    }
+    if (authEmailInput) {
+      authEmailInput.value = email;
+    }
+    await setRoute("auth", { replaceHash: true });
+  } catch (error) {
+    console.error(error);
+    const message = error?.message || "Unable to create account";
+    showToast(message, "error");
+    if (signupErrorEl) {
+      signupErrorEl.hidden = false;
+      signupErrorEl.textContent = message;
+    }
+  } finally {
+    signupSubmitButton.disabled = false;
+  }
+}
+
+async function resolvePurchaseRecord(prize, rpcResult) {
+  if (!currentUser) {
+    return null;
+  }
+
+  const unwrap = (value) => {
+    if (!value) return null;
+    if (Array.isArray(value)) {
+      return value[0] ?? null;
+    }
+    return value;
+  };
+
+  const candidate = unwrap(rpcResult);
+  if (candidate && typeof candidate === "object") {
+    if (candidate.id) {
+      return candidate;
+    }
+    if (candidate.purchase_id) {
+      return { ...candidate, id: candidate.purchase_id };
+    }
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from("prize_purchases")
+      .select("id, prize_id, user_id, shipping_address, shipping_phone, created_at")
+      .eq("user_id", currentUser.id)
+      .eq("prize_id", prize.id)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (error) {
+      console.error("Unable to resolve purchase record", error);
+      return null;
+    }
+
+    return data ?? null;
+  } catch (error) {
+    console.error("Unable to resolve purchase record", error);
+    return null;
+  }
+}
+
+function openShippingModalForPurchase(purchase, prize) {
+  if (!shippingModal || !purchase?.id) {
+    return;
+  }
+
+  activeShippingPurchase = {
+    id: purchase.id,
+    prize,
+    record: purchase
+  };
+
+  const currencyKey = (prize?.cost_currency ?? "units").toLowerCase();
+  const currencyDetails = PRIZE_CURRENCIES[currencyKey] ?? PRIZE_CURRENCIES.units;
+  const formattedCost = formatCurrency(Math.max(0, Math.round(Number(prize?.cost ?? 0))));
+
+  if (shippingSummaryEl) {
+    shippingSummaryEl.textContent = `${prize?.name ?? "Prize"} · ${formattedCost} ${currencyDetails.label}`;
+  }
+
+  if (shippingForm) {
+    shippingForm.reset();
+  }
+
+  shippingModalTrigger = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+  shippingModal.hidden = false;
+  shippingModal.classList.add("is-open");
+  shippingModal.setAttribute("aria-hidden", "false");
+  document.body.classList.add("modal-open");
+  if (shippingPhoneInput) {
+    shippingPhoneInput.focus();
+  }
+}
+
+function closeShippingModal({ restoreFocus = false } = {}) {
+  if (!shippingModal) {
+    return;
+  }
+
+  shippingModal.classList.remove("is-open");
+  shippingModal.setAttribute("aria-hidden", "true");
+  shippingModal.hidden = true;
+  activeShippingPurchase = null;
+
+  if (
+    (!resetModal || resetModal.hidden) &&
+    (!paytableModal || paytableModal.hidden) &&
+    (!adminPrizeModal || adminPrizeModal.hidden) &&
+    (!prizeImageModal || prizeImageModal.hidden)
+  ) {
+    document.body.classList.remove("modal-open");
+  }
+
+  if (restoreFocus && shippingModalTrigger instanceof HTMLElement) {
+    shippingModalTrigger.focus();
+  }
+  shippingModalTrigger = null;
+}
+
+function openPrizeImageModal(prize) {
+  if (!prizeImageModal || !prizeImagePreview) {
+    return;
+  }
+
+  const imageUrl = typeof prize?.image_url === "string" ? prize.image_url.trim() : "";
+  if (!imageUrl) {
+    return;
+  }
+
+  const name = prize?.name ? String(prize.name).trim() : "Prize image";
+  prizeImageTrigger =
+    document.activeElement instanceof HTMLElement ? document.activeElement : null;
+  prizeImagePreview.src = imageUrl;
+  prizeImagePreview.alt = `${name} preview`;
+  if (prizeImageCaption) {
+    const costValue = Math.max(0, Math.round(Number(prize?.cost ?? 0)));
+    const currencyKey = (prize?.cost_currency ?? "units").toString().toLowerCase();
+    const currencyDetails = PRIZE_CURRENCIES[currencyKey] ?? PRIZE_CURRENCIES.units;
+    const details = [];
+    if (name) {
+      details.push(name);
+    }
+    if (costValue > 0) {
+      details.push(`${formatCurrency(costValue)} ${currencyDetails.label}`);
+    }
+    if (prize?.description) {
+      details.push(String(prize.description));
+    }
+    prizeImageCaption.textContent = details.join(" · ");
+  }
+
+  prizeImageModal.hidden = false;
+  prizeImageModal.classList.add("is-open");
+  prizeImageModal.setAttribute("aria-hidden", "false");
+  document.body.classList.add("modal-open");
+  prizeImageCloseButton?.focus();
+}
+
+function closePrizeImageModal({ restoreFocus = false } = {}) {
+  if (!prizeImageModal) {
+    return;
+  }
+
+  prizeImageModal.classList.remove("is-open");
+  prizeImageModal.setAttribute("aria-hidden", "true");
+  prizeImageModal.hidden = true;
+  if (prizeImagePreview) {
+    prizeImagePreview.src = "";
+    prizeImagePreview.alt = "";
+  }
+  if (prizeImageCaption) {
+    prizeImageCaption.textContent = "";
+  }
+
+  if (
+    (!resetModal || resetModal.hidden) &&
+    (!shippingModal || shippingModal.hidden) &&
+    (!paytableModal || paytableModal.hidden) &&
+    (!adminPrizeModal || adminPrizeModal.hidden) &&
+    (!prizeImageModal || prizeImageModal.hidden)
+  ) {
+    document.body.classList.remove("modal-open");
+  }
+
+  const focusTarget =
+    restoreFocus && prizeImageTrigger instanceof HTMLElement ? prizeImageTrigger : null;
+  prizeImageTrigger = null;
+  focusTarget?.focus();
+}
+
+async function notifyAdminPurchase({ purchase, prize, shipping }) {
+  if (!currentUser) {
+    return;
+  }
+
+  const payload = {
+    adminEmail: ADMIN_EMAIL,
+    user: {
+      id: currentUser.id,
+      email: currentUser.email,
+      first_name: currentProfile?.first_name ?? null,
+      last_name: currentProfile?.last_name ?? null
+    },
+    prize: {
+      id: prize?.id ?? null,
+      name: prize?.name ?? null,
+      description: prize?.description ?? null,
+      cost: prize?.cost ?? null,
+      currency: prize?.cost_currency ?? "units"
+    },
+    purchase: {
+      id: purchase?.id ?? null,
+      user_id: purchase?.user_id ?? currentUser.id,
+      created_at: purchase?.created_at ?? null
+    },
+    balances: {
+      units: bankroll,
+      carter_cash: carterCash
+    },
+    shipping
+  };
+
+  try {
+    const { error } = await supabase.functions.invoke("send_admin_purchase_email", {
+      body: payload
+    });
+    if (error) {
+      throw error;
+    }
+  } catch (error) {
+    console.error("Unable to notify admin", error);
+  }
+}
+
+async function handleShippingSubmit(event) {
+  event.preventDefault();
+  if (!shippingForm) return;
+
+  if (!activeShippingPurchase?.id) {
+    closeShippingModal({ restoreFocus: true });
+    return;
+  }
+
+  const phone = shippingPhoneInput ? shippingPhoneInput.value.trim() : "";
+  const address = shippingAddressInput ? shippingAddressInput.value.trim() : "";
+
+  if (!phone || !address) {
+    showToast("Please provide both a phone number and shipping address.", "error");
+    return;
+  }
+
+  if (shippingSubmitButton) {
+    shippingSubmitButton.disabled = true;
+  }
+
+  try {
+    const { error } = await supabase
+      .from("prize_purchases")
+      .update({ shipping_phone: phone, shipping_address: address })
+      .eq("id", activeShippingPurchase.id);
+
+    if (error) {
+      throw error;
+    }
+
+    const purchasePayload = activeShippingPurchase.record
+      ? { ...activeShippingPurchase.record }
+      : { id: activeShippingPurchase.id, user_id: currentUser?.id ?? null };
+
+    await notifyAdminPurchase({
+      purchase: purchasePayload,
+      prize: activeShippingPurchase.prize,
+      shipping: { phone, address }
+    });
+
+    showToast("Shipping details saved!", "success");
+    closeShippingModal({ restoreFocus: true });
+  } catch (error) {
+    console.error(error);
+    showToast(error?.message || "Unable to save shipping details", "error");
+  } finally {
+    if (shippingSubmitButton) {
+      shippingSubmitButton.disabled = false;
+    }
+  }
+}
+
+async function loadDashboard(force = false) {
+  const {
+    data: { user }
+  } = await supabase.auth.getUser();
+  if (!user) {
+    await setRoute("auth", { replaceHash: true });
+    return;
+  }
+  currentUser = user;
+  if (dashboardLoaded && !force) {
+    if (dashboardEmailEl) {
+      dashboardEmailEl.textContent = currentUser.email || "";
+    }
+    if (currentProfile) {
+      updateDashboardCreditsDisplay(currentProfile.credits ?? 0);
+      updateDashboardCarterDisplay(currentProfile.carter_cash ?? 0);
+    }
+    return;
+  }
+  dashboardLoaded = true;
+  if (dashboardEmailEl) {
+    dashboardEmailEl.textContent = currentUser.email || "";
+  }
+  let resolvedProfile = currentProfile;
+  if (!resolvedProfile || force) {
+    resolvedProfile = await waitForProfile(currentUser, {
+      interval: 1000,
+      maxAttempts: 5,
+      notify: false
+    });
+  }
+
+  if (resolvedProfile) {
+    currentProfile = resolvedProfile;
+    lastProfileSync = Date.now();
+    if (dashboardProfileRetryTimer) {
+      clearTimeout(dashboardProfileRetryTimer);
+      dashboardProfileRetryTimer = null;
+    }
+    updateDashboardCreditsDisplay(resolvedProfile.credits ?? 0);
+    updateDashboardCarterDisplay(resolvedProfile.carter_cash ?? 0);
+  } else if (dashboardCreditsEl) {
+    dashboardCreditsEl.textContent = "Setting up your account...";
+    updateDashboardCarterDisplay("–");
+    if (!dashboardProfileRetryTimer) {
+      dashboardProfileRetryTimer = setTimeout(() => {
+        dashboardProfileRetryTimer = null;
+        loadDashboard(true);
+      }, 1000);
+    }
+  }
+  const { data: runs, error: runsError } = await supabase
+    .from("game_runs")
+    .select("*")
+    .eq("user_id", currentUser.id)
+    .order("created_at", { ascending: false })
+    .limit(10);
+  if (runsError) {
+    console.error(runsError);
+    showToast("Unable to load game runs", "error");
+  } else if (dashboardRunsEl) {
+    dashboardRunsEl.innerHTML = "";
+    if (runs.length === 0) {
+      const empty = document.createElement("li");
+      empty.textContent = "No game runs recorded yet.";
+      dashboardRunsEl.appendChild(empty);
+    } else {
+      runs.forEach((run) => {
+        const item = document.createElement("li");
+        const date = run.created_at ? new Date(run.created_at).toLocaleString() : "";
+        item.innerHTML = `<span class="run-score">Score: ${run.score}</span><span class="run-date">${date}</span>`;
+        dashboardRunsEl.appendChild(item);
+      });
+    }
+  }
+}
+
+function renderPrize(prize) {
+  const item = document.createElement("li");
+  item.className = "admin-prize-item store-prize-item";
+  item.dataset.id = prize?.id ?? "";
+
+  const main = document.createElement("div");
+  main.className = "admin-prize-main";
+
+  const thumbWrap = document.createElement("div");
+  thumbWrap.className = "admin-prize-thumb";
+  const imageUrl = typeof prize?.image_url === "string" ? prize.image_url.trim() : "";
+  if (imageUrl) {
+    const img = document.createElement("img");
+    img.src = imageUrl;
+    img.alt = prize?.name ? `${prize.name} preview` : "Prize image";
+    thumbWrap.appendChild(img);
+    thumbWrap.setAttribute("role", "button");
+    thumbWrap.setAttribute(
+      "aria-label",
+      prize?.name ? `View larger image of ${prize.name}` : "View larger prize image"
+    );
+    thumbWrap.tabIndex = 0;
+    const handlePreview = () => openPrizeImageModal(prize);
+    thumbWrap.addEventListener("click", handlePreview);
+    thumbWrap.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        handlePreview();
+      }
+    });
+  } else {
+    const placeholder = document.createElement("span");
+    placeholder.className = "admin-prize-thumb-placeholder";
+    placeholder.textContent = "No image";
+    thumbWrap.appendChild(placeholder);
+  }
+
+  const info = document.createElement("div");
+  info.className = "admin-prize-info";
+
+  const nameEl = document.createElement("h3");
+  nameEl.className = "admin-prize-name";
+  nameEl.textContent = prize?.name ?? "Prize";
+  info.appendChild(nameEl);
+
+  if (prize?.description) {
+    const descEl = document.createElement("p");
+    descEl.className = "admin-prize-description";
+    descEl.textContent = prize.description;
+    info.appendChild(descEl);
+  }
+
+  const currencyKey = (prize?.cost_currency ?? "units").toString().toLowerCase();
+  const currencyDetails = PRIZE_CURRENCIES[currencyKey] ?? PRIZE_CURRENCIES.units;
+  const costValue = Math.max(0, Math.round(Number(prize?.cost ?? 0)));
+  const formattedCost = formatCurrency(costValue);
+
+  const meta = document.createElement("div");
+  meta.className = "admin-prize-meta store-prize-meta";
+  meta.textContent = `${formattedCost} ${currencyDetails.label}`;
+  info.appendChild(meta);
+
+  main.append(thumbWrap, info);
+  item.appendChild(main);
+
+  const controls = document.createElement("div");
+  controls.className = "store-prize-controls";
+
+  const priceEl = document.createElement("span");
+  priceEl.className = "store-prize-price";
+  priceEl.textContent = `${formattedCost} ${currencyDetails.label}`;
+  controls.appendChild(priceEl);
+
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "primary store-prize-button";
+
+  const isActive = prize?.active !== false;
+  if (isActive) {
+    button.textContent = "Redeem";
+    button.addEventListener("click", () => handlePurchase(prize, button));
+  } else {
+    button.textContent = "Sold";
+    button.disabled = true;
+    item.classList.add("is-sold");
+  }
+
+  controls.appendChild(button);
+  item.appendChild(controls);
+
+  if (!isActive) {
+    const soldBadge = document.createElement("span");
+    soldBadge.className = "store-prize-badge";
+    soldBadge.textContent = "Sold";
+    item.appendChild(soldBadge);
+  }
+
+  return item;
+}
+
+async function loadPrizeShop(force = false) {
+  const {
+    data: { user }
+  } = await supabase.auth.getUser();
+  if (!user) {
+    await setRoute("auth", { replaceHash: true });
+    return;
+  }
+  currentUser = user;
+  await ensureProfileSynced({ force: force || !currentProfile });
+  if (prizesLoaded && !force) return;
+  prizesLoaded = true;
+  if (!prizeListEl) return;
+  prizeListEl.innerHTML = "";
+  const loadingItem = document.createElement("li");
+  loadingItem.className = "admin-prize-empty";
+  loadingItem.textContent = "Loading prizes...";
+  prizeListEl.appendChild(loadingItem);
+  const { data: prizes, error } = await supabase
+    .from("prizes")
+    .select("*")
+    .order("active", { ascending: false })
+    .order("cost", { ascending: true });
+  if (error) {
+    console.error(error);
+    prizeListEl.innerHTML = "";
+    const errorItem = document.createElement("li");
+    errorItem.className = "admin-prize-empty";
+    errorItem.textContent = "Unable to load prizes.";
+    prizeListEl.appendChild(errorItem);
+    showToast("Unable to load prizes", "error");
+    return;
+  }
+  prizeListEl.innerHTML = "";
+  if (!prizes || prizes.length === 0) {
+    const empty = document.createElement("li");
+    empty.className = "admin-prize-empty";
+    empty.textContent = "No prizes are available right now. Check back soon.";
+    prizeListEl.appendChild(empty);
+    return;
+  }
+
+  prizes.forEach((prize) => {
+    prizeListEl.appendChild(renderPrize(prize));
+  });
+}
+
+async function handlePurchase(prize, button) {
+  if (!currentUser) {
+    showToast("Please sign in first", "error");
+    return;
+  }
+  if (!prize || !prize.id) {
+    showToast("Unable to identify prize", "error");
+    return;
+  }
+
+  const currencyKey = (prize.cost_currency ?? "units").toLowerCase();
+  const currencyDetails = PRIZE_CURRENCIES[currencyKey] ?? PRIZE_CURRENCIES.units;
+  const costValue = Math.max(0, Math.round(Number(prize.cost ?? 0)));
+  const available = currencyDetails.key === "carter_cash" ? carterCash : bankroll;
+
+  if (costValue > available) {
+    showToast(
+      `Not enough ${currencyDetails.label} to purchase ${prize.name}.`,
+      "error"
+    );
+    return;
+  }
+
+  if (prize.active === false) {
+    showToast("This prize has already been sold.", "error");
+    return;
+  }
+
+  if (button) {
+    button.disabled = true;
+  }
+  try {
+    const { data, error } = await supabase.rpc("purchase_prize", { _prize_id: prize.id });
+    if (error) {
+      throw error;
+    }
+
+    if (currencyDetails.key === "carter_cash") {
+      deductCarterCash(costValue);
+    } else {
+      bankroll = Math.max(0, bankroll - costValue);
+      handleBankrollChanged();
+    }
+
+    await persistBankroll();
+    await ensureProfileSynced({ force: true });
+
+    showToast(`Purchased ${prize.name}!`, "success");
+    prizesLoaded = false;
+    dashboardLoaded = false;
+    const purchaseRecord = await resolvePurchaseRecord(prize, data);
+    await loadDashboard(true);
+    await loadPrizeShop(true);
+    if (purchaseRecord) {
+      openShippingModalForPurchase(purchaseRecord, prize);
+    } else {
+      showToast("Purchase recorded. Please contact support to provide shipping details.", "warning");
+    }
+  } catch (error) {
+    console.error(error);
+    showToast(error?.message || "Unable to purchase prize", "error");
+  } finally {
+    if (button) {
+      button.disabled = false;
+    }
+  }
+}
+
+async function handlePrizeImageSelection(event) {
+  const input = event?.currentTarget;
+  if (!(input instanceof HTMLInputElement)) {
+    return;
+  }
+
+  const file = input.files?.[0];
+  if (!file) {
+    return;
+  }
+
+  if (!isAdmin()) {
+    showToast("Admin access only", "error");
+    input.value = "";
+    return;
+  }
+
+  if (adminPrizeMessage) {
+    adminPrizeMessage.textContent = "Uploading image...";
+  }
+
+  input.disabled = true;
+
+  try {
+    const publicUrl = await uploadPrizeImage(file);
+    if (adminPrizeImageUrlInput) {
+      adminPrizeImageUrlInput.value = publicUrl;
+      adminPrizeImageUrlInput.dispatchEvent(new Event("input", { bubbles: true }));
+    }
+    showToast("Image uploaded", "success");
+    if (adminPrizeMessage) {
+      adminPrizeMessage.textContent = "Image uploaded. Review details and create the prize.";
+    }
+  } catch (error) {
+    console.error(error);
+    const message = error?.message || "Unable to upload image";
+    showToast(message, "error");
+    if (adminPrizeMessage) {
+      adminPrizeMessage.textContent = `Image upload failed: ${message}`;
+    }
+  } finally {
+    input.disabled = false;
+    input.value = "";
+  }
+}
+
+async function handleAdminPrizeSubmit(event) {
+  event.preventDefault();
+  if (!adminPrizeForm) return;
+
+  if (!isAdmin()) {
+    showToast("Admin access only", "error");
+    return;
+  }
+
+  if (adminPrizeMessage) {
+    adminPrizeMessage.textContent = "";
+  }
+
+  const formData = new FormData(adminPrizeForm);
+  const name = String(formData.get("name") ?? "").trim();
+  const descriptionRaw = formData.get("description");
+  const description = descriptionRaw ? String(descriptionRaw).trim() : null;
+  const imageUrlRaw = formData.get("imageUrl");
+  const imageUrl = imageUrlRaw ? String(imageUrlRaw).trim() : "";
+  const costValue = Number(formData.get("cost"));
+  const active = formData.get("active") === "on";
+  const currencyRaw = formData.get("currency");
+  const currencyKey = typeof currencyRaw === "string" ? currencyRaw.toLowerCase() : "units";
+  const currencyDetails = PRIZE_CURRENCIES[currencyKey];
+  const isEdit = Boolean(adminEditingPrizeId);
+
+  if (!name) {
+    showToast("Name is required", "error");
+    if (adminPrizeMessage) {
+      adminPrizeMessage.textContent = "Please provide a name.";
+    }
+    return;
+  }
+
+  if (!Number.isFinite(costValue) || costValue < 0) {
+    showToast("Enter a valid cost", "error");
+    if (adminPrizeMessage) {
+      adminPrizeMessage.textContent = "Enter a non-negative cost.";
+    }
+    return;
+  }
+
+  if (!currencyDetails) {
+    showToast("Select a valid currency", "error");
+    if (adminPrizeMessage) {
+      adminPrizeMessage.textContent = "Choose a valid cost currency.";
+    }
+    return;
+  }
+
+  const payload = {
+    name,
+    description: description || null,
+    cost: Math.round(costValue),
+    active,
+    cost_currency: currencyDetails.key,
+    image_url: imageUrl ? imageUrl : null
+  };
+
+  const submitButton = adminSaveButton || adminPrizeForm.querySelector('button[type="submit"]');
+  if (submitButton) {
+    submitButton.disabled = true;
+  }
+
+  try {
+    if (isEdit && !adminEditingPrizeId) {
+      throw new Error("Missing prize identifier for edit");
+    }
+
+    if (isEdit) {
+      const { error } = await supabase
+        .from("prizes")
+        .update(payload)
+        .eq("id", adminEditingPrizeId);
+      if (error) {
+        throw error;
+      }
+      showToast("Prize updated", "success");
+    } else {
+      const { error } = await supabase.from("prizes").insert(payload);
+      if (error) {
+        throw error;
+      }
+      showToast("Prize created", "success");
+    }
+
+    adminPrizesLoaded = false;
+    prizesLoaded = false;
+    await loadAdminPrizeList(true);
+    await loadPrizeShop(true);
+    closeAdminForm({ resetFields: true, restoreFocus: true });
+  } catch (error) {
+    console.error(error);
+    const fallbackMessage = isEdit ? "Unable to update prize" : "Unable to create prize";
+    const message = error?.message || fallbackMessage;
+    showToast(message, "error");
+    if (adminPrizeMessage) {
+      adminPrizeMessage.textContent = `Error: ${message}`;
+    }
+  } finally {
+    if (submitButton) {
+      submitButton.disabled = false;
+    }
+  }
+}
+
+function applyAdminFormDefaults() {
+  if (!adminPrizeForm) return;
+  const activeInput = adminPrizeForm.querySelector('input[name="active"]');
+  if (activeInput) {
+    activeInput.checked = true;
+  }
+  const currencySelect = adminPrizeForm.querySelector('select[name="currency"]');
+  if (currencySelect) {
+    currencySelect.value = "units";
+  }
+  if (adminPrizeImageFileInput) {
+    adminPrizeImageFileInput.value = "";
+  }
+}
+
+function closeAdminForm({ resetFields = true, restoreFocus = false } = {}) {
+  if (resetFields && adminPrizeForm) {
+    adminPrizeForm.reset();
+    applyAdminFormDefaults();
+  }
+  adminEditingPrizeId = null;
+  if (adminPrizeMessage) {
+    adminPrizeMessage.textContent = "";
+  }
+  if (adminSaveButton) {
+    adminSaveButton.textContent = "Create listing";
+  }
+  if (adminModalTitle) {
+    adminModalTitle.textContent = "Create listing";
+  }
+  if (adminPrizeModal) {
+    adminPrizeModal.classList.remove("is-open");
+    adminPrizeModal.setAttribute("aria-hidden", "true");
+    adminPrizeModal.hidden = true;
+  }
+  if (
+    (!shippingModal || shippingModal.hidden) &&
+    (!resetModal || resetModal.hidden) &&
+    (!paytableModal || paytableModal.hidden) &&
+    (!prizeImageModal || prizeImageModal.hidden)
+  ) {
+    document.body.classList.remove("modal-open");
+  }
+  const focusTarget = restoreFocus
+    ? adminModalTrigger instanceof HTMLElement
+      ? adminModalTrigger
+      : adminAddButton
+    : null;
+  adminModalTrigger = null;
+  focusTarget?.focus();
+}
+
+function openAdminModal() {
+  if (!adminPrizeModal) {
+    return;
+  }
+  adminModalTrigger = document.activeElement instanceof HTMLElement ? document.activeElement : adminAddButton;
+  if (!adminPrizeModal.hidden) {
+    return;
+  }
+  adminPrizeModal.hidden = false;
+  adminPrizeModal.classList.add("is-open");
+  adminPrizeModal.setAttribute("aria-hidden", "false");
+  document.body.classList.add("modal-open");
+}
+
+function openAdminCreateForm() {
+  if (!isAdmin()) {
+    showToast("Admin access only", "error");
+    return;
+  }
+  adminEditingPrizeId = null;
+  if (adminPrizeForm) {
+    adminPrizeForm.reset();
+  }
+  applyAdminFormDefaults();
+  if (adminPrizeMessage) {
+    adminPrizeMessage.textContent = "";
+  }
+  if (adminSaveButton) {
+    adminSaveButton.textContent = "Create listing";
+  }
+  if (adminModalTitle) {
+    adminModalTitle.textContent = "Create listing";
+  }
+  openAdminModal();
+  const nameInput = adminPrizeForm?.querySelector('input[name="name"]');
+  nameInput?.focus();
+}
+
+function openAdminEditForm(prize) {
+  if (!isAdmin()) {
+    showToast("Admin access only", "error");
+    return;
+  }
+  if (!prize || !prize.id) {
+    showToast("Unable to edit prize", "error");
+    return;
+  }
+  adminEditingPrizeId = prize.id;
+  if (adminPrizeForm) {
+    adminPrizeForm.reset();
+  }
+  const nameInput = adminPrizeForm?.querySelector('input[name="name"]');
+  if (nameInput) {
+    nameInput.value = prize.name ?? "";
+  }
+  const descriptionInput = adminPrizeForm?.querySelector('textarea[name="description"]');
+  if (descriptionInput) {
+    descriptionInput.value = prize.description ?? "";
+  }
+  const imageUrlInput = adminPrizeForm?.querySelector('input[name="imageUrl"]');
+  if (imageUrlInput) {
+    imageUrlInput.value = prize.image_url ?? "";
+  }
+  const costInput = adminPrizeForm?.querySelector('input[name="cost"]');
+  if (costInput) {
+    const numericCost = Number.isFinite(Number(prize.cost)) ? Math.round(Number(prize.cost)) : 0;
+    costInput.value = String(numericCost);
+  }
+  const currencySelect = adminPrizeForm?.querySelector('select[name="currency"]');
+  if (currencySelect) {
+    const currencyValue = (prize.cost_currency ?? "units").toString().toLowerCase();
+    currencySelect.value = PRIZE_CURRENCIES[currencyValue] ? currencyValue : "units";
+  }
+  const activeInput = adminPrizeForm?.querySelector('input[name="active"]');
+  if (activeInput) {
+    activeInput.checked = prize.active !== false;
+  }
+  if (adminPrizeMessage) {
+    adminPrizeMessage.textContent = "";
+  }
+  if (adminSaveButton) {
+    adminSaveButton.textContent = "Save changes";
+  }
+  if (adminModalTitle) {
+    adminModalTitle.textContent = "Edit listing";
+  }
+  openAdminModal();
+  nameInput?.focus();
+}
+
+function setAdminStatusLabel(label, active) {
+  if (!label) return;
+  label.textContent = active ? "Active" : "Inactive";
+  label.classList.toggle("admin-status-label--inactive", !active);
+}
+
+async function handleAdminStatusChange(prize, toggle, label) {
+  if (!prize?.id || !toggle) return;
+  const desired = toggle.checked;
+  toggle.disabled = true;
+  try {
+    const { error } = await supabase
+      .from("prizes")
+      .update({ active: desired })
+      .eq("id", prize.id);
+    if (error) {
+      throw error;
+    }
+    setAdminStatusLabel(label, desired);
+    const cached = adminPrizeCache.find((entry) => entry.id === prize.id);
+    if (cached) {
+      cached.active = desired;
+    }
+    showToast(
+      desired ? `Marked ${prize.name || "prize"} active.` : `Marked ${prize.name || "prize"} inactive.`,
+      "success"
+    );
+    prizesLoaded = false;
+    await loadPrizeShop(true);
+  } catch (error) {
+    console.error(error);
+    const message = error?.message || "Unable to update prize status";
+    showToast(message, "error");
+    toggle.checked = !desired;
+    setAdminStatusLabel(label, toggle.checked);
+  } finally {
+    toggle.disabled = false;
+  }
+}
+
+async function handleAdminDelete(prize) {
+  if (!isAdmin()) {
+    showToast("Admin access only", "error");
+    return;
+  }
+  if (!prize?.id) {
+    showToast("Unable to delete prize", "error");
+    return;
+  }
+  if (typeof window !== "undefined") {
+    const confirmed = window.confirm(`Delete ${prize.name || "this prize"}?`);
+    if (!confirmed) {
+      return;
+    }
+  }
+  try {
+    const { error } = await supabase.from("prizes").delete().eq("id", prize.id);
+    if (error) {
+      throw error;
+    }
+    showToast("Prize deleted", "success");
+    adminPrizeCache = adminPrizeCache.filter((entry) => entry.id !== prize.id);
+    if (adminEditingPrizeId === prize.id) {
+      closeAdminForm({ resetFields: true, restoreFocus: false });
+    }
+    adminPrizesLoaded = false;
+    prizesLoaded = false;
+    await loadAdminPrizeList(true);
+    await loadPrizeShop(true);
+  } catch (error) {
+    console.error(error);
+    const message = error?.message || "Unable to delete prize";
+    showToast(message, "error");
+  }
+}
+
+function renderAdminPrizeRow(prize) {
+  const item = document.createElement("li");
+  item.className = "admin-prize-item";
+  item.dataset.id = prize?.id ?? "";
+
+  const main = document.createElement("div");
+  main.className = "admin-prize-main";
+
+  const thumbWrap = document.createElement("div");
+  thumbWrap.className = "admin-prize-thumb";
+  const imageUrl = typeof prize?.image_url === "string" ? prize.image_url.trim() : "";
+  if (imageUrl) {
+    const img = document.createElement("img");
+    img.src = imageUrl;
+    img.alt = prize?.name ? `${prize.name} preview` : "Prize image";
+    thumbWrap.appendChild(img);
+    thumbWrap.setAttribute("role", "button");
+    thumbWrap.setAttribute(
+      "aria-label",
+      prize?.name ? `View larger image of ${prize.name}` : "View larger prize image"
+    );
+    thumbWrap.tabIndex = 0;
+    const handlePreview = () => openPrizeImageModal(prize);
+    thumbWrap.addEventListener("click", handlePreview);
+    thumbWrap.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        handlePreview();
+      }
+    });
+  } else {
+    const placeholder = document.createElement("span");
+    placeholder.className = "admin-prize-thumb-placeholder";
+    placeholder.textContent = "No image";
+    thumbWrap.appendChild(placeholder);
+  }
+
+  const info = document.createElement("div");
+  info.className = "admin-prize-info";
+
+  const nameEl = document.createElement("h3");
+  nameEl.className = "admin-prize-name";
+  nameEl.textContent = prize?.name ?? "Prize";
+  info.appendChild(nameEl);
+
+  if (prize?.description) {
+    const descEl = document.createElement("p");
+    descEl.className = "admin-prize-description";
+    descEl.textContent = prize.description;
+    info.appendChild(descEl);
+  }
+
+  const meta = document.createElement("div");
+  meta.className = "admin-prize-meta";
+  const costValue = Math.max(0, Math.round(Number(prize?.cost ?? 0)));
+  const currencyKey = (prize?.cost_currency ?? "units").toString().toLowerCase();
+  const currencyDetails = PRIZE_CURRENCIES[currencyKey] ?? PRIZE_CURRENCIES.units;
+  const costEl = document.createElement("span");
+  costEl.className = "admin-prize-cost";
+  costEl.textContent = `${formatCurrency(costValue)} ${currencyDetails.label}`;
+  meta.appendChild(costEl);
+  info.appendChild(meta);
+
+  main.append(thumbWrap, info);
+
+  const controls = document.createElement("div");
+  controls.className = "admin-prize-controls";
+
+  const statusWrap = document.createElement("label");
+  statusWrap.className = "admin-status-toggle";
+  const statusInput = document.createElement("input");
+  statusInput.type = "checkbox";
+  statusInput.className = "admin-status-input";
+  const isActive = prize?.active !== false;
+  statusInput.checked = isActive;
+  const statusLabel = document.createElement("span");
+  statusLabel.className = "admin-status-label";
+  setAdminStatusLabel(statusLabel, isActive);
+  statusInput.addEventListener("change", () => handleAdminStatusChange(prize, statusInput, statusLabel));
+  statusWrap.append(statusInput, statusLabel);
+
+  const buttonRow = document.createElement("div");
+  buttonRow.className = "admin-prize-buttons";
+  const editButton = document.createElement("button");
+  editButton.type = "button";
+  editButton.className = "secondary admin-prize-edit";
+  editButton.textContent = "Edit";
+  editButton.addEventListener("click", () => openAdminEditForm(prize));
+  const deleteButton = document.createElement("button");
+  deleteButton.type = "button";
+  deleteButton.className = "primary danger admin-prize-delete";
+  deleteButton.textContent = "Delete";
+  deleteButton.addEventListener("click", () => handleAdminDelete(prize));
+  buttonRow.append(editButton, deleteButton);
+
+  controls.append(statusWrap, buttonRow);
+
+  item.append(main, controls);
+  return item;
+}
+
+async function loadAdminPrizeList(force = false) {
+  if (!isAdmin()) {
+    adminPrizesLoaded = false;
+    if (adminPrizeListEl) {
+      adminPrizeListEl.innerHTML = "";
+    }
+    closeAdminForm({ resetFields: true, restoreFocus: false });
+    return;
+  }
+  if (adminPrizesLoaded && !force) return;
+  if (!adminPrizeListEl) return;
+  adminPrizesLoaded = true;
+  adminPrizeListEl.innerHTML = "";
+  const loadingItem = document.createElement("li");
+  loadingItem.className = "admin-prize-empty";
+  loadingItem.textContent = "Loading listings...";
+  adminPrizeListEl.appendChild(loadingItem);
+  try {
+    const { data: prizes, error } = await supabase
+      .from("prizes")
+      .select("*")
+      .order("active", { ascending: false })
+      .order("cost", { ascending: true });
+    if (error) {
+      throw error;
+    }
+    adminPrizeCache = Array.isArray(prizes) ? prizes.slice() : [];
+    adminPrizeListEl.innerHTML = "";
+    if (!adminPrizeCache.length) {
+      const empty = document.createElement("li");
+      empty.className = "admin-prize-empty";
+      empty.textContent = "No prize listings yet.";
+      adminPrizeListEl.appendChild(empty);
+      return;
+    }
+    adminPrizeCache.forEach((prize) => {
+      adminPrizeListEl.appendChild(renderAdminPrizeRow(prize));
+    });
+  } catch (error) {
+    console.error(error);
+    adminPrizesLoaded = false;
+    adminPrizeListEl.innerHTML = "";
+    const errorItem = document.createElement("li");
+    errorItem.className = "admin-prize-empty";
+    errorItem.textContent = "Unable to load prize listings.";
+    adminPrizeListEl.appendChild(errorItem);
+    showToast("Unable to load prize listings", "error");
+  }
+}
+
+function mergeCurrentUserIntoLeaderboard(entries = []) {
+  const list = Array.isArray(entries) ? entries.slice() : [];
+  if (!currentUser) {
+    return list.slice(0, LEADERBOARD_LIMIT);
+  }
+
+  const metadata = currentUser.user_metadata || {};
+  const firstName = (currentProfile?.first_name ?? metadata.first_name ?? "").toString().trim();
+  const lastName = (currentProfile?.last_name ?? metadata.last_name ?? "").toString().trim();
+  const username = (currentProfile?.username ?? currentUser.email ?? "").toString().trim();
+  const profileCredits = Number(currentProfile?.credits);
+  const sessionBankroll = Number(bankroll);
+  const creditSource = Number.isFinite(profileCredits)
+    ? profileCredits
+    : Number.isFinite(sessionBankroll)
+    ? sessionBankroll
+    : 0;
+  const credits = Number.isFinite(creditSource) ? Math.round(creditSource) : 0;
+
+  const selfEntry = {
+    id: currentUser.id,
+    first_name: firstName,
+    last_name: lastName,
+    username,
+    credits
+  };
+
+  const existingIndex = list.findIndex((entry) => entry?.id === currentUser.id);
+  if (existingIndex >= 0) {
+    list[existingIndex] = { ...list[existingIndex], ...selfEntry };
+  } else {
+    list.push(selfEntry);
+  }
+
+  list.sort((a, b) => {
+    const bCredits = Number(b?.credits);
+    const aCredits = Number(a?.credits);
+    const safeB = Number.isFinite(bCredits) ? bCredits : 0;
+    const safeA = Number.isFinite(aCredits) ? aCredits : 0;
+    return safeB - safeA;
+  });
+
+  return list.slice(0, LEADERBOARD_LIMIT);
+}
+
+function renderLeaderboard(entries = []) {
+  if (!leaderboardList) return;
+
+  leaderboardList.innerHTML = "";
+
+  if (!entries.length) {
+    const item = document.createElement("li");
+    item.className = "leaderboard-item";
+    item.innerHTML =
+      '<span class="leaderboard-rank">–</span><span class="leaderboard-name">No leaderboard data yet.</span><span class="leaderboard-balance">0</span>';
+    leaderboardList.appendChild(item);
+    return;
+  }
+
+  entries.forEach((entry, index) => {
+    const item = document.createElement("li");
+    item.className = "leaderboard-item";
+
+    const rank = document.createElement("span");
+    rank.className = "leaderboard-rank";
+    rank.textContent = `${index + 1}`;
+
+    const name = document.createElement("span");
+    name.className = "leaderboard-name";
+    const first = typeof entry.first_name === "string" ? entry.first_name.trim() : "";
+    const last = typeof entry.last_name === "string" ? entry.last_name.trim() : "";
+    const username = typeof entry.username === "string" ? entry.username.trim() : "";
+    const displayName = [first, last].filter(Boolean).join(" ") || username || "Player";
+    name.textContent = displayName;
+
+    const balance = document.createElement("span");
+    balance.className = "leaderboard-balance";
+    const credits = Number(entry.credits);
+    balance.textContent = formatCurrency(Number.isFinite(credits) ? Math.max(0, Math.round(credits)) : 0);
+
+    if (currentUser && entry.id === currentUser.id) {
+      item.classList.add("is-self");
+    }
+
+    item.append(rank, name, balance);
+    leaderboardList.appendChild(item);
+  });
+}
+
+async function refreshLeaderboard() {
+  if (!leaderboardList) return;
+  if (!currentUser) {
+    renderLeaderboard([]);
+    return;
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("id, first_name, last_name, username, credits")
+      .order("credits", { ascending: false })
+      .limit(LEADERBOARD_LIMIT);
+    if (error) {
+      throw error;
+    }
+    const merged = mergeCurrentUserIntoLeaderboard(Array.isArray(data) ? data : []);
+    renderLeaderboard(merged);
+  } catch (error) {
+    console.error("Unable to load leaderboard", error);
+    const fallback = mergeCurrentUserIntoLeaderboard([]);
+    renderLeaderboard(fallback);
+  }
+}
+
+function scheduleLeaderboardRefresh() {
+  if (!leaderboardList) return;
+  if (leaderboardRefreshTimeout !== null) return;
+  const timeoutFn = typeof window !== "undefined" ? window.setTimeout : setTimeout;
+  leaderboardRefreshTimeout = timeoutFn(async () => {
+    leaderboardRefreshTimeout = null;
+    await refreshLeaderboard();
+  }, 400);
+}
+
+function ensureLeaderboardSubscription() {
+  if (leaderboardSubscription) return;
+  if (!supabase || typeof supabase.channel !== "function") return;
+  leaderboardSubscription = supabase
+    .channel("leaderboard-updates")
+    .on(
+      "postgres_changes",
+      { event: "*", schema: "public", table: "profiles" },
+      () => scheduleLeaderboardRefresh()
+    )
+    .subscribe();
+}
+
+function cleanupLeaderboardSubscription() {
+  const clearFn = typeof window !== "undefined" ? window.clearTimeout : clearTimeout;
+  if (leaderboardRefreshTimeout !== null) {
+    clearFn(leaderboardRefreshTimeout);
+    leaderboardRefreshTimeout = null;
+  }
+  if (leaderboardSubscription) {
+    supabase.removeChannel(leaderboardSubscription);
+    leaderboardSubscription = null;
+  }
+  if (leaderboardList) {
+    leaderboardList.innerHTML = "";
+  }
+}
+
+function applySignedOutState() {
+  const clearFn = typeof window !== "undefined" ? window.clearTimeout : clearTimeout;
+  lastSyncedBankroll = null;
+  bankrollInitialized = false;
+  currentUser = null;
+  currentProfile = null;
+  dashboardLoaded = false;
+  prizesLoaded = false;
+  adminPrizesLoaded = false;
+  adminEditingPrizeId = null;
+  adminPrizeCache = [];
+  profileSyncPromise = null;
+  lastProfileSync = 0;
+
+  if (dashboardProfileRetryTimer) {
+    clearFn(dashboardProfileRetryTimer);
+    dashboardProfileRetryTimer = null;
+  }
+
+  stats = { hands: 0, wagered: 0, paid: 0 };
+  updateStatsUI();
+
+  resetBets();
+  lastBetLayout = [];
+  currentOpeningLayout = [];
+  setAdvancedMode(false);
+  historyList.innerHTML = "";
+
+  bankroll = INITIAL_BANKROLL;
+  handleBankrollChanged();
+  updateDashboardCreditsDisplay(0);
+  carterCash = 0;
+  carterCashProgress = 0;
+  lastSyncedCarterCash = 0;
+  lastSyncedCarterProgress = 0;
+  stopCarterCashAnimation();
+  updateCarterCashDisplay();
+  resetBankrollHistory();
+  stopBankrollAnimation();
+
+  cleanupLeaderboardSubscription();
+
+  if (adminPrizeListEl) {
+    adminPrizeListEl.innerHTML = "";
+  }
+  closeAdminForm({ resetFields: true, restoreFocus: false });
+
+  if (paytableModal && !paytableModal.hidden) {
+    closePaytableModal({ restoreFocus: false });
+  }
+  if (resetModal && !resetModal.hidden) {
+    closeResetModal({ restoreFocus: false });
+  }
+  if (shippingModal && !shippingModal.hidden) {
+    closeShippingModal({ restoreFocus: false });
+  }
+  if (adminPrizeModal && !adminPrizeModal.hidden) {
+    closeAdminForm({ resetFields: true, restoreFocus: false });
+  }
+  if (prizeImageModal && !prizeImageModal.hidden) {
+    closePrizeImageModal({ restoreFocus: false });
+  }
+
+  setSelectedChip(DENOMINATIONS[0], false);
+  resetTable("Select a chip and place your bets in the betting panel.", { clearDraws: true });
+  closeUtilityPanel();
+  closeActiveDrawer();
+  clearPlayAreaHeight();
+  updateRebetButtonState();
+  updatePauseButton();
+
+  if (dashboardRunsEl) {
+    dashboardRunsEl.innerHTML = "";
+  }
+
+  if (appShell) {
+    appShell.setAttribute("data-hidden", "true");
+  }
+
+  currentRoute = "auth";
+  showAuthView("login");
+  updateAdminVisibility(null);
+
+  if (typeof window !== "undefined") {
+    suppressHash = true;
+    window.location.hash = "#/auth";
+    setTimeout(() => {
+      suppressHash = false;
+      if (authEmailInput) {
+        authEmailInput.focus();
+      }
+    }, 0);
+  }
+
+  manualSignOutRequested = false;
+}
+
+async function handleSignOut() {
+  manualSignOutRequested = true;
+  const { error } = await supabase.auth.signOut();
+  if (error) {
+    manualSignOutRequested = false;
+    console.error(error);
+    showToast("Unable to sign out", "error");
+  }
+}
+
+export async function logGameRun(score, metadata = {}) {
+  const {
+    data: { user }
+  } = await supabase.auth.getUser();
+  if (!user) {
+    throw new Error("User not logged in");
+  }
+  await supabase.from("game_runs").insert({
+    user_id: user.id,
+    score,
+    metadata
+  });
+}
+
+async function logHandAndBets(stopperCard, context, betSnapshots, netThisHand) {
+  try {
+    const {
+      data: { user }
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      return;
+    }
+
+    const safeBets = Array.isArray(betSnapshots) ? betSnapshots : [];
+
+    const totalWager = safeBets.reduce((sum, bet) => sum + (bet.units ?? 0), 0);
+    const totalPaid = safeBets.reduce((sum, bet) => sum + (bet.paid ?? 0), 0);
+
+    const handPayload = {
+      user_id: user.id,
+      stopper_label: stopperCard?.label ?? null,
+      stopper_suit: stopperCard?.suitName ?? null,
+      total_cards: context?.totalCards ?? null,
+      total_wager: totalWager,
+      total_paid: totalPaid,
+      net: netThisHand
+    };
+
+    const { data: hand, error: handError } = await supabase
+      .from("game_hands")
+      .insert(handPayload)
+      .select()
+      .single();
+
+    if (handError) {
+      console.error("hand insert failed", handError);
+      return;
+    }
+
+    if (safeBets.length === 0) {
+      return;
+    }
+
+    const betRows = safeBets.map((bet) => {
+      const amountWagered = bet.units ?? 0;
+      const amountPaid = bet.paid ?? 0;
+      const net = amountPaid - amountWagered;
+      const outcome = amountPaid > 0 ? "W" : "L";
+
+      return {
+        user_id: user.id,
+        hand_id: hand.id,
+        bet_key: bet.key,
+        amount_wagered: amountWagered,
+        amount_paid: amountPaid,
+        outcome,
+        net,
+        raw: bet
+      };
+    });
+
+    const { error: betsError } = await supabase.from("bet_plays").insert(betRows);
+
+    if (betsError) {
+      console.error("bet insert failed", betsError);
+    }
+  } catch (error) {
+    console.error("Failed to log hand and bets", error);
+  }
+}
+
+function applyTheme(theme) {
+  const next = THEME_CLASS_MAP[theme] ? theme : "blue";
+  if (!document.body) {
+    currentTheme = next;
+    return;
+  }
+  if (currentTheme === next && document.body.classList.contains(THEME_CLASS_MAP[next])) {
+    if (typeof window !== "undefined") {
+      window.requestAnimationFrame(() => drawBankrollChart());
+    } else {
+      drawBankrollChart();
+    }
+    return;
+  }
+  ALL_THEME_CLASSES.forEach((className) => {
+    document.body.classList.remove(className);
+  });
+  document.body.classList.add(THEME_CLASS_MAP[next]);
+  currentTheme = next;
+  if (themeSelect && themeSelect.value !== next) {
+    themeSelect.value = next;
+  }
+  if (typeof window !== "undefined") {
+    window.requestAnimationFrame(() => drawBankrollChart());
+  } else {
+    drawBankrollChart();
+  }
+}
+
+function initTheme() {
+  let saved = "blue";
+  try {
+    const stored = localStorage.getItem(THEME_STORAGE_KEY);
+    if (stored && THEME_CLASS_MAP[stored]) {
+      saved = stored;
+    }
+  } catch (error) {
+    saved = "blue";
+  }
+  applyTheme(saved);
+  if (themeSelect) {
+    themeSelect.value = saved;
+    themeSelect.addEventListener("change", (event) => {
+      const selected = event.target.value;
+      applyTheme(selected);
+      try {
+        localStorage.setItem(THEME_STORAGE_KEY, selected);
+      } catch (error) {
+        /* ignore storage issues */
+      }
+    });
+  }
+}
+
+const bankrollEl = document.getElementById("bankroll");
+const carterCashEl = document.getElementById("carter-cash");
+const carterCashDeltaEl = document.getElementById("carter-cash-delta");
+const handToastContainer = document.getElementById("hand-toast-container");
+const betsBody = document.getElementById("bets-body");
+const dealButton = document.getElementById("deal-button");
+const rebetButton = document.getElementById("rebet-button");
+const clearBetsButtons = Array.from(
+  document.querySelectorAll('[data-action="clear-bets"]')
+);
+const drawsContainer = document.getElementById("draws");
+const statusEl = document.getElementById("status");
+const chipSelectorEl = document.getElementById("chip-selector");
+const chipButtons = Array.from(document.querySelectorAll(".chip-choice"));
+const betSpotButtons = Array.from(document.querySelectorAll(".bet-spot"));
+const betDefinitions = new Map();
+const betSpots = new Map();
+betSpotButtons.forEach((button) => {
+  const key = button.dataset.betKey || button.dataset.rank;
+  if (!key) return;
+  const type = button.dataset.betType || "number";
+  const label = button.dataset.betLabel || button.querySelector(".bet-label")?.textContent?.trim() || key;
+  const lockDuringHand = button.dataset.lock === "hand";
+  const payout = Number(button.dataset.payout) || 0;
+  const metadata = {};
+
+  if (type === "number") {
+    metadata.rank = button.dataset.rank;
+  } else if (type === "bust-suit") {
+    metadata.suit = button.dataset.suit;
+  } else if (type === "bust-rank") {
+    metadata.face = button.dataset.face;
+  } else if (type === "bust-joker") {
+    metadata.face = "Joker";
+  } else if (type === "count") {
+    const min = button.dataset.countMin ? Number(button.dataset.countMin) : 0;
+    const maxValue = button.dataset.countMax === "Infinity" ? Infinity : Number(button.dataset.countMax);
+    metadata.countMin = min;
+    metadata.countMax = Number.isFinite(maxValue) ? maxValue : Infinity;
+  }
+
+  let announce;
+  if (type === "number") {
+    const rankLabel = metadata.rank ? describeRank(metadata.rank) : label;
+    announce = `Bet on ${rankLabel}`;
+  } else if (type === "count") {
+    announce = `${label} card count`;
+  } else if (type === "bust-suit") {
+    announce = `Bust suit ${metadata.suit}`;
+  } else if (type === "bust-rank") {
+    announce = `Bust ${metadata.face}`;
+  } else if (type === "bust-joker") {
+    announce = "Bust Joker";
+  } else {
+    announce = label;
+  }
+
+  betDefinitions.set(key, {
+    key,
+    type,
+    label,
+    lockDuringHand,
+    payout,
+    metadata,
+    announce
+  });
+
+  betSpots.set(key, {
+    button,
+    totalEl: button.querySelector(".bet-total"),
+    stackEl: button.querySelector(".chip-stack")
+  });
+});
+const handsPlayedEl = document.getElementById("hands-played");
+const totalWageredEl = document.getElementById("total-wagered");
+const totalPaidEl = document.getElementById("total-paid");
+const holdEl = document.getElementById("hold");
+const houseEdgeEl = document.getElementById("house-edge");
+const historyList = document.getElementById("history-list");
+const cardTemplate = document.getElementById("card-template");
+const resetAccountButton = document.getElementById("reset-account");
+const menuToggle = document.getElementById("menu-toggle");
+const utilityPanel = document.getElementById("utility-panel");
+const utilityClose = document.getElementById("utility-close");
+const themeSelect = document.getElementById("theme-select");
+const graphToggle = document.getElementById("graph-toggle");
+const chartPanel = document.getElementById("chart-panel");
+const chartClose = document.getElementById("chart-close");
+const leaderboardToggle = document.getElementById("leaderboard-toggle");
+const leaderboardPanel = document.getElementById("leaderboard-panel");
+const leaderboardClose = document.getElementById("leaderboard-close");
+const leaderboardList = document.getElementById("leaderboard-list");
+const panelScrim = document.getElementById("panel-scrim");
+const bankrollChartCanvas = document.getElementById("bankroll-chart");
+const bankrollChartWrapper = document.getElementById("bankroll-chart-wrapper");
+const bankrollChartCtx =
+  bankrollChartCanvas instanceof HTMLCanvasElement
+    ? bankrollChartCanvas.getContext("2d")
+    : null;
+const advancedToggleInput = document.getElementById("advanced-toggle");
+const advancedToggleWrapper = advancedToggleInput
+  ? advancedToggleInput.closest(".advanced-toggle")
+  : null;
+const advancedBetsSection = document.getElementById("advanced-bets");
+const pausePlayButton = document.getElementById("pause-play");
+const paytableRadios = Array.from(document.querySelectorAll('input[name="paytable"]'));
+const changePaytableButton = document.getElementById("change-paytable");
+const paytableModal = document.getElementById("paytable-modal");
+const paytableForm = document.getElementById("paytable-form");
+const paytableApplyButton = document.getElementById("paytable-apply");
+const paytableCancelButton = document.getElementById("paytable-cancel");
+const paytableCloseButton = document.getElementById("paytable-close");
+const resetModal = document.getElementById("reset-modal");
+const resetConfirmButton = document.getElementById("reset-confirm");
+const resetCancelButton = document.getElementById("reset-cancel");
+const resetCloseButton = document.getElementById("reset-close");
+const activePaytableNameEl = document.getElementById("active-paytable-name");
+const activePaytableStepsEl = document.getElementById("active-paytable-steps");
+const toastContainer = document.getElementById("toast-container");
+const authView = document.getElementById("auth-view");
+const authForm = document.getElementById("auth-form");
+const authEmailInput = document.getElementById("auth-email");
+const authErrorEl = document.getElementById("auth-error");
+const authSubmitButton = document.getElementById("auth-submit");
+const signupView = document.getElementById("signup-view");
+const signupForm = document.getElementById("signup-form");
+const signupErrorEl = document.getElementById("signup-error");
+const signupSubmitButton = document.getElementById("signup-submit");
+const signupFirstInput = document.getElementById("signup-first");
+const showSignUpButton = document.getElementById("show-signup");
+const showLoginButton = document.getElementById("show-login");
+const appShell = document.getElementById("app-shell");
+const homeView = document.getElementById("home-view");
+const playView = document.getElementById("play-view");
+const storeView = document.getElementById("store-view");
+const dashboardView = document.getElementById("dashboard-view");
+const adminView = document.getElementById("admin-view");
+const routeViews = {
+  home: homeView,
+  play: playView,
+  store: storeView,
+  dashboard: dashboardView,
+  admin: adminView
+};
+const headerEl = document.querySelector(".header");
+const chipBarEl = document.querySelector(".chip-bar");
+const playLayout = playView ? playView.querySelector(".layout") : null;
+const AUTH_ROUTES = new Set(["auth", "signup"]);
+const TABLE_ROUTES = new Set(["home", "play", "store", "admin"]);
+const routeButtons = Array.from(document.querySelectorAll("[data-route-target]"));
+const signOutButtons = Array.from(document.querySelectorAll('[data-action="sign-out"]'));
+const dashboardEmailEl = document.getElementById("dashboard-email");
+const dashboardCreditsEl = document.getElementById("dashboard-credits");
+const dashboardCarterEl = document.getElementById("dashboard-carter-cash");
+const dashboardRunsEl = document.getElementById("dashboard-runs");
+const prizeListEl = document.getElementById("prize-list");
+const adminNavButton = document.getElementById("admin-nav");
+const adminAddButton = document.getElementById("admin-add-button");
+const adminSaveButton = document.getElementById("admin-save-button");
+const adminPrizeListEl = document.getElementById("admin-prize-list");
+const adminPrizeForm = document.getElementById("admin-prize-form");
+const adminPrizeMessage = document.getElementById("admin-prize-message");
+const adminPrizeImageUrlInput = document.getElementById("prize-image-url");
+const adminPrizeImageFileInput = document.getElementById("prize-image-file");
+const adminPrizeModal = document.getElementById("admin-prize-modal");
+const adminModalTitle = document.getElementById("admin-modal-title");
+const adminModalCloseButton = document.getElementById("admin-modal-close");
+const adminModalCancelButton = document.getElementById("admin-modal-cancel");
+const shippingModal = document.getElementById("shipping-modal");
+const shippingForm = document.getElementById("shipping-form");
+const shippingSummaryEl = document.getElementById("shipping-summary");
+const shippingPhoneInput = document.getElementById("shipping-phone");
+const shippingAddressInput = document.getElementById("shipping-address");
+const shippingCloseButton = document.getElementById("shipping-close");
+const shippingCancelButton = document.getElementById("shipping-cancel");
+const shippingSubmitButton = document.getElementById("shipping-submit");
+const prizeImageModal = document.getElementById("prize-image-modal");
+const prizeImageCloseButton = document.getElementById("prize-image-close");
+const prizeImagePreview = document.getElementById("prize-image-preview");
+const prizeImageCaption = document.getElementById("prize-image-caption");
+
+const THEME_CLASS_MAP = {
+  blue: "theme-blue",
+  pink: "theme-pink",
+  orange: "theme-orange"
+};
+const ALL_THEME_CLASSES = [
+  ...Object.values(THEME_CLASS_MAP),
+  "theme-retro",
+  "theme-cotton-candy",
+  "theme-pastel"
+];
+const THEME_STORAGE_KEY = "run-the-numbers-theme";
+
+let bankroll = INITIAL_BANKROLL;
+let bets = [];
+let dealing = false;
+let selectedChip = DENOMINATIONS[0];
+let bettingOpen = true;
+let stats = {
+  hands: 0,
+  wagered: 0,
+  paid: 0
+};
+let lastBetLayout = [];
+let currentOpeningLayout = [];
+let bankrollAnimating = false;
+let bankrollAnimationFrame = null;
+let bankrollDeltaTimeout = null;
+let bankrollHistory = [];
+let carterCash = 0;
+let carterCashProgress = 0;
+let carterCashAnimating = false;
+let carterCashDeltaTimeout = null;
+let lastSyncedCarterCash = 0;
+let lastSyncedCarterProgress = 0;
+let advancedMode = false;
+let handPaused = false;
+let pauseResolvers = [];
+let currentHandContext = null;
+let activePaytable = PAYTABLES[0];
+let pendingPaytableId = activePaytable.id;
+let openDrawerPanel = null;
+let openDrawerToggle = null;
+let currentTheme = "blue";
+let currentUser = null;
+let currentRoute = "home";
+let dashboardLoaded = false;
+let prizesLoaded = false;
+let adminPrizesLoaded = false;
+let adminEditingPrizeId = null;
+let adminPrizeCache = [];
+let currentProfile = null;
+let suppressHash = false;
+let dashboardProfileRetryTimer = null;
+let leaderboardRefreshTimeout = null;
+let leaderboardSubscription = null;
+let resetModalTrigger = null;
+
+let shippingModalTrigger = null;
+let activeShippingPurchase = null;
+let adminModalTrigger = null;
+let manualSignOutRequested = false;
+let prizeImageTrigger = null;
+
+const MAX_HISTORY_POINTS = 500;
+const LEADERBOARD_LIMIT = 20;
+const PROFILE_SYNC_INTERVAL = 15000;
+
+let bankrollInitialized = false;
+let lastSyncedBankroll = null;
+let profileSyncPromise = null;
+let lastProfileSync = 0;
+
+let playAreaUpdateFrame = null;
+
+function clearPlayAreaHeight() {
+  if (playAreaUpdateFrame !== null && typeof window !== "undefined") {
+    window.cancelAnimationFrame(playAreaUpdateFrame);
+    playAreaUpdateFrame = null;
+  }
+  if (playLayout) {
+    playLayout.style.removeProperty("--play-area-height");
+  }
+}
+
+function updatePlayAreaHeight() {
+  if (!playLayout) {
+    return;
+  }
+
+  if (currentRoute !== "play") {
+    clearPlayAreaHeight();
+    return;
+  }
+
+  const viewportHeight = typeof window !== "undefined" ? window.innerHeight : 0;
+  if (!viewportHeight) {
+    return;
+  }
+
+  const headerHeight = headerEl ? headerEl.offsetHeight : 0;
+  const chipBarHeight = chipBarEl ? chipBarEl.offsetHeight : 0;
+  const available = Math.max(viewportHeight - headerHeight - chipBarHeight, 0);
+  playLayout.style.setProperty("--play-area-height", `${available}px`);
+}
+
+function schedulePlayAreaHeightUpdate() {
+  if (typeof window === "undefined") {
+    return;
+  }
+  if (playAreaUpdateFrame !== null) {
+    window.cancelAnimationFrame(playAreaUpdateFrame);
+  }
+  playAreaUpdateFrame = window.requestAnimationFrame(() => {
+    playAreaUpdateFrame = null;
+    updatePlayAreaHeight();
+  });
+}
+
+const layoutResizeObserver =
+  typeof ResizeObserver !== "undefined"
+    ? new ResizeObserver(() => schedulePlayAreaHeightUpdate())
+    : null;
+
+if (layoutResizeObserver) {
+  if (headerEl) {
+    layoutResizeObserver.observe(headerEl);
+  }
+  if (chipBarEl) {
+    layoutResizeObserver.observe(chipBarEl);
+  }
+}
+
+function getPaytableById(id) {
+  return PAYTABLES.find((table) => table.id === id) ?? PAYTABLES[0];
+}
+
+function formatPaytableSummary(table) {
+  return table.steps.map((step) => `${step}×`).join(", ");
+}
+
+function updateActivePaytableUI({ announce = false } = {}) {
+  paytableRadios.forEach((radio) => {
+    radio.checked = radio.value === activePaytable.id;
+    radio.setAttribute("aria-checked", String(radio.checked));
+    const option = radio.closest(".paytable-option");
+    if (option) {
+      option.classList.toggle("selected", radio.checked);
+    }
+  });
+
+  if (activePaytableNameEl) {
+    activePaytableNameEl.textContent = activePaytable.name;
+  }
+  if (activePaytableStepsEl) {
+    activePaytableStepsEl.textContent = formatPaytableSummary(activePaytable);
+  }
+
+  if (announce && statusEl && !dealing) {
+    statusEl.textContent = `${activePaytable.name} selected. Ladder pays ${formatPaytableSummary(
+      activePaytable
+    )}.`;
+  }
+}
+
+function setActivePaytable(id, { announce = false } = {}) {
+  const next = getPaytableById(id);
+  if (next.id === activePaytable.id) {
+    updateActivePaytableUI({ announce });
+    return;
+  }
+  activePaytable = next;
+  pendingPaytableId = activePaytable.id;
+  updateActivePaytableUI({ announce });
+}
+
+function updatePaytableAvailability() {
+  const disabled = !bettingOpen;
+  paytableRadios.forEach((radio) => {
+    radio.disabled = disabled;
+    radio.setAttribute("aria-disabled", String(disabled));
+    const option = radio.closest(".paytable-option");
+    if (option) {
+      option.classList.toggle("option-disabled", disabled);
+    }
+  });
+
+  if (changePaytableButton) {
+    changePaytableButton.disabled = disabled;
+    if (disabled) {
+      changePaytableButton.setAttribute("aria-disabled", "true");
+    } else {
+      changePaytableButton.removeAttribute("aria-disabled");
+    }
+  }
+}
+
+function currentStepPays() {
+  return activePaytable.steps;
+}
+
+function createDeck() {
+  const deck = [];
+  NUMBER_RANKS.forEach((rank) => {
+    SUITS.forEach((suit) => {
+      deck.push({
+        rank,
+        label: String(rank),
+        suit: suit.symbol,
+        color: suit.color,
+        suitName: suit.name,
+        stopper: false
+      });
+    });
+  });
+
+  ["J", "Q", "K"].forEach((face) => {
+    SUITS.forEach((suit) => {
+      deck.push({
+        rank: face,
+        label: face,
+        suit: suit.symbol,
+        color: suit.color === "red" ? "red" : "black",
+        suitName: suit.name,
+        stopper: true
+      });
+    });
+  });
+
+  deck.push({
+    rank: "Joker",
+    label: "Joker",
+    suit: "★",
+    color: "black",
+    suitName: null,
+    stopper: true
+  });
+
+  return deck;
+}
+
+function shuffle(deck) {
+  for (let i = deck.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [deck[i], deck[j]] = [deck[j], deck[i]];
+  }
+}
+
+function updateBankroll() {
+  if (bankrollAnimating) {
+    stopBankrollAnimation();
+  }
+  bankrollEl.textContent = formatCurrency(bankroll);
+}
+
+function updateDashboardCarterDisplay(value = carterCash) {
+  if (!dashboardCarterEl) return;
+  if (Number.isFinite(value)) {
+    dashboardCarterEl.textContent = Number(value).toString();
+  } else if (typeof value === "string") {
+    dashboardCarterEl.textContent = value;
+  } else {
+    dashboardCarterEl.textContent = "0";
+  }
+}
+
+function updateCarterCashDisplay() {
+  if (carterCashEl) {
+    const safeValue = Number.isFinite(carterCash) ? Math.max(0, Math.round(carterCash)) : 0;
+    carterCashEl.textContent = formatCurrency(safeValue);
+  }
+  updateDashboardCarterDisplay(carterCash);
+}
+
+function handleCarterCashChanged() {
+  updateCarterCashDisplay();
+  if (currentProfile) {
+    currentProfile.carter_cash = carterCash;
+  }
+  if (currentUser) {
+    scheduleLeaderboardRefresh();
+  }
+}
+
+function deductCarterCash(amount) {
+  if (!Number.isFinite(amount) || amount <= 0) {
+    return;
+  }
+  carterCash = Math.max(0, Math.round(carterCash - amount));
+  handleCarterCashChanged();
+}
+
+function updateDashboardCreditsDisplay(value = bankroll) {
+  if (!dashboardCreditsEl) return;
+  if (Number.isFinite(value)) {
+    dashboardCreditsEl.textContent = Number(value).toString();
+  } else if (typeof value === "string") {
+    dashboardCreditsEl.textContent = value;
+  } else {
+    dashboardCreditsEl.textContent = "0";
+  }
+}
+
+async function persistBankroll() {
+  if (!currentUser) return;
+
+  const updates = {};
+  if (Number.isFinite(bankroll) && bankroll !== lastSyncedBankroll) {
+    updates.credits = bankroll;
+  }
+  if (Number.isFinite(carterCash) && carterCash !== lastSyncedCarterCash) {
+    updates.carter_cash = carterCash;
+  }
+  if (
+    Number.isFinite(carterCashProgress) &&
+    carterCashProgress !== lastSyncedCarterProgress
+  ) {
+    updates.carter_cash_progress = carterCashProgress;
+  }
+
+  if (Object.keys(updates).length === 0) {
+    return;
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from("profiles")
+      .update(updates)
+      .eq("id", currentUser.id)
+      .select("credits, carter_cash, carter_cash_progress")
+      .maybeSingle();
+
+    if (error) {
+      throw error;
+    }
+
+    if (data) {
+      const nextCredits = Number.isFinite(Number(data.credits))
+        ? Math.round(Number(data.credits))
+        : bankroll;
+      const nextCarterCash = Number.isFinite(Number(data.carter_cash))
+        ? Math.round(Number(data.carter_cash))
+        : carterCash;
+      const nextProgress = Number.isFinite(Number(data.carter_cash_progress))
+        ? Number(data.carter_cash_progress)
+        : carterCashProgress;
+
+      lastSyncedBankroll = nextCredits;
+      lastSyncedCarterCash = nextCarterCash;
+      lastSyncedCarterProgress = nextProgress;
+
+      if (bankroll !== nextCredits) {
+        bankroll = nextCredits;
+        handleBankrollChanged();
+      }
+
+      if (carterCash !== nextCarterCash) {
+        carterCash = nextCarterCash;
+        handleCarterCashChanged();
+      }
+
+      carterCashProgress = nextProgress;
+
+      if (currentProfile) {
+        currentProfile.credits = nextCredits;
+        currentProfile.carter_cash = nextCarterCash;
+        currentProfile.carter_cash_progress = nextProgress;
+      }
+    } else {
+      if (Object.prototype.hasOwnProperty.call(updates, "credits")) {
+        lastSyncedBankroll = bankroll;
+        if (currentProfile) {
+          currentProfile.credits = bankroll;
+        }
+      }
+      if (Object.prototype.hasOwnProperty.call(updates, "carter_cash")) {
+        lastSyncedCarterCash = carterCash;
+        if (currentProfile) {
+          currentProfile.carter_cash = carterCash;
+        }
+      }
+      if (Object.prototype.hasOwnProperty.call(updates, "carter_cash_progress")) {
+        lastSyncedCarterProgress = carterCashProgress;
+        if (currentProfile) {
+          currentProfile.carter_cash_progress = carterCashProgress;
+        }
+      }
+    }
+
+    lastProfileSync = Date.now();
+  } catch (error) {
+    console.error("Unable to sync bankroll", error);
+  }
+}
+
+function handleBankrollChanged() {
+  updateBankroll();
+  updateDashboardCreditsDisplay(bankroll);
+  if (currentProfile) {
+    currentProfile.credits = bankroll;
+  }
+  if (currentUser) {
+    scheduleLeaderboardRefresh();
+  }
+}
+
+function applyProfileCredits(profile, { resetHistory = false } = {}) {
+  if (!profile) return null;
+  currentProfile = profile;
+  lastProfileSync = Date.now();
+  const numericCredits = Number(profile.credits);
+  const nextBankroll = Number.isFinite(numericCredits) ? Math.round(numericCredits) : INITIAL_BANKROLL;
+  bankroll = nextBankroll;
+  updateBankroll();
+  updateDashboardCreditsDisplay(nextBankroll);
+  lastSyncedBankroll = bankroll;
+  const numericCarter = Number(profile.carter_cash);
+  carterCash = Number.isFinite(numericCarter) ? Math.round(numericCarter) : 0;
+  const numericProgress = Number(profile.carter_cash_progress);
+  carterCashProgress = Number.isFinite(numericProgress) && numericProgress >= 0 ? numericProgress : 0;
+  lastSyncedCarterCash = carterCash;
+  lastSyncedCarterProgress = carterCashProgress;
+  stopCarterCashAnimation();
+  updateCarterCashDisplay();
+  const shouldResetHistory = resetHistory || !bankrollInitialized;
+  if (shouldResetHistory) {
+    bankrollHistory = [bankroll];
+  } else if (bankrollHistory.length > 0) {
+    bankrollHistory[bankrollHistory.length - 1] = bankroll;
+  } else {
+    bankrollHistory = [bankroll];
+  }
+  drawBankrollChart();
+  bankrollInitialized = true;
+  return currentProfile;
+}
+
+function getBetDefinition(key) {
+  return betDefinitions.get(key);
+}
+
+function updateBetSpotTotals() {
+  const totals = new Map(bets.map((bet) => [bet.key, bet.units]));
+  betSpots.forEach(({ totalEl, button }, key) => {
+    const total = totals.get(key) ?? 0;
+    totalEl.textContent = formatCurrency(total);
+    button.classList.toggle("has-bet", total > 0);
+    const definition = getBetDefinition(key);
+    const spokenLabel =
+      definition?.type === "number"
+        ? describeRank(definition.metadata?.rank ?? definition?.label ?? key)
+        : definition?.label || key;
+    const prefix = definition?.type === "number" ? `Bet on ${spokenLabel}` : `${spokenLabel} bet`;
+    const ariaLabel =
+      total > 0
+        ? `${prefix}. Total wager ${formatCurrency(total)} units.`
+        : `${prefix}. No chips placed.`;
+    button.setAttribute("aria-label", ariaLabel);
+  });
+}
+
+function addChipToSpot(key, value) {
+  const spot = betSpots.get(key);
+  if (!spot) return;
+  const { stackEl } = spot;
+  const chip = document.createElement("div");
+  chip.className = "chip";
+  chip.dataset.value = value;
+  chip.textContent = value.toString();
+  chip.setAttribute("aria-hidden", "true");
+  const stackIndex = stackEl.children.length;
+  chip.style.setProperty("--stack-index", stackIndex);
+  chip.classList.add(`denom-${value}`);
+  stackEl.appendChild(chip);
+  requestAnimationFrame(() => {
+    chip.classList.add("chip-enter");
+  });
+}
+
+function clearChipStacks() {
+  betSpots.forEach(({ stackEl, totalEl, button }) => {
+    stackEl.innerHTML = "";
+    totalEl.textContent = formatCurrency(0);
+    button.classList.remove("has-bet");
+  });
+}
+
+function setClearBetsDisabled(disabled) {
+  clearBetsButtons.forEach((button) => {
+    button.disabled = disabled;
+    if (disabled) {
+      button.setAttribute("aria-disabled", "true");
+    } else {
+      button.removeAttribute("aria-disabled");
+    }
+  });
+}
+
+function refreshBetControls() {
+  const chipEnabled = bettingOpen || advancedMode;
+  chipSelectorEl.classList.toggle("selector-disabled", !chipEnabled);
+  chipButtons.forEach((button) => {
+    button.disabled = !chipEnabled;
+    button.setAttribute("aria-disabled", String(!chipEnabled));
+  });
+
+  betSpotButtons.forEach((button) => {
+    const key = button.dataset.betKey || button.dataset.rank;
+    const definition = key ? getBetDefinition(key) : null;
+    const requiresAdvanced = definition ? definition.type !== "number" : false;
+    const lockedDuringHand = definition?.lockDuringHand ?? false;
+    let disabled = false;
+
+    if (requiresAdvanced && !advancedMode) {
+      disabled = true;
+    } else if (lockedDuringHand) {
+      disabled = !bettingOpen;
+    } else if (requiresAdvanced) {
+      disabled = false;
+    } else {
+      disabled = !bettingOpen;
+    }
+
+    button.disabled = disabled;
+    button.setAttribute("aria-disabled", String(disabled));
+  });
+
+  setClearBetsDisabled(!bettingOpen || bets.length === 0);
+}
+
+function setBettingEnabled(enabled) {
+  bettingOpen = enabled;
+  refreshBetControls();
+  updatePaytableAvailability();
+}
+
+function updateRebetButtonState() {
+  if (!rebetButton) return;
+  const hasLayout = lastBetLayout.length > 0;
+  rebetButton.hidden = !hasLayout;
+  const disabled = !hasLayout || dealing;
+  rebetButton.disabled = disabled;
+  rebetButton.setAttribute("aria-disabled", String(disabled));
+  schedulePlayAreaHeightUpdate();
+}
+
+function updateChipSelectionUI() {
+  chipButtons.forEach((button) => {
+    const isSelected = Number(button.dataset.value) === selectedChip;
+    button.classList.toggle("active", isSelected);
+    button.setAttribute("aria-checked", String(isSelected));
+  });
+}
+
+function setSelectedChip(value, announce = true) {
+  selectedChip = value;
+  updateChipSelectionUI();
+  if (announce && !dealing) {
+    statusEl.textContent = `Selected ${formatCurrency(value)}-unit chip. Tap a bet spot to place chips.`;
+  }
+}
+
+function renderBets() {
+  betsBody.innerHTML = "";
+  if (bets.length === 0) {
+    const row = document.createElement("tr");
+    row.className = "empty";
+    const cell = document.createElement("td");
+    cell.colSpan = 4;
+    cell.textContent = "No bets placed.";
+    row.appendChild(cell);
+    betsBody.appendChild(row);
+    dealButton.disabled = true;
+    setClearBetsDisabled(true);
+    updateBetSpotTotals();
+    refreshBetControls();
+    return;
+  }
+
+  bets.forEach((bet) => {
+    const row = document.createElement("tr");
+    row.innerHTML = `
+      <td>${bet.label}</td>
+      <td>${bet.units}</td>
+      <td>${bet.type === "number" ? bet.hits : "—"}</td>
+      <td>${formatCurrency(bet.paid)}</td>
+    `;
+    betsBody.appendChild(row);
+  });
+  dealButton.disabled = dealing || !bettingOpen;
+  setClearBetsDisabled(!bettingOpen);
+  updateBetSpotTotals();
+  refreshBetControls();
+}
+
+function resetBets() {
+  bets = [];
+  renderBets();
+  clearChipStacks();
+}
+
+function addBet(key, units) {
+  const definition = getBetDefinition(key);
+  if (!definition) return null;
+
+  let bet = bets.find((b) => b.key === key);
+  if (bet) {
+    bet.units += units;
+    bet.chips.push(units);
+  } else {
+    bet = {
+      key,
+      type: definition.type,
+      label: definition.label,
+      units,
+      hits: definition.type === "number" ? 0 : 0,
+      paid: 0,
+      chips: [units],
+      metadata: { ...definition.metadata },
+      rank: definition.metadata.rank ?? null
+    };
+    bets.push(bet);
+  }
+  bankroll -= units;
+  handleBankrollChanged();
+  renderBets();
+  addChipToSpot(key, units);
+  return bet;
+}
+
+function restoreUnits(units) {
+  bankroll += units;
+  handleBankrollChanged();
+}
+
+function resetBetCounters() {
+  bets.forEach((bet) => {
+    if (bet.type === "number") {
+      bet.hits = 0;
+    }
+    bet.paid = 0;
+  });
+  renderBets();
+}
+
+function makeCardElement(card) {
+  const node = cardTemplate.content.firstElementChild.cloneNode(true);
+  const rankEl = node.querySelector(".card-rank");
+  const suitEl = node.querySelector(".card-suit");
+  rankEl.textContent = card.label;
+  suitEl.textContent = card.suit;
+  node.dataset.rank = card.label;
+
+  const colorClass = card.color === "red" ? "card-red" : "card-black";
+  node.classList.add(colorClass);
+
+  if (card.stopper) {
+    node.classList.add("stopper");
+  }
+
+  return node;
+}
+
+function formatCurrency(value) {
+  return value.toLocaleString(undefined, { maximumFractionDigits: 0 });
+}
+
+function easeOutCubic(x) {
+  return 1 - Math.pow(1 - x, 3);
+}
+
+function waitWhilePaused() {
+  if (!handPaused) {
+    return Promise.resolve();
+  }
+  return new Promise((resolve) => {
+    pauseResolvers.push(resolve);
+  });
+}
+
+async function waitForDealDelay() {
+  let remaining = DEAL_DELAY;
+  while (remaining > 0) {
+    const slice = Math.min(DEAL_DELAY_STEP, remaining);
+    await new Promise((resolve) => setTimeout(resolve, slice));
+    remaining -= slice;
+    if (handPaused) {
+      await waitWhilePaused();
+    }
+  }
+}
+
+function drawBankrollChart() {
+  if (!bankrollChartCanvas || !bankrollChartCtx) return;
+
+  const values = bankrollHistory.length ? bankrollHistory : [bankroll];
+  const padding = {
+    top: 28,
+    right: 48,
+    bottom: 64,
+    left: 84
+  };
+  const minCanvasWidth = 240;
+
+  if (bankrollChartWrapper) {
+    const wrapperWidth = bankrollChartWrapper.clientWidth || minCanvasWidth;
+    bankrollChartCanvas.style.width = `${Math.max(
+      minCanvasWidth,
+      Math.round(wrapperWidth)
+    )}px`;
+  }
+
+  const rect = bankrollChartCanvas.getBoundingClientRect();
+  if (rect.width === 0 || rect.height === 0) return;
+
+  const dpr = window.devicePixelRatio || 1;
+  bankrollChartCanvas.width = rect.width * dpr;
+  bankrollChartCanvas.height = rect.height * dpr;
+
+  const ctx = bankrollChartCtx;
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.clearRect(0, 0, bankrollChartCanvas.width, bankrollChartCanvas.height);
+  ctx.scale(dpr, dpr);
+
+  const width = rect.width;
+  const height = rect.height;
+  const chartWidth = Math.max(1, width - padding.left - padding.right);
+  const chartHeight = Math.max(1, height - padding.top - padding.bottom);
+  const baseY = padding.top + chartHeight;
+
+  const maxVal = Math.max(...values);
+  const minVal = Math.min(...values);
+  const range = maxVal - minVal || 1;
+
+  const bodyStyles = getComputedStyle(document.body);
+  const rootStyles = getComputedStyle(document.documentElement);
+  const cssVar = (name, fallback) => {
+    const raw = bodyStyles.getPropertyValue(name) || rootStyles.getPropertyValue(name);
+    return raw && raw.trim() ? raw.trim() : fallback;
+  };
+  const chartBackground = cssVar("--chart-background", "rgba(6, 8, 26, 0.92)");
+  const chartBgStart = cssVar("--chart-background-gradient-start", "rgba(255, 99, 224, 0.18)");
+  const chartBgEnd = cssVar("--chart-background-gradient-end", "rgba(31, 241, 255, 0.16)");
+  const chartGridColor = cssVar("--chart-grid-color", "rgba(31, 241, 255, 0.18)");
+  const chartFillColor = cssVar("--chart-fill-color", "rgba(31, 241, 255, 0.18)");
+  const chartFillFade = cssVar("--chart-fill-fade", "rgba(31, 241, 255, 0)");
+  const chartLineColor = cssVar("--chart-line-color", "#1ff1ff");
+  const chartLineShadow = cssVar("--chart-line-shadow", "rgba(139, 109, 255, 0.45)");
+  const chartMarkerColor = cssVar("--chart-marker-color", "#ff63e0");
+  const chartMarkerStroke = cssVar("--chart-marker-stroke", "rgba(248, 249, 255, 0.85)");
+  const chartMarkerShadow = cssVar("--chart-marker-shadow", "rgba(255, 99, 224, 0.6)");
+  const chartBaseLine = cssVar("--chart-base-line", "rgba(31, 241, 255, 0.35)");
+  const chartAxisColor = cssVar("--chart-axis-color", "rgba(248, 249, 255, 0.85)");
+
+  ctx.fillStyle = chartBackground;
+  ctx.fillRect(0, 0, width, height);
+
+  const backgroundGradient = ctx.createLinearGradient(0, 0, width, height);
+  backgroundGradient.addColorStop(0, chartBgStart);
+  backgroundGradient.addColorStop(1, chartBgEnd);
+  ctx.fillStyle = backgroundGradient;
+  ctx.fillRect(0, 0, width, height);
+
+  ctx.strokeStyle = chartGridColor;
+  ctx.lineWidth = 1;
+  ctx.setLineDash([6, 10]);
+  for (let i = 0; i <= 4; i += 1) {
+    const y = padding.top + (chartHeight * i) / 4;
+    ctx.beginPath();
+    ctx.moveTo(padding.left, y);
+    ctx.lineTo(width - padding.right, y);
+    ctx.stroke();
+  }
+  ctx.setLineDash([]);
+
+  const points = values.map((value, index) => {
+    const x =
+      values.length === 1
+        ? padding.left + chartWidth / 2
+        : padding.left + (chartWidth * index) / (values.length - 1);
+    const y = padding.top + chartHeight * (1 - (value - minVal) / range);
+    return { x, y };
+  });
+
+  if (points.length >= 2) {
+    const fillGradient = ctx.createLinearGradient(0, padding.top, 0, baseY);
+    fillGradient.addColorStop(0, chartFillColor);
+    fillGradient.addColorStop(1, chartFillFade);
+    ctx.beginPath();
+    ctx.moveTo(points[0].x, points[0].y);
+    for (let i = 1; i < points.length; i += 1) {
+      ctx.lineTo(points[i].x, points[i].y);
+    }
+    ctx.lineTo(points[points.length - 1].x, baseY);
+    ctx.lineTo(points[0].x, baseY);
+    ctx.closePath();
+    ctx.fillStyle = fillGradient;
+    ctx.fill();
+  }
+
+  ctx.beginPath();
+  if (points.length === 1) {
+    const point = points[0];
+    ctx.fillStyle = chartLineColor;
+    ctx.shadowColor = chartLineShadow;
+    ctx.shadowBlur = 12;
+    ctx.arc(point.x, point.y, 6, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+  } else {
+    points.forEach((point, index) => {
+      if (index === 0) {
+        ctx.moveTo(point.x, point.y);
+      } else {
+        ctx.lineTo(point.x, point.y);
+      }
+    });
+    ctx.strokeStyle = chartLineColor;
+    ctx.lineWidth = 2.8;
+    ctx.shadowColor = chartLineShadow;
+    ctx.shadowBlur = 16;
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+  }
+
+  if (points.length > 0) {
+    const lastPoint = points[points.length - 1];
+    ctx.beginPath();
+    ctx.fillStyle = chartMarkerColor;
+    ctx.strokeStyle = chartMarkerStroke;
+    ctx.lineWidth = 2.2;
+    ctx.shadowColor = chartMarkerShadow;
+    ctx.shadowBlur = 12;
+    ctx.arc(lastPoint.x, lastPoint.y, 5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+  }
+
+  ctx.strokeStyle = chartBaseLine;
+  ctx.lineWidth = 1.6;
+  ctx.beginPath();
+  ctx.moveTo(padding.left, baseY);
+  ctx.lineTo(width - padding.right, baseY);
+  ctx.stroke();
+
+  ctx.font = "600 12px 'Play', 'Segoe UI', sans-serif";
+  ctx.fillStyle = chartAxisColor;
+  ctx.textAlign = "right";
+  ctx.textBaseline = "middle";
+  for (let i = 0; i <= 4; i += 1) {
+    const y = padding.top + (chartHeight * i) / 4;
+    const valueLabel = minVal + (range * (4 - i)) / 4;
+    ctx.fillText(formatCurrency(Math.round(valueLabel)), padding.left - 12, y);
+  }
+
+  ctx.textAlign = "center";
+  ctx.textBaseline = "top";
+  if (points.length > 0) {
+    const tickIndices = [];
+    const minSpacing = 48;
+    let lastX = -Infinity;
+    points.forEach((point, index) => {
+      const isEdge = index === 0 || index === points.length - 1;
+      if (isEdge || point.x - lastX >= minSpacing) {
+        tickIndices.push(index);
+        lastX = point.x;
+      }
+    });
+
+    tickIndices.forEach((index) => {
+      const point = points[index];
+      ctx.fillText(String(index + 1), point.x, baseY + 8);
+    });
+  }
+
+  ctx.textAlign = "left";
+  ctx.textBaseline = "top";
+  ctx.fillText(`Hands played: ${Math.max(0, values.length - 1)}`, padding.left, padding.top + 6);
+}
+
+function recordBankrollHistoryPoint() {
+  bankrollHistory.push(bankroll);
+  if (bankrollHistory.length > MAX_HISTORY_POINTS) {
+    bankrollHistory = bankrollHistory.slice(-MAX_HISTORY_POINTS);
+  }
+  drawBankrollChart();
+}
+
+function resetBankrollHistory() {
+  bankrollHistory = [bankroll];
+  drawBankrollChart();
+}
+
+function updatePauseButton() {
+  if (!pausePlayButton) return;
+  const shouldShow = advancedMode && dealing;
+  pausePlayButton.hidden = !shouldShow;
+  if (!shouldShow) {
+    pausePlayButton.setAttribute("aria-pressed", "false");
+    pausePlayButton.textContent = "Pause";
+    pausePlayButton.disabled = true;
+    return;
+  }
+  pausePlayButton.disabled = false;
+  pausePlayButton.textContent = handPaused ? "Resume" : "Pause";
+  pausePlayButton.setAttribute("aria-pressed", String(handPaused));
+}
+
+function setHandPaused(paused) {
+  if (handPaused === paused) return;
+  handPaused = paused;
+  if (!handPaused) {
+    while (pauseResolvers.length) {
+      const resolve = pauseResolvers.shift();
+      if (resolve) {
+        resolve();
+      }
+    }
+  }
+  updatePauseButton();
+  refreshBetControls();
+  if (handPaused) {
+    statusEl.textContent = "Dealing paused. Place bust bets or resume play.";
+  } else if (dealing) {
+    statusEl.textContent = "Dealing...";
+  }
+}
+
+function setAdvancedMode(enabled) {
+  if (advancedMode === enabled) return;
+  advancedMode = enabled;
+
+  if (advancedBetsSection) {
+    if (enabled) {
+      advancedBetsSection.hidden = false;
+      advancedBetsSection.classList.add("is-open");
+      advancedBetsSection.setAttribute("aria-hidden", "false");
+    } else {
+      advancedBetsSection.classList.remove("is-open");
+      advancedBetsSection.setAttribute("aria-hidden", "true");
+      advancedBetsSection.hidden = true;
+    }
+  }
+
+  if (advancedToggleInput) {
+    advancedToggleInput.checked = enabled;
+    advancedToggleInput.setAttribute("aria-checked", String(enabled));
+  }
+
+  if (advancedToggleWrapper) {
+    advancedToggleWrapper.classList.toggle("is-active", enabled);
+  }
+
+  document.body.classList.toggle("advanced-enabled", enabled);
+  if (!enabled) {
+    setHandPaused(false);
+  }
+  refreshBetControls();
+  updatePauseButton();
+}
+
+function stopBankrollAnimation(restoreDisplay = true) {
+  if (bankrollAnimationFrame !== null) {
+    cancelAnimationFrame(bankrollAnimationFrame);
+    bankrollAnimationFrame = null;
+  }
+  if (bankrollDeltaTimeout !== null) {
+    clearTimeout(bankrollDeltaTimeout);
+    bankrollDeltaTimeout = null;
+  }
+  bankrollAnimating = false;
+  if (bankrollEl) {
+    bankrollEl.classList.remove(
+      "bankroll-positive",
+      "bankroll-negative",
+      "bankroll-neutral",
+      "bankroll-pulse"
+    );
+    if (restoreDisplay) {
+      bankrollEl.textContent = formatCurrency(bankroll);
+    }
+  }
+}
+
+function stopCarterCashAnimation() {
+  const clearFn = typeof window !== "undefined" ? window.clearTimeout : clearTimeout;
+  if (carterCashDeltaTimeout !== null) {
+    clearFn(carterCashDeltaTimeout);
+    carterCashDeltaTimeout = null;
+  }
+  carterCashAnimating = false;
+  if (carterCashEl) {
+    carterCashEl.classList.remove("carter-cash-pulse");
+  }
+  if (carterCashDeltaEl) {
+    carterCashDeltaEl.classList.remove("visible");
+    carterCashDeltaEl.textContent = "";
+  }
+}
+
+function animateCarterCashGain(amount) {
+  if (!carterCashEl || amount <= 0) {
+    return;
+  }
+
+  stopCarterCashAnimation();
+
+  carterCashAnimating = true;
+  carterCashEl.classList.remove("carter-cash-pulse");
+  void carterCashEl.offsetWidth;
+  carterCashEl.classList.add("carter-cash-pulse");
+
+  if (carterCashDeltaEl) {
+    carterCashDeltaEl.textContent = `+${formatCurrency(amount)}`;
+    carterCashDeltaEl.classList.add("visible");
+  }
+
+  const timeoutFn = typeof window !== "undefined" ? window.setTimeout : setTimeout;
+  carterCashDeltaTimeout = timeoutFn(() => {
+    if (carterCashEl) {
+      carterCashEl.classList.remove("carter-cash-pulse");
+    }
+    if (carterCashDeltaEl) {
+      carterCashDeltaEl.classList.remove("visible");
+      carterCashDeltaEl.textContent = "";
+    }
+    carterCashAnimating = false;
+    carterCashDeltaTimeout = null;
+  }, 1400);
+}
+
+function animateBankrollOutcome(delta) {
+  if (!bankrollEl) return;
+
+  stopBankrollAnimation(false);
+
+  if (!Number.isFinite(delta)) {
+    bankrollEl.textContent = formatCurrency(bankroll);
+    return;
+  }
+
+  showHandOutcomeToast(delta);
+
+  if (delta === 0) {
+    bankrollAnimating = true;
+    bankrollEl.classList.remove("bankroll-positive", "bankroll-negative");
+    bankrollEl.classList.add("bankroll-neutral", "bankroll-pulse");
+    bankrollDeltaTimeout = window.setTimeout(() => {
+      if (bankrollEl) {
+        bankrollEl.classList.remove("bankroll-neutral", "bankroll-pulse");
+        bankrollEl.textContent = formatCurrency(bankroll);
+      }
+      bankrollAnimating = false;
+      bankrollDeltaTimeout = null;
+    }, 1200);
+    return;
+  }
+
+  const finalValue = bankroll;
+  const startValue = finalValue - delta;
+  const directionClass = delta > 0 ? "bankroll-positive" : "bankroll-negative";
+
+  bankrollAnimating = true;
+  bankrollEl.classList.remove(
+    delta > 0 ? "bankroll-negative" : "bankroll-positive",
+    "bankroll-neutral"
+  );
+  bankrollEl.classList.add(directionClass, "bankroll-pulse");
+  bankrollEl.textContent = formatCurrency(startValue);
+
+  const duration = 900;
+  const startTime = performance.now();
+
+  function step(timestamp) {
+    const elapsed = timestamp - startTime;
+    const progress = Math.min(elapsed / duration, 1);
+    const eased = easeOutCubic(progress);
+    const currentValue = Math.round(startValue + (finalValue - startValue) * eased);
+    bankrollEl.textContent = formatCurrency(currentValue);
+    if (progress < 1) {
+      bankrollAnimationFrame = requestAnimationFrame(step);
+    } else {
+      bankrollEl.textContent = formatCurrency(finalValue);
+      bankrollAnimationFrame = null;
+      bankrollAnimating = false;
+      bankrollDeltaTimeout = window.setTimeout(() => {
+        if (bankrollEl) {
+          bankrollEl.classList.remove(directionClass, "bankroll-pulse");
+        }
+        bankrollDeltaTimeout = null;
+      }, 1400);
+    }
+  }
+
+  bankrollAnimationFrame = requestAnimationFrame(step);
+}
+
+function updateStatsUI() {
+  handsPlayedEl.textContent = stats.hands.toString();
+  totalWageredEl.textContent = formatCurrency(stats.wagered);
+  totalPaidEl.textContent = formatCurrency(stats.paid);
+  const hold = stats.wagered - stats.paid;
+  holdEl.textContent = formatCurrency(hold);
+  const edge = stats.wagered > 0 ? (hold / stats.wagered) * 100 : 0;
+  houseEdgeEl.textContent = `${edge.toFixed(2)}%`;
+}
+
+function formatStopper({ label, suit }) {
+  return label === "Joker" ? "Joker" : `${label}${suit}`;
+}
+
+function snapshotLayout(source) {
+  return source.map((entry) => ({
+    key: entry.key,
+    chips: Array.isArray(entry.chips) ? [...entry.chips] : []
+  }));
+}
+
+function layoutTotalUnits(layout) {
+  return layout.reduce((sum, entry) => {
+    const chips = entry.chips ?? [];
+    return sum + chips.reduce((inner, value) => inner + value, 0);
+  }, 0);
+}
+
+function applyBetLayout(layout) {
+  bets = [];
+  clearChipStacks();
+  renderBets();
+  const needsAdvanced = layout.some(({ key }) => {
+    const definition = getBetDefinition(key);
+    return definition && definition.type !== "number";
+  });
+  if (needsAdvanced) {
+    setAdvancedMode(true);
+  }
+  layout.forEach(({ key, chips = [] }) => {
+    chips.forEach((value) => addBet(key, value));
+  });
+}
+
+function summarizeBetResult(bet) {
+  if (bet.type === "number") {
+    const spokenRank = describeRank(bet.metadata?.rank ?? bet.rank ?? "");
+    return bet.hits > 0
+      ? `${bet.units}u on ${spokenRank}: <span class="hit">${bet.hits} hits / ${formatCurrency(
+          bet.paid
+        )}</span>`
+      : `${bet.units}u on ${spokenRank}: 0 hits`;
+  }
+
+  const profit = bet.paid > 0 ? bet.paid - bet.units : 0;
+  const payoutText =
+    bet.paid > 0
+      ? `<span class="hit">won ${formatCurrency(profit)} · stake returned</span>`
+      : "no win";
+  return `${bet.label}: ${payoutText}`;
+}
+
+function addHistoryEntry(result) {
+  const item = document.createElement("li");
+  const hitsDescription = result.betSummaries.length
+    ? result.betSummaries.join(" · ")
+    : "No winning hits";
+  item.innerHTML = `
+    <span class="stopper-card">Stopped on ${formatStopper(result.stopper)}</span> ·
+    ${hitsDescription}
+  `;
+  historyList.prepend(item);
+  while (historyList.children.length > 8) {
+    historyList.removeChild(historyList.lastChild);
+  }
+}
+
+function resetTable(
+  message = "Select a chip and place your bets in the betting panel.",
+  { clearDraws = false } = {}
+) {
+  if (clearDraws) {
+    drawsContainer.innerHTML = "";
+  }
+  if (message) {
+    statusEl.textContent = message;
+  }
+  dealing = false;
+  currentHandContext = null;
+  setHandPaused(false);
+  setBettingEnabled(true);
+  dealButton.disabled = bets.length === 0;
+  updatePauseButton();
+  updateRebetButtonState();
+}
+
+async function performAccountReset() {
+  bankroll = INITIAL_BANKROLL;
+  handleBankrollChanged();
+  stats = { hands: 0, wagered: 0, paid: 0 };
+  updateStatsUI();
+  lastBetLayout = [];
+  currentOpeningLayout = [];
+  historyList.innerHTML = "";
+  resetBets();
+  stopCarterCashAnimation();
+  carterCash = 0;
+  carterCashProgress = 0;
+  updateCarterCashDisplay();
+  if (currentProfile) {
+    currentProfile.carter_cash = carterCash;
+    currentProfile.carter_cash_progress = carterCashProgress;
+    currentProfile.credits = bankroll;
+  }
+  await persistBankroll();
+  await ensureProfileSynced({ force: true });
+  resetTable("Account reset. Select a chip and place your bets in the betting panel.", {
+    clearDraws: true
+  });
+  resetBankrollHistory();
+  closeUtilityPanel();
+  showToast("Account reset. Bankroll restored to 1,000 units and Carter Cash cleared.", "info");
+}
+
+function openResetModal() {
+  if (!resetModal) {
+    void performAccountReset();
+    return;
+  }
+  if (!resetModal.hidden) {
+    return;
+  }
+  resetModalTrigger = document.activeElement instanceof HTMLElement ? document.activeElement : resetAccountButton;
+  resetModal.hidden = false;
+  resetModal.classList.add("is-open");
+  resetModal.setAttribute("aria-hidden", "false");
+  document.body.classList.add("modal-open");
+  resetConfirmButton?.focus();
+}
+
+function closeResetModal({ restoreFocus = false } = {}) {
+  if (!resetModal) return;
+  resetModal.classList.remove("is-open");
+  resetModal.setAttribute("aria-hidden", "true");
+  resetModal.hidden = true;
+  if (
+    (!paytableModal || paytableModal.hidden) &&
+    (!shippingModal || shippingModal.hidden) &&
+    (!adminPrizeModal || adminPrizeModal.hidden) &&
+    (!prizeImageModal || prizeImageModal.hidden)
+  ) {
+    document.body.classList.remove("modal-open");
+  }
+  if (restoreFocus && resetModalTrigger instanceof HTMLElement) {
+    resetModalTrigger.focus();
+  }
+  resetModalTrigger = null;
+}
+
+function renderDraw(card) {
+  const cardEl = makeCardElement(card);
+  const fragment = document.createDocumentFragment();
+  fragment.appendChild(cardEl);
+  drawsContainer.appendChild(fragment);
+  requestAnimationFrame(() => {
+    cardEl.classList.add("dealt-in");
+  });
+}
+
+function settleAdvancedBets(stopperCard, context = {}) {
+  const nonStopperCount = context.nonStopperCount ?? 0;
+  const totalCards = context.totalCards ?? nonStopperCount;
+  bets.forEach((bet) => {
+    if (bet.type === "number") return;
+    const definition = getBetDefinition(bet.key);
+    if (!definition) return;
+
+    let payout = 0;
+    const { metadata } = definition;
+
+    switch (definition.type) {
+      case "bust-suit":
+        if (stopperCard.label !== "Joker" && stopperCard.suitName === metadata.suit) {
+          payout = definition.payout * bet.units;
+        }
+        break;
+      case "bust-rank":
+        if (stopperCard.label === metadata.face) {
+          payout = definition.payout * bet.units;
+        }
+        break;
+      case "bust-joker":
+        if (stopperCard.label === "Joker") {
+          payout = definition.payout * bet.units;
+        }
+        break;
+      case "count":
+        {
+          const min = metadata.countMin ?? 0;
+          const max = metadata.countMax ?? min;
+          if (max === Infinity) {
+            if (totalCards >= min) {
+              payout = definition.payout * bet.units;
+            }
+          } else if (totalCards === max) {
+            payout = definition.payout * bet.units;
+          }
+        }
+        break;
+      default:
+        break;
+    }
+
+    if (payout > 0) {
+      const totalReturn = payout + bet.units;
+      bet.paid += totalReturn;
+      bankroll += totalReturn;
+      handleBankrollChanged();
+    }
+  });
+}
+
+function applyPlaythrough(amount) {
+  if (!Number.isFinite(amount) || amount <= 0) {
+    return;
+  }
+
+  const previousCash = carterCash;
+  const previousProgress = carterCashProgress;
+
+  carterCashProgress += amount;
+  const earned = Math.floor(carterCashProgress / 1000);
+  if (earned > 0) {
+    carterCash += earned;
+    carterCashProgress -= earned * 1000;
+    handleCarterCashChanged();
+    animateCarterCashGain(earned);
+  } else if (!carterCashAnimating) {
+    handleCarterCashChanged();
+  }
+
+  if (currentProfile) {
+    currentProfile.carter_cash = carterCash;
+    currentProfile.carter_cash_progress = carterCashProgress;
+  }
+}
+
+async function endHand(stopperCard, context = {}) {
+  setHandPaused(false);
+  settleAdvancedBets(stopperCard, context);
+  const totalWagerThisHand = bets.reduce((sum, bet) => sum + bet.units, 0);
+  const totalPaidThisHand = bets.reduce((sum, bet) => sum + bet.paid, 0);
+  const netThisHand = totalPaidThisHand - totalWagerThisHand;
+
+  const betSnapshots = bets.map((bet) => ({
+    key: bet.key,
+    type: bet.type,
+    label: bet.label,
+    units: bet.units,
+    hits: bet.hits,
+    paid: bet.paid,
+    metadata: bet.metadata ? { ...bet.metadata } : null
+  }));
+
+  applyPlaythrough(totalWagerThisHand);
+
+  stats.hands += 1;
+  stats.wagered += totalWagerThisHand;
+  stats.paid += totalPaidThisHand;
+  updateStatsUI();
+
+  statusEl.textContent = `Hand stopped on ${stopperCard.label}${
+    stopperCard.label !== "Joker" ? " of " + stopperCard.suit : ""
+  }. Place your next bets.`;
+
+  addHistoryEntry({
+    stopper: stopperCard,
+    betSummaries: bets.map((bet) => summarizeBetResult(bet))
+  });
+
+  lastBetLayout = currentOpeningLayout.length > 0 ? snapshotLayout(currentOpeningLayout) : [];
+  currentOpeningLayout = [];
+
+  dealing = false;
+  animateBankrollOutcome(netThisHand);
+  recordBankrollHistoryPoint();
+  await persistBankroll();
+  await ensureProfileSynced({ force: true });
+  await logHandAndBets(stopperCard, context, betSnapshots, netThisHand);
+  const metadata = {
+    stopper: stopperCard.label,
+    suit: stopperCard.suitName ?? null,
+    totalCards: context.totalCards ?? null,
+    bets: betSnapshots.map((bet) => ({
+      key: bet.key,
+      type: bet.type,
+      units: bet.units,
+      hits: bet.hits,
+      paid: bet.paid
+    }))
+  };
+  logGameRun(netThisHand, metadata).catch((error) => {
+    console.error(error);
+    showToast("Could not record game run", "error");
+  });
+  resetBets();
+  setBettingEnabled(true);
+  updateRebetButtonState();
+  updatePauseButton();
+}
+
+async function processCard(card, context) {
+  if (context) {
+    context.totalCards = (context.totalCards ?? 0) + 1;
+  }
+
+  renderDraw(card);
+
+  if (card.stopper) {
+    await endHand(card, context);
+    return true;
+  }
+
+  if (context) {
+    context.nonStopperCount = (context.nonStopperCount ?? 0) + 1;
+  }
+
+  const rank = card.rank;
+  let totalHitPayout = 0;
+  let hitsRecorded = 0;
+  const stepPays = currentStepPays();
+  bets.forEach((bet) => {
+    if (
+      bet.type === "number" &&
+      bet.metadata?.rank === rank &&
+      bet.hits < stepPays.length
+    ) {
+      const pay = stepPays[bet.hits] * bet.units;
+      bet.paid += pay;
+      bet.hits += 1;
+      bankroll += pay;
+      handleBankrollChanged();
+      totalHitPayout += pay;
+      hitsRecorded += 1;
+    }
+  });
+
+  renderBets();
+  if (hitsRecorded > 0) {
+    const spokenRank = describeRank(rank);
+    statusEl.textContent = `${spokenRank} hits ${hitsRecorded} bet${
+      hitsRecorded > 1 ? "s" : ""
+    } for ${formatCurrency(totalHitPayout)} units.`;
+  } else {
+    statusEl.textContent = `${describeRank(rank)} keeps the action going.`;
+  }
+  return false;
+}
+
+async function dealHand() {
+  if (bets.length === 0 || dealing) return;
+  currentOpeningLayout = snapshotLayout(bets);
+  dealing = true;
+  pauseResolvers = [];
+  currentHandContext = { nonStopperCount: 0, totalCards: 0 };
+  setHandPaused(false);
+  setBettingEnabled(false);
+  dealButton.disabled = true;
+  updateRebetButtonState();
+  resetBetCounters();
+  drawsContainer.innerHTML = "";
+  statusEl.textContent = "Dealing...";
+  updatePauseButton();
+
+  const deck = createDeck();
+  shuffle(deck);
+
+  for (const card of deck) {
+    await waitWhilePaused();
+    const shouldStop = await processCard(card, currentHandContext);
+    if (shouldStop) {
+      break;
+    }
+    await waitForDealDelay();
+  }
+
+  currentHandContext = null;
+  setHandPaused(false);
+  updatePauseButton();
+}
+
+function placeBet(key) {
+  const definition = getBetDefinition(key);
+  if (!definition) return;
+
+  if (!bettingOpen && definition.lockDuringHand) {
+    statusEl.textContent = `${definition.label} bets are locked while a hand is in progress.`;
+    return;
+  }
+
+  if (definition.type !== "number" && !advancedMode) {
+    statusEl.textContent = "Enable Advanced Mode to place this wager.";
+    return;
+  }
+
+  if (selectedChip > bankroll) {
+    statusEl.textContent = `Insufficient bankroll for a ${formatCurrency(
+      selectedChip
+    )}-unit chip. Try a smaller denomination.`;
+    return;
+  }
+
+  const bet = addBet(key, selectedChip);
+  if (!bet) return;
+  const totalForBet = formatCurrency(bet.units);
+  const spokenLabel =
+    definition.type === "number"
+      ? describeRank(definition.metadata?.rank ?? definition.label)
+      : definition.label;
+  statusEl.textContent = `Placed ${formatCurrency(selectedChip)} unit${
+    selectedChip !== 1 ? "s" : ""
+  } on ${spokenLabel}. Total on ${definition.label}: ${totalForBet} unit${
+    bet.units !== 1 ? "s" : ""
+  }.`;
+}
+
+chipButtons.forEach((button) => {
+  button.addEventListener("click", () => {
+    if (button.disabled) return;
+    const value = Number(button.dataset.value);
+    if (!Number.isFinite(value)) return;
+    setSelectedChip(value);
+  });
+});
+
+betSpotButtons.forEach((button) => {
+  button.addEventListener("click", () => {
+    if (button.disabled) return;
+    const key = button.dataset.betKey || button.dataset.rank;
+    if (!key) return;
+    placeBet(key);
+  });
+});
+
+paytableRadios.forEach((radio) => {
+  radio.addEventListener("change", () => {
+    if (!radio.checked) return;
+    pendingPaytableId = radio.value;
+  });
+});
+
+if (advancedToggleInput) {
+  advancedToggleInput.addEventListener("change", (event) => {
+    const enabled = Boolean(event.target.checked);
+    setAdvancedMode(enabled);
+    if (!dealing) {
+      statusEl.textContent = enabled
+        ? "Advanced Mode enabled. Bust and card count wagers are available below the deal area."
+        : "Advanced Mode disabled. Only Ace and number bets remain on the felt.";
+    }
+  });
+}
+
+if (pausePlayButton) {
+  pausePlayButton.addEventListener("click", () => {
+    if (!dealing) return;
+    setHandPaused(!handPaused);
+  });
+}
+
+function handleClearBetsClick() {
+  if (dealing || !bettingOpen || bets.length === 0) return;
+  const totalUnits = bets.reduce((sum, bet) => sum + bet.units, 0);
+  restoreUnits(totalUnits);
+  resetBets();
+  statusEl.textContent = "Bets cleared.";
+}
+
+clearBetsButtons.forEach((button) => {
+  button.addEventListener("click", handleClearBetsClick);
+});
+
+dealButton.addEventListener("click", () => {
+  if (bets.length === 0 || dealing) return;
+  dealHand();
+});
+
+rebetButton.addEventListener("click", () => {
+  if (dealing || lastBetLayout.length === 0) return;
+  const totalNeeded = layoutTotalUnits(lastBetLayout);
+  if (totalNeeded === 0) {
+    statusEl.textContent = "No prior wagers to rebet.";
+    return;
+  }
+
+  const outstanding = bets.reduce((sum, bet) => sum + bet.units, 0);
+  const available = bankroll + outstanding;
+  if (totalNeeded > available) {
+    statusEl.textContent = `Not enough bankroll to rebet ${formatCurrency(
+      totalNeeded
+    )} units. Reset your account or place smaller bets.`;
+    return;
+  }
+
+  if (outstanding > 0) {
+    restoreUnits(outstanding);
+    resetBets();
+  }
+
+  rebetButton.disabled = true;
+  applyBetLayout(lastBetLayout);
+  statusEl.textContent = "Previous wagers restored. Adjust or add bets, then deal when ready.";
+  rebetButton.disabled = false;
+  updateRebetButtonState();
+  dealButton.disabled = false;
+});
+
+if (resetAccountButton) {
+  resetAccountButton.addEventListener("click", () => {
+    if (dealing) return;
+    openResetModal();
+  });
+}
+
+function openDrawer(panel, toggle) {
+  if (!panel || !panelScrim) return;
+  if (panel === openDrawerPanel) return;
+  closeActiveDrawer();
+  panel.classList.add("is-open");
+  panel.setAttribute("aria-hidden", "false");
+  if (toggle) {
+    toggle.setAttribute("aria-expanded", "true");
+  }
+  panelScrim.hidden = false;
+  openDrawerPanel = panel;
+  openDrawerToggle = toggle || null;
+  if (panel === chartPanel) {
+    requestAnimationFrame(() => {
+      drawBankrollChart();
+    });
+  } else if (panel === leaderboardPanel) {
+    scheduleLeaderboardRefresh();
+    void refreshLeaderboard();
+  }
+}
+
+function closeDrawer(panel = openDrawerPanel, toggle = openDrawerToggle) {
+  if (!panel) return;
+  panel.classList.remove("is-open");
+  panel.setAttribute("aria-hidden", "true");
+  if (toggle) {
+    toggle.setAttribute("aria-expanded", "false");
+  }
+  if (panel === openDrawerPanel) {
+    openDrawerPanel = null;
+    openDrawerToggle = null;
+  }
+  if (!openDrawerPanel && panelScrim) {
+    panelScrim.hidden = true;
+  }
+}
+
+function closeActiveDrawer({ returnFocus = false } = {}) {
+  if (!openDrawerPanel) return;
+
+  const panel = openDrawerPanel;
+  const toggle = openDrawerToggle;
+  const activeElement = document.activeElement;
+
+  if (activeElement && panel.contains(activeElement)) {
+    if (toggle) {
+      toggle.focus();
+    } else {
+      document.body.focus?.();
+    }
+  }
+
+  closeDrawer(panel, toggle);
+
+  if (returnFocus && toggle) {
+    toggle.focus();
+  }
+}
+
+function closeUtilityPanel() {
+  closeDrawer(utilityPanel, menuToggle);
+}
+
+function openPaytableModal() {
+  if (!paytableModal || !changePaytableButton) return;
+  if (!bettingOpen) return;
+  pendingPaytableId = activePaytable.id;
+  updateActivePaytableUI();
+  paytableRadios.forEach((radio) => {
+    radio.checked = radio.value === pendingPaytableId;
+  });
+  paytableModal.hidden = false;
+  paytableModal.classList.add("is-open");
+  paytableModal.setAttribute("aria-hidden", "false");
+  document.body.classList.add("modal-open");
+  const focusTarget =
+    paytableForm?.querySelector('input[name="paytable"]:checked') ||
+    paytableForm?.querySelector('input[name="paytable"]');
+  focusTarget?.focus();
+}
+
+function closePaytableModal({ restoreFocus = false } = {}) {
+  if (!paytableModal) return;
+  paytableModal.classList.remove("is-open");
+  paytableModal.setAttribute("aria-hidden", "true");
+  paytableModal.hidden = true;
+  if (
+    (!resetModal || resetModal.hidden) &&
+    (!shippingModal || shippingModal.hidden) &&
+    (!adminPrizeModal || adminPrizeModal.hidden) &&
+    (!prizeImageModal || prizeImageModal.hidden)
+  ) {
+    document.body.classList.remove("modal-open");
+  }
+  updateActivePaytableUI();
+  if (restoreFocus && changePaytableButton) {
+    changePaytableButton.focus();
+  }
+}
+
+if (menuToggle && utilityPanel && utilityClose && panelScrim) {
+  menuToggle.addEventListener("click", () => {
+    const isOpen = utilityPanel.classList.contains("is-open");
+    if (isOpen) {
+      closeDrawer(utilityPanel, menuToggle);
+    } else {
+      openDrawer(utilityPanel, menuToggle);
+    }
+  });
+
+  utilityClose.addEventListener("click", () => {
+    closeDrawer(utilityPanel, menuToggle);
+  });
+}
+
+if (graphToggle && chartPanel && chartClose) {
+  graphToggle.addEventListener("click", () => {
+    const isOpen = chartPanel.classList.contains("is-open");
+    if (isOpen) {
+      closeDrawer(chartPanel, graphToggle);
+    } else {
+      openDrawer(chartPanel, graphToggle);
+    }
+  });
+
+  chartClose.addEventListener("click", () => {
+    closeDrawer(chartPanel, graphToggle);
+  });
+}
+
+if (leaderboardToggle && leaderboardPanel && leaderboardClose) {
+  leaderboardToggle.addEventListener("click", () => {
+    const isOpen = leaderboardPanel.classList.contains("is-open");
+    if (isOpen) {
+      closeDrawer(leaderboardPanel, leaderboardToggle);
+    } else {
+      openDrawer(leaderboardPanel, leaderboardToggle);
+      scheduleLeaderboardRefresh();
+      void refreshLeaderboard();
+    }
+  });
+
+  leaderboardClose.addEventListener("click", () => {
+    closeDrawer(leaderboardPanel, leaderboardToggle);
+  });
+}
+
+if (authForm) {
+  authForm.addEventListener("submit", handleAuthFormSubmit);
+}
+
+if (signupForm) {
+  signupForm.addEventListener("submit", handleSignUpFormSubmit);
+}
+
+if (adminPrizeForm) {
+  adminPrizeForm.addEventListener("submit", handleAdminPrizeSubmit);
+}
+
+if (adminPrizeImageFileInput) {
+  adminPrizeImageFileInput.addEventListener("change", handlePrizeImageSelection);
+}
+
+if (adminAddButton) {
+  adminAddButton.addEventListener("click", () => {
+    openAdminCreateForm();
+  });
+}
+
+if (adminModalCancelButton) {
+  adminModalCancelButton.addEventListener("click", () => {
+    closeAdminForm({ resetFields: true, restoreFocus: true });
+  });
+}
+
+if (adminModalCloseButton) {
+  adminModalCloseButton.addEventListener("click", () => {
+    closeAdminForm({ resetFields: false, restoreFocus: true });
+  });
+}
+
+applyAdminFormDefaults();
+
+if (shippingForm) {
+  shippingForm.addEventListener("submit", handleShippingSubmit);
+}
+
+if (shippingCancelButton) {
+  shippingCancelButton.addEventListener("click", () => {
+    closeShippingModal({ restoreFocus: true });
+  });
+}
+
+if (shippingCloseButton) {
+  shippingCloseButton.addEventListener("click", () => {
+    closeShippingModal({ restoreFocus: true });
+  });
+}
+
+if (prizeImageCloseButton) {
+  prizeImageCloseButton.addEventListener("click", () => {
+    closePrizeImageModal({ restoreFocus: true });
+  });
+}
+
+if (prizeImageModal) {
+  prizeImageModal.addEventListener("click", (event) => {
+    if (event.target === prizeImageModal) {
+      closePrizeImageModal({ restoreFocus: true });
+    }
+  });
+}
+
+if (showSignUpButton) {
+  showSignUpButton.addEventListener("click", async () => {
+    if (signupForm) {
+      signupForm.reset();
+    }
+    if (signupErrorEl) {
+      signupErrorEl.hidden = true;
+      signupErrorEl.textContent = "";
+    }
+    await setRoute("signup");
+    signupFirstInput?.focus();
+  });
+}
+
+if (showLoginButton) {
+  showLoginButton.addEventListener("click", async () => {
+    if (authErrorEl) {
+      authErrorEl.hidden = true;
+      authErrorEl.textContent = "";
+    }
+    await setRoute("auth");
+    authEmailInput?.focus();
+  });
+}
+
+routeButtons.forEach((button) => {
+  button.addEventListener("click", async () => {
+    const target = button.dataset.routeTarget;
+    closeActiveDrawer();
+    await setRoute(target);
+  });
+});
+
+signOutButtons.forEach((button) => {
+  button.addEventListener("click", async () => {
+    closeActiveDrawer();
+    await handleSignOut();
+  });
+});
+
+if (typeof window !== "undefined") {
+  window.addEventListener("hashchange", handleHashChange);
+}
+
+if (panelScrim) {
+  panelScrim.addEventListener("click", () => {
+    closeActiveDrawer();
+  });
+}
+
+if (changePaytableButton && paytableModal && paytableApplyButton && paytableCancelButton) {
+  changePaytableButton.addEventListener("click", () => {
+    if (changePaytableButton.disabled) return;
+    openPaytableModal();
+  });
+
+  paytableApplyButton.addEventListener("click", () => {
+    if (!paytableModal.hidden) {
+      setActivePaytable(pendingPaytableId, { announce: true });
+      closePaytableModal({ restoreFocus: true });
+    }
+  });
+
+  paytableCancelButton.addEventListener("click", () => {
+    pendingPaytableId = activePaytable.id;
+    closePaytableModal({ restoreFocus: true });
+  });
+
+  if (paytableCloseButton) {
+    paytableCloseButton.addEventListener("click", () => {
+      pendingPaytableId = activePaytable.id;
+      closePaytableModal({ restoreFocus: true });
+    });
+  }
+}
+
+if (resetConfirmButton) {
+  resetConfirmButton.addEventListener("click", async () => {
+    closeResetModal({ restoreFocus: false });
+    await performAccountReset();
+    resetAccountButton?.focus();
+  });
+}
+
+if (resetCancelButton) {
+  resetCancelButton.addEventListener("click", () => {
+    closeResetModal({ restoreFocus: true });
+  });
+}
+
+if (resetCloseButton) {
+  resetCloseButton.addEventListener("click", () => {
+    closeResetModal({ restoreFocus: true });
+  });
+}
+
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape") {
+    if (prizeImageModal && !prizeImageModal.hidden) {
+      closePrizeImageModal({ restoreFocus: true });
+      event.preventDefault();
+      return;
+    }
+    if (resetModal && !resetModal.hidden) {
+      closeResetModal({ restoreFocus: true });
+      event.preventDefault();
+      return;
+    }
+    if (paytableModal && !paytableModal.hidden) {
+      pendingPaytableId = activePaytable.id;
+      closePaytableModal({ restoreFocus: true });
+      event.preventDefault();
+      return;
+    }
+    if (openDrawerPanel) {
+      event.preventDefault();
+      closeActiveDrawer({ returnFocus: true });
+    }
+  }
+});
+
+updateAdminVisibility(currentUser);
+
+supabase.auth.onAuthStateChange(async (event, session) => {
+  if (session?.user) {
+    currentUser = session.user;
+    if (authEmailInput && currentUser.email) {
+      authEmailInput.value = currentUser.email;
+    }
+    updateAdminVisibility(currentUser);
+    if (appShell) {
+      appShell.removeAttribute("data-hidden");
+    }
+    ensureLeaderboardSubscription();
+    scheduleLeaderboardRefresh();
+    const route = getRouteFromHash();
+    await setRoute(route, { replaceHash: true });
+    waitForProfile(currentUser, {
+      interval: 1000,
+      maxAttempts: 10,
+      notify: true
+    }).then((profile) => {
+      if (profile) {
+        currentProfile = profile;
+        if (currentRoute === "dashboard") {
+          loadDashboard(true);
+        }
+      }
+    });
+    manualSignOutRequested = false;
+    return;
+  }
+
+  const isSignedOutEvent = event === "SIGNED_OUT" || event === "USER_DELETED";
+  if (manualSignOutRequested) {
+    showToast("Signed out", "info");
+  } else if (isSignedOutEvent) {
+    showToast("Session expired. Please sign in again.", "warning");
+  }
+  manualSignOutRequested = false;
+  applySignedOutState();
+});
+
+initTheme();
+setActivePaytable(activePaytable.id, { announce: false });
+updatePaytableAvailability();
+setSelectedChip(selectedChip, false);
+renderBets();
+updateBankroll();
+updateCarterCashDisplay();
+resetTable();
+updateStatsUI();
+resetBankrollHistory();
+window.addEventListener("resize", schedulePlayAreaHeightUpdate);
+window.addEventListener("resize", drawBankrollChart);
+
+async function initializeApp() {
+  stripSupabaseRedirectHash();
+
+  try {
+    const {
+      data: { session },
+      error
+    } = await supabase.auth.getSession();
+
+    if (error) {
+      throw error;
+    }
+
+    if (session?.user) {
+      currentUser = session.user;
+      updateAdminVisibility(currentUser);
+      const profile = await waitForProfile(currentUser, {
+        interval: 1000,
+        maxAttempts: 10,
+        notify: false
+      });
+      if (!profile) {
+        await ensureProfileSynced({ force: true });
+      }
+      ensureLeaderboardSubscription();
+      scheduleLeaderboardRefresh();
+      const initialRoute = getRouteFromHash();
+      await setRoute(initialRoute, { replaceHash: true });
+    } else {
+      showAuthView("login");
+      updateHash("auth", { replace: true });
+    }
+  } catch (error) {
+    console.error("Error initializing app:", error);
+    showAuthView("login");
+    updateHash("auth", { replace: true });
+  } finally {
+    markAppReady();
+  }
+}
+
+initializeApp();
