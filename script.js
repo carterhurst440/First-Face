@@ -2002,6 +2002,74 @@ export async function logGameRun(score, metadata = {}) {
   });
 }
 
+async function logHandAndBets(stopperCard, context, betSnapshots, netThisHand) {
+  try {
+    const {
+      data: { user }
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      return;
+    }
+
+    const safeBets = Array.isArray(betSnapshots) ? betSnapshots : [];
+
+    const totalWager = safeBets.reduce((sum, bet) => sum + (bet.units ?? 0), 0);
+    const totalPaid = safeBets.reduce((sum, bet) => sum + (bet.paid ?? 0), 0);
+
+    const handPayload = {
+      user_id: user.id,
+      stopper_label: stopperCard?.label ?? null,
+      stopper_suit: stopperCard?.suitName ?? null,
+      total_cards: context?.totalCards ?? null,
+      total_wager: totalWager,
+      total_paid: totalPaid,
+      net: netThisHand
+    };
+
+    const { data: hand, error: handError } = await supabase
+      .from("game_hands")
+      .insert(handPayload)
+      .select()
+      .single();
+
+    if (handError) {
+      console.error("hand insert failed", handError);
+      return;
+    }
+
+    if (safeBets.length === 0) {
+      return;
+    }
+
+    const betRows = safeBets.map((bet) => {
+      const amountWagered = bet.units ?? 0;
+      const amountPaid = bet.paid ?? 0;
+      const net = amountPaid - amountWagered;
+      const outcome = amountPaid > 0 ? "W" : "L";
+
+      return {
+        user_id: user.id,
+        hand_id: hand.id,
+        bet_key: bet.key,
+        amount_wagered: amountWagered,
+        amount_paid: amountPaid,
+        outcome,
+        net,
+        raw: bet
+      };
+    });
+
+    const { error: betsError } = await supabase.from("bet_plays").insert(betRows);
+
+    if (betsError) {
+      console.error("bet insert failed", betsError);
+    }
+  } catch (error) {
+    console.error("Failed to log hand and bets", error);
+  }
+}
+
 function applyTheme(theme) {
   const next = THEME_CLASS_MAP[theme] ? theme : "blue";
   if (!document.body) {
@@ -3547,6 +3615,16 @@ async function endHand(stopperCard, context = {}) {
   const totalPaidThisHand = bets.reduce((sum, bet) => sum + bet.paid, 0);
   const netThisHand = totalPaidThisHand - totalWagerThisHand;
 
+  const betSnapshots = bets.map((bet) => ({
+    key: bet.key,
+    type: bet.type,
+    label: bet.label,
+    units: bet.units,
+    hits: bet.hits,
+    paid: bet.paid,
+    metadata: bet.metadata ? { ...bet.metadata } : null
+  }));
+
   applyPlaythrough(totalWagerThisHand);
 
   stats.hands += 1;
@@ -3570,11 +3648,12 @@ async function endHand(stopperCard, context = {}) {
   animateBankrollOutcome(netThisHand);
   recordBankrollHistoryPoint();
   await persistBankroll();
+  await logHandAndBets(stopperCard, context, betSnapshots, netThisHand);
   const metadata = {
     stopper: stopperCard.label,
     suit: stopperCard.suitName ?? null,
     totalCards: context.totalCards ?? null,
-    bets: bets.map((bet) => ({
+    bets: betSnapshots.map((bet) => ({
       key: bet.key,
       type: bet.type,
       units: bet.units,
