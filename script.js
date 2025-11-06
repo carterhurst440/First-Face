@@ -20,6 +20,16 @@ function stripSupabaseRedirectHash() {
   }
 }
 
+function markAppReady() {
+  if (typeof document === "undefined") {
+    return;
+  }
+
+  const { body } = document;
+  if (body) {
+    body.dataset.appState = "ready";
+  }
+}
 async function bootstrapAuth() {
   if (typeof window === "undefined") {
     return false;
@@ -4328,6 +4338,7 @@ async function initializeApp() {
     if (!session?.user) {
       showAuthView("login");
       updateHash("auth", { replace: true });
+      markAppReady();
       return;
     }
 
@@ -4340,10 +4351,12 @@ async function initializeApp() {
 
     const initialRoute = getRouteFromHash();
     await setRoute(initialRoute, { replaceHash: true });
+    markAppReady();
   } catch (error) {
-    console.error(error);
+    console.error("Error initializing app:", error);
     showAuthView("login");
     updateHash("auth", { replace: true });
+    markAppReady();
   }
 }
 

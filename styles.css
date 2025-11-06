@@ -486,6 +486,10 @@ body {
   display: none;
 }
 
+body[data-app-state="loading"] #app-shell {
+  visibility: hidden;
+}
+
 .app-shell {
   width: 100%;
 }
