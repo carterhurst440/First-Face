@@ -31,72 +31,6 @@ function markAppReady() {
   }
 }
 
-async function bootstrapAuth() {
-  if (typeof window === "undefined") {
-    return false;
-  }
-
-  const applySession = async (session) => {
-    if (!session?.user) return false;
-    currentUser = session.user;
-    const profile = await waitForProfile(currentUser, {
-      interval: 1000,
-      maxAttempts: 10,
-      notify: false
-    });
-    if (!profile) {
-      await ensureProfileSynced({ force: true });
-    }
-    return true;
-  };
-
-  try {
-    const {
-      data: { session },
-      error
-    } = await supabase.auth.getSession();
-
-    if (error) {
-      console.error(error);
-    } else if (session?.user) {
-      const applied = await applySession(session);
-      if (applied) {
-        return true;
-      }
-    }
-
-    const sessionFromEvent = await new Promise((resolve) => {
-      let settled = false;
-      const { data } = supabase.auth.onAuthStateChange((event, nextSession) => {
-        if (nextSession?.user) {
-          settled = true;
-          data.subscription.unsubscribe();
-          resolve(nextSession);
-        } else if (event === "SIGNED_OUT" || event === "USER_DELETED") {
-          settled = true;
-          data.subscription.unsubscribe();
-          resolve(null);
-        }
-      });
-
-      setTimeout(() => {
-        if (!settled) {
-          data.subscription.unsubscribe();
-          resolve(null);
-        }
-      }, 4000);
-    });
-
-    if (sessionFromEvent?.user) {
-      return applySession(sessionFromEvent);
-    }
-  } catch (error) {
-    console.error(error);
-  }
-
-  return false;
-}
-
 const PAYTABLES = [
   {
     id: "paytable-1",
@@ -4368,10 +4302,29 @@ async function initializeApp() {
   stripSupabaseRedirectHash();
 
   try {
-    const isAuthed = await bootstrapAuth();
-    const initialRoute = getRouteFromHash();
+    const {
+      data: { session },
+      error
+    } = await supabase.auth.getSession();
 
-    if (isAuthed) {
+    if (error) {
+      throw error;
+    }
+
+    if (session?.user) {
+      currentUser = session.user;
+      updateAdminVisibility(currentUser);
+      const profile = await waitForProfile(currentUser, {
+        interval: 1000,
+        maxAttempts: 10,
+        notify: false
+      });
+      if (!profile) {
+        await ensureProfileSynced({ force: true });
+      }
+      ensureLeaderboardSubscription();
+      scheduleLeaderboardRefresh();
+      const initialRoute = getRouteFromHash();
       await setRoute(initialRoute, { replaceHash: true });
     } else {
       showAuthView("login");
