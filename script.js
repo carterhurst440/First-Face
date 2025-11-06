@@ -4319,9 +4319,32 @@ window.addEventListener("resize", drawBankrollChart);
 
 async function initializeApp() {
   stripSupabaseRedirectHash();
-  await bootstrapAuth();
-  const initialRoute = getRouteFromHash();
-  await setRoute(initialRoute, { replaceHash: true });
+
+  try {
+    const {
+      data: { session }
+    } = await supabase.auth.getSession();
+
+    if (!session?.user) {
+      showAuthView("login");
+      updateHash("auth", { replace: true });
+      return;
+    }
+
+    currentUser = session.user;
+    await waitForProfile(currentUser, {
+      interval: 1000,
+      maxAttempts: 10,
+      notify: false
+    });
+
+    const initialRoute = getRouteFromHash();
+    await setRoute(initialRoute, { replaceHash: true });
+  } catch (error) {
+    console.error(error);
+    showAuthView("login");
+    updateHash("auth", { replace: true });
+  }
 }
 
 initializeApp();
