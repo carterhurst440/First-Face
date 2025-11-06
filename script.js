@@ -4294,9 +4294,10 @@ supabase.auth.onAuthStateChange(async (event, session) => {
     return;
   }
 
+  const isSignedOutEvent = event === "SIGNED_OUT" || event === "USER_DELETED";
   if (manualSignOutRequested) {
     showToast("Signed out", "info");
-  } else if (event === "TOKEN_REFRESHED" || event === "SIGNED_OUT" || event === "USER_DELETED") {
+  } else if (isSignedOutEvent) {
     showToast("Session expired. Please sign in again.", "warning");
   }
   manualSignOutRequested = false;
