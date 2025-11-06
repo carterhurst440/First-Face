@@ -2630,28 +2630,70 @@ async function persistBankroll() {
   }
 
   try {
-    const { error } = await supabase.from("profiles").update(updates).eq("id", currentUser.id);
+    const { data, error } = await supabase
+      .from("profiles")
+      .update(updates)
+      .eq("id", currentUser.id)
+      .select("credits, carter_cash, carter_cash_progress")
+      .maybeSingle();
+
     if (error) {
       throw error;
     }
-    if (Object.prototype.hasOwnProperty.call(updates, "credits")) {
-      lastSyncedBankroll = bankroll;
+
+    if (data) {
+      const nextCredits = Number.isFinite(Number(data.credits))
+        ? Math.round(Number(data.credits))
+        : bankroll;
+      const nextCarterCash = Number.isFinite(Number(data.carter_cash))
+        ? Math.round(Number(data.carter_cash))
+        : carterCash;
+      const nextProgress = Number.isFinite(Number(data.carter_cash_progress))
+        ? Number(data.carter_cash_progress)
+        : carterCashProgress;
+
+      lastSyncedBankroll = nextCredits;
+      lastSyncedCarterCash = nextCarterCash;
+      lastSyncedCarterProgress = nextProgress;
+
+      if (bankroll !== nextCredits) {
+        bankroll = nextCredits;
+        handleBankrollChanged();
+      }
+
+      if (carterCash !== nextCarterCash) {
+        carterCash = nextCarterCash;
+        handleCarterCashChanged();
+      }
+
+      carterCashProgress = nextProgress;
+
       if (currentProfile) {
-        currentProfile.credits = bankroll;
+        currentProfile.credits = nextCredits;
+        currentProfile.carter_cash = nextCarterCash;
+        currentProfile.carter_cash_progress = nextProgress;
+      }
+    } else {
+      if (Object.prototype.hasOwnProperty.call(updates, "credits")) {
+        lastSyncedBankroll = bankroll;
+        if (currentProfile) {
+          currentProfile.credits = bankroll;
+        }
+      }
+      if (Object.prototype.hasOwnProperty.call(updates, "carter_cash")) {
+        lastSyncedCarterCash = carterCash;
+        if (currentProfile) {
+          currentProfile.carter_cash = carterCash;
+        }
+      }
+      if (Object.prototype.hasOwnProperty.call(updates, "carter_cash_progress")) {
+        lastSyncedCarterProgress = carterCashProgress;
+        if (currentProfile) {
+          currentProfile.carter_cash_progress = carterCashProgress;
+        }
       }
     }
-    if (Object.prototype.hasOwnProperty.call(updates, "carter_cash")) {
-      lastSyncedCarterCash = carterCash;
-      if (currentProfile) {
-        currentProfile.carter_cash = carterCash;
-      }
-    }
-    if (Object.prototype.hasOwnProperty.call(updates, "carter_cash_progress")) {
-      lastSyncedCarterProgress = carterCashProgress;
-      if (currentProfile) {
-        currentProfile.carter_cash_progress = carterCashProgress;
-      }
-    }
+
     lastProfileSync = Date.now();
   } catch (error) {
     console.error("Unable to sync bankroll", error);
@@ -3648,6 +3690,7 @@ async function endHand(stopperCard, context = {}) {
   animateBankrollOutcome(netThisHand);
   recordBankrollHistoryPoint();
   await persistBankroll();
+  await ensureProfileSynced({ force: true });
   await logHandAndBets(stopperCard, context, betSnapshots, netThisHand);
   const metadata = {
     stopper: stopperCard.label,
