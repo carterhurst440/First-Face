@@ -30,6 +30,35 @@ function markAppReady() {
     body.dataset.appState = "ready";
   }
 }
+async function bootstrapAuth() {
+  if (typeof window === "undefined") {
+    return false;
+  }
+
+  try {
+    const {
+      data: { session },
+      error
+    } = await supabase.auth.getSession();
+    if (error) {
+      console.error(error);
+      return false;
+    }
+    if (session?.user) {
+      currentUser = session.user;
+      await waitForProfile(currentUser, {
+        interval: 1000,
+        maxAttempts: 10,
+        notify: false
+      });
+      return true;
+    }
+  } catch (error) {
+    console.error(error);
+  }
+
+  return false;
+}
 
 const PAYTABLES = [
   {
