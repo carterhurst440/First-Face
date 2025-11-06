@@ -36,6 +36,20 @@ async function bootstrapAuth() {
     return false;
   }
 
+  const applySession = async (session) => {
+    if (!session?.user) return false;
+    currentUser = session.user;
+    const profile = await waitForProfile(currentUser, {
+      interval: 1000,
+      maxAttempts: 10,
+      notify: false
+    });
+    if (!profile) {
+      await ensureProfileSynced({ force: true });
+    }
+    return true;
+  };
+
   try {
     const {
       data: { session },
@@ -44,17 +58,37 @@ async function bootstrapAuth() {
 
     if (error) {
       console.error(error);
-      return false;
+    } else if (session?.user) {
+      const applied = await applySession(session);
+      if (applied) {
+        return true;
+      }
     }
 
-    if (session?.user) {
-      currentUser = session.user;
-      await waitForProfile(currentUser, {
-        interval: 1000,
-        maxAttempts: 10,
-        notify: false
+    const sessionFromEvent = await new Promise((resolve) => {
+      let settled = false;
+      const { data } = supabase.auth.onAuthStateChange((event, nextSession) => {
+        if (nextSession?.user) {
+          settled = true;
+          data.subscription.unsubscribe();
+          resolve(nextSession);
+        } else if (event === "SIGNED_OUT" || event === "USER_DELETED") {
+          settled = true;
+          data.subscription.unsubscribe();
+          resolve(null);
+        }
       });
-      return true;
+
+      setTimeout(() => {
+        if (!settled) {
+          data.subscription.unsubscribe();
+          resolve(null);
+        }
+      }, 4000);
+    });
+
+    if (sessionFromEvent?.user) {
+      return applySession(sessionFromEvent);
     }
   } catch (error) {
     console.error(error);
