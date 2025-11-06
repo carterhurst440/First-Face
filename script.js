@@ -30,6 +30,7 @@ function markAppReady() {
     body.dataset.appState = "ready";
   }
 }
+
 async function bootstrapAuth() {
   if (typeof window === "undefined") {
     return false;
@@ -40,10 +41,12 @@ async function bootstrapAuth() {
       data: { session },
       error
     } = await supabase.auth.getSession();
+
     if (error) {
       console.error(error);
       return false;
     }
+
     if (session?.user) {
       currentUser = session.user;
       await waitForProfile(currentUser, {
@@ -4331,31 +4334,20 @@ async function initializeApp() {
   stripSupabaseRedirectHash();
 
   try {
-    const {
-      data: { session }
-    } = await supabase.auth.getSession();
+    const isAuthed = await bootstrapAuth();
+    const initialRoute = getRouteFromHash();
 
-    if (!session?.user) {
+    if (isAuthed) {
+      await setRoute(initialRoute, { replaceHash: true });
+    } else {
       showAuthView("login");
       updateHash("auth", { replace: true });
-      markAppReady();
-      return;
     }
-
-    currentUser = session.user;
-    await waitForProfile(currentUser, {
-      interval: 1000,
-      maxAttempts: 10,
-      notify: false
-    });
-
-    const initialRoute = getRouteFromHash();
-    await setRoute(initialRoute, { replaceHash: true });
-    markAppReady();
   } catch (error) {
     console.error("Error initializing app:", error);
     showAuthView("login");
     updateHash("auth", { replace: true });
+  } finally {
     markAppReady();
   }
 }
