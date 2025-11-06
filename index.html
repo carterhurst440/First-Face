@@ -1017,8 +1017,18 @@
                 <button type="button" data-route-target="home" class="link-button">Back to home</button>
               </div>
             </header>
-            <section class="route-section">
-              <h2>Add a prize</h2>
+            <section class="route-section admin-list-section">
+              <div class="admin-listing-header">
+                <h2>Active prize listings</h2>
+                <button type="button" class="primary" id="admin-add-button">Add new listing</button>
+              </div>
+              <ul id="admin-prize-list" class="admin-prize-list" aria-live="polite"></ul>
+            </section>
+            <section id="admin-form-section" class="route-section admin-form-section" hidden>
+              <div class="admin-form-header">
+                <h2 id="admin-form-title">Create listing</h2>
+                <button type="button" class="secondary" id="admin-cancel-edit" hidden>Cancel</button>
+              </div>
               <form id="admin-prize-form" class="admin-form">
                 <label class="admin-field">
                   <span>Name</span>
@@ -1064,9 +1074,11 @@
                     <span>Active</span>
                   </label>
                 </div>
-                <button type="submit" class="primary">Create prize</button>
+                <div class="admin-form-actions">
+                  <button type="submit" class="primary" id="admin-save-button">Create listing</button>
+                </div>
+                <p id="admin-prize-message" class="admin-message" role="status" aria-live="polite"></p>
               </form>
-              <p id="admin-prize-message" class="admin-message" role="status" aria-live="polite"></p>
             </section>
           </div>
         </section>

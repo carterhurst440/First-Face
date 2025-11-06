@@ -351,6 +351,9 @@ async function setRoute(route, { replaceHash = false } = {}) {
     await loadDashboard();
   } else if (resolvedRoute === "store") {
     await loadPrizeShop();
+  } else if (resolvedRoute === "admin") {
+    closeAdminForm({ resetFields: true, restoreFocus: false });
+    await loadAdminPrizeList(true);
   }
 }
 
@@ -1128,6 +1131,7 @@ async function handleAdminPrizeSubmit(event) {
   const currencyRaw = formData.get("currency");
   const currencyKey = typeof currencyRaw === "string" ? currencyRaw.toLowerCase() : "units";
   const currencyDetails = PRIZE_CURRENCIES[currencyKey];
+  const isEdit = Boolean(adminEditingPrizeId);
 
   if (!name) {
     showToast("Name is required", "error");
@@ -1153,41 +1157,51 @@ async function handleAdminPrizeSubmit(event) {
     return;
   }
 
-  const submitButton = adminPrizeForm.querySelector('button[type="submit"]');
+  const payload = {
+    name,
+    description: description || null,
+    cost: Math.round(costValue),
+    active,
+    cost_currency: currencyDetails.key,
+    image_url: imageUrl ? imageUrl : null
+  };
+
+  const submitButton = adminSaveButton || adminPrizeForm.querySelector('button[type="submit"]');
   if (submitButton) {
     submitButton.disabled = true;
   }
 
   try {
-    const { error } = await supabase.from("prizes").insert({
-      name,
-      description: description || null,
-      cost: Math.round(costValue),
-      active,
-      cost_currency: currencyDetails.key,
-      image_url: imageUrl || null
-    });
-    if (error) {
-      throw error;
+    if (isEdit && !adminEditingPrizeId) {
+      throw new Error("Missing prize identifier for edit");
     }
-    showToast("Prize created", "success");
-    if (adminPrizeMessage) {
-      adminPrizeMessage.textContent = `Created ${name}.`;
+
+    if (isEdit) {
+      const { error } = await supabase
+        .from("prizes")
+        .update(payload)
+        .eq("id", adminEditingPrizeId);
+      if (error) {
+        throw error;
+      }
+      showToast("Prize updated", "success");
+    } else {
+      const { error } = await supabase.from("prizes").insert(payload);
+      if (error) {
+        throw error;
+      }
+      showToast("Prize created", "success");
     }
-    adminPrizeForm.reset();
-    const activeInput = adminPrizeForm.querySelector('input[name="active"]');
-    if (activeInput) {
-      activeInput.checked = true;
-    }
-    const currencySelect = adminPrizeForm.querySelector('select[name="currency"]');
-    if (currencySelect) {
-      currencySelect.value = "units";
-    }
+
+    adminPrizesLoaded = false;
     prizesLoaded = false;
+    await loadAdminPrizeList(true);
     await loadPrizeShop(true);
+    closeAdminForm({ resetFields: true, restoreFocus: true });
   } catch (error) {
     console.error(error);
-    const message = error?.message || "Unable to create prize";
+    const fallbackMessage = isEdit ? "Unable to update prize" : "Unable to create prize";
+    const message = error?.message || fallbackMessage;
     showToast(message, "error");
     if (adminPrizeMessage) {
       adminPrizeMessage.textContent = `Error: ${message}`;
@@ -1196,6 +1210,348 @@ async function handleAdminPrizeSubmit(event) {
     if (submitButton) {
       submitButton.disabled = false;
     }
+  }
+}
+
+function applyAdminFormDefaults() {
+  if (!adminPrizeForm) return;
+  const activeInput = adminPrizeForm.querySelector('input[name="active"]');
+  if (activeInput) {
+    activeInput.checked = true;
+  }
+  const currencySelect = adminPrizeForm.querySelector('select[name="currency"]');
+  if (currencySelect) {
+    currencySelect.value = "units";
+  }
+  if (adminPrizeImageFileInput) {
+    adminPrizeImageFileInput.value = "";
+  }
+}
+
+function closeAdminForm({ resetFields = true, restoreFocus = false } = {}) {
+  if (resetFields && adminPrizeForm) {
+    adminPrizeForm.reset();
+    applyAdminFormDefaults();
+  }
+  adminEditingPrizeId = null;
+  if (adminPrizeMessage) {
+    adminPrizeMessage.textContent = "";
+  }
+  if (adminFormTitle) {
+    adminFormTitle.textContent = "Create listing";
+  }
+  if (adminSaveButton) {
+    adminSaveButton.textContent = "Create listing";
+  }
+  if (adminCancelButton) {
+    adminCancelButton.hidden = true;
+  }
+  if (adminFormSection) {
+    adminFormSection.hidden = true;
+  }
+  if (restoreFocus && adminAddButton) {
+    adminAddButton.focus();
+  }
+}
+
+function openAdminCreateForm() {
+  if (!isAdmin()) {
+    showToast("Admin access only", "error");
+    return;
+  }
+  adminEditingPrizeId = null;
+  if (adminPrizeForm) {
+    adminPrizeForm.reset();
+  }
+  applyAdminFormDefaults();
+  if (adminPrizeMessage) {
+    adminPrizeMessage.textContent = "";
+  }
+  if (adminFormTitle) {
+    adminFormTitle.textContent = "Create listing";
+  }
+  if (adminSaveButton) {
+    adminSaveButton.textContent = "Create listing";
+  }
+  if (adminCancelButton) {
+    adminCancelButton.hidden = true;
+  }
+  if (adminFormSection) {
+    adminFormSection.hidden = false;
+    adminFormSection.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+  const nameInput = adminPrizeForm?.querySelector('input[name="name"]');
+  nameInput?.focus();
+}
+
+function openAdminEditForm(prize) {
+  if (!isAdmin()) {
+    showToast("Admin access only", "error");
+    return;
+  }
+  if (!prize || !prize.id) {
+    showToast("Unable to edit prize", "error");
+    return;
+  }
+  adminEditingPrizeId = prize.id;
+  if (adminPrizeForm) {
+    adminPrizeForm.reset();
+  }
+  const nameInput = adminPrizeForm?.querySelector('input[name="name"]');
+  if (nameInput) {
+    nameInput.value = prize.name ?? "";
+  }
+  const descriptionInput = adminPrizeForm?.querySelector('textarea[name="description"]');
+  if (descriptionInput) {
+    descriptionInput.value = prize.description ?? "";
+  }
+  const imageUrlInput = adminPrizeForm?.querySelector('input[name="imageUrl"]');
+  if (imageUrlInput) {
+    imageUrlInput.value = prize.image_url ?? "";
+  }
+  const costInput = adminPrizeForm?.querySelector('input[name="cost"]');
+  if (costInput) {
+    const numericCost = Number.isFinite(Number(prize.cost)) ? Math.round(Number(prize.cost)) : 0;
+    costInput.value = String(numericCost);
+  }
+  const currencySelect = adminPrizeForm?.querySelector('select[name="currency"]');
+  if (currencySelect) {
+    const currencyValue = (prize.cost_currency ?? "units").toString().toLowerCase();
+    currencySelect.value = PRIZE_CURRENCIES[currencyValue] ? currencyValue : "units";
+  }
+  const activeInput = adminPrizeForm?.querySelector('input[name="active"]');
+  if (activeInput) {
+    activeInput.checked = prize.active !== false;
+  }
+  if (adminPrizeMessage) {
+    adminPrizeMessage.textContent = "";
+  }
+  if (adminFormTitle) {
+    adminFormTitle.textContent = "Edit listing";
+  }
+  if (adminSaveButton) {
+    adminSaveButton.textContent = "Save changes";
+  }
+  if (adminCancelButton) {
+    adminCancelButton.hidden = false;
+  }
+  if (adminFormSection) {
+    adminFormSection.hidden = false;
+    adminFormSection.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+  nameInput?.focus();
+}
+
+function setAdminStatusLabel(label, active) {
+  if (!label) return;
+  label.textContent = active ? "Active" : "Inactive";
+  label.classList.toggle("admin-status-label--inactive", !active);
+}
+
+async function handleAdminStatusChange(prize, toggle, label) {
+  if (!prize?.id || !toggle) return;
+  const desired = toggle.checked;
+  toggle.disabled = true;
+  try {
+    const { error } = await supabase
+      .from("prizes")
+      .update({ active: desired })
+      .eq("id", prize.id);
+    if (error) {
+      throw error;
+    }
+    setAdminStatusLabel(label, desired);
+    const cached = adminPrizeCache.find((entry) => entry.id === prize.id);
+    if (cached) {
+      cached.active = desired;
+    }
+    showToast(
+      desired ? `Marked ${prize.name || "prize"} active.` : `Marked ${prize.name || "prize"} inactive.`,
+      "success"
+    );
+    prizesLoaded = false;
+    await loadPrizeShop(true);
+  } catch (error) {
+    console.error(error);
+    const message = error?.message || "Unable to update prize status";
+    showToast(message, "error");
+    toggle.checked = !desired;
+    setAdminStatusLabel(label, toggle.checked);
+  } finally {
+    toggle.disabled = false;
+  }
+}
+
+async function handleAdminDelete(prize) {
+  if (!isAdmin()) {
+    showToast("Admin access only", "error");
+    return;
+  }
+  if (!prize?.id) {
+    showToast("Unable to delete prize", "error");
+    return;
+  }
+  if (typeof window !== "undefined") {
+    const confirmed = window.confirm(`Delete ${prize.name || "this prize"}?`);
+    if (!confirmed) {
+      return;
+    }
+  }
+  try {
+    const { error } = await supabase.from("prizes").delete().eq("id", prize.id);
+    if (error) {
+      throw error;
+    }
+    showToast("Prize deleted", "success");
+    adminPrizeCache = adminPrizeCache.filter((entry) => entry.id !== prize.id);
+    if (adminEditingPrizeId === prize.id) {
+      closeAdminForm({ resetFields: true, restoreFocus: false });
+    }
+    adminPrizesLoaded = false;
+    prizesLoaded = false;
+    await loadAdminPrizeList(true);
+    await loadPrizeShop(true);
+  } catch (error) {
+    console.error(error);
+    const message = error?.message || "Unable to delete prize";
+    showToast(message, "error");
+  }
+}
+
+function renderAdminPrizeRow(prize) {
+  const item = document.createElement("li");
+  item.className = "admin-prize-item";
+  item.dataset.id = prize?.id ?? "";
+
+  const main = document.createElement("div");
+  main.className = "admin-prize-main";
+
+  const thumbWrap = document.createElement("div");
+  thumbWrap.className = "admin-prize-thumb";
+  const imageUrl = typeof prize?.image_url === "string" ? prize.image_url.trim() : "";
+  if (imageUrl) {
+    const img = document.createElement("img");
+    img.src = imageUrl;
+    img.alt = prize?.name ? `${prize.name} preview` : "Prize image";
+    thumbWrap.appendChild(img);
+  } else {
+    const placeholder = document.createElement("span");
+    placeholder.className = "admin-prize-thumb-placeholder";
+    placeholder.textContent = "No image";
+    thumbWrap.appendChild(placeholder);
+  }
+
+  const info = document.createElement("div");
+  info.className = "admin-prize-info";
+
+  const nameEl = document.createElement("h3");
+  nameEl.className = "admin-prize-name";
+  nameEl.textContent = prize?.name ?? "Prize";
+  info.appendChild(nameEl);
+
+  if (prize?.description) {
+    const descEl = document.createElement("p");
+    descEl.className = "admin-prize-description";
+    descEl.textContent = prize.description;
+    info.appendChild(descEl);
+  }
+
+  const meta = document.createElement("div");
+  meta.className = "admin-prize-meta";
+  const costValue = Math.max(0, Math.round(Number(prize?.cost ?? 0)));
+  const currencyKey = (prize?.cost_currency ?? "units").toString().toLowerCase();
+  const currencyDetails = PRIZE_CURRENCIES[currencyKey] ?? PRIZE_CURRENCIES.units;
+  const costEl = document.createElement("span");
+  costEl.className = "admin-prize-cost";
+  costEl.textContent = `${formatCurrency(costValue)} ${currencyDetails.label}`;
+  meta.appendChild(costEl);
+  info.appendChild(meta);
+
+  main.append(thumbWrap, info);
+
+  const controls = document.createElement("div");
+  controls.className = "admin-prize-controls";
+
+  const statusWrap = document.createElement("label");
+  statusWrap.className = "admin-status-toggle";
+  const statusInput = document.createElement("input");
+  statusInput.type = "checkbox";
+  statusInput.className = "admin-status-input";
+  const isActive = prize?.active !== false;
+  statusInput.checked = isActive;
+  const statusLabel = document.createElement("span");
+  statusLabel.className = "admin-status-label";
+  setAdminStatusLabel(statusLabel, isActive);
+  statusInput.addEventListener("change", () => handleAdminStatusChange(prize, statusInput, statusLabel));
+  statusWrap.append(statusInput, statusLabel);
+
+  const buttonRow = document.createElement("div");
+  buttonRow.className = "admin-prize-buttons";
+  const editButton = document.createElement("button");
+  editButton.type = "button";
+  editButton.className = "secondary admin-prize-edit";
+  editButton.textContent = "Edit";
+  editButton.addEventListener("click", () => openAdminEditForm(prize));
+  const deleteButton = document.createElement("button");
+  deleteButton.type = "button";
+  deleteButton.className = "primary danger admin-prize-delete";
+  deleteButton.textContent = "Delete";
+  deleteButton.addEventListener("click", () => handleAdminDelete(prize));
+  buttonRow.append(editButton, deleteButton);
+
+  controls.append(statusWrap, buttonRow);
+
+  item.append(main, controls);
+  return item;
+}
+
+async function loadAdminPrizeList(force = false) {
+  if (!isAdmin()) {
+    adminPrizesLoaded = false;
+    if (adminPrizeListEl) {
+      adminPrizeListEl.innerHTML = "";
+    }
+    closeAdminForm({ resetFields: true, restoreFocus: false });
+    return;
+  }
+  if (adminPrizesLoaded && !force) return;
+  if (!adminPrizeListEl) return;
+  adminPrizesLoaded = true;
+  adminPrizeListEl.innerHTML = "";
+  const loadingItem = document.createElement("li");
+  loadingItem.className = "admin-prize-empty";
+  loadingItem.textContent = "Loading listings...";
+  adminPrizeListEl.appendChild(loadingItem);
+  try {
+    const { data: prizes, error } = await supabase
+      .from("prizes")
+      .select("*")
+      .order("active", { ascending: false })
+      .order("cost", { ascending: true });
+    if (error) {
+      throw error;
+    }
+    adminPrizeCache = Array.isArray(prizes) ? prizes.slice() : [];
+    adminPrizeListEl.innerHTML = "";
+    if (!adminPrizeCache.length) {
+      const empty = document.createElement("li");
+      empty.className = "admin-prize-empty";
+      empty.textContent = "No prize listings yet.";
+      adminPrizeListEl.appendChild(empty);
+      return;
+    }
+    adminPrizeCache.forEach((prize) => {
+      adminPrizeListEl.appendChild(renderAdminPrizeRow(prize));
+    });
+  } catch (error) {
+    console.error(error);
+    adminPrizesLoaded = false;
+    adminPrizeListEl.innerHTML = "";
+    const errorItem = document.createElement("li");
+    errorItem.className = "admin-prize-empty";
+    errorItem.textContent = "Unable to load prize listings.";
+    adminPrizeListEl.appendChild(errorItem);
+    showToast("Unable to load prize listings", "error");
   }
 }
 
@@ -1359,6 +1715,9 @@ function applySignedOutState() {
   currentProfile = null;
   dashboardLoaded = false;
   prizesLoaded = false;
+  adminPrizesLoaded = false;
+  adminEditingPrizeId = null;
+  adminPrizeCache = [];
 
   if (dashboardProfileRetryTimer) {
     clearFn(dashboardProfileRetryTimer);
@@ -1387,6 +1746,11 @@ function applySignedOutState() {
   stopBankrollAnimation();
 
   cleanupLeaderboardSubscription();
+
+  if (adminPrizeListEl) {
+    adminPrizeListEl.innerHTML = "";
+  }
+  closeAdminForm({ resetFields: true, restoreFocus: false });
 
   if (paytableModal && !paytableModal.hidden) {
     closePaytableModal({ restoreFocus: false });
@@ -1666,6 +2030,12 @@ const dashboardCarterEl = document.getElementById("dashboard-carter-cash");
 const dashboardRunsEl = document.getElementById("dashboard-runs");
 const prizeListEl = document.getElementById("prize-list");
 const adminNavButton = document.getElementById("admin-nav");
+const adminFormSection = document.getElementById("admin-form-section");
+const adminFormTitle = document.getElementById("admin-form-title");
+const adminAddButton = document.getElementById("admin-add-button");
+const adminCancelButton = document.getElementById("admin-cancel-edit");
+const adminSaveButton = document.getElementById("admin-save-button");
+const adminPrizeListEl = document.getElementById("admin-prize-list");
 const adminPrizeForm = document.getElementById("admin-prize-form");
 const adminPrizeMessage = document.getElementById("admin-prize-message");
 const adminPrizeImageUrlInput = document.getElementById("prize-image-url");
@@ -1727,6 +2097,9 @@ let currentUser = null;
 let currentRoute = "home";
 let dashboardLoaded = false;
 let prizesLoaded = false;
+let adminPrizesLoaded = false;
+let adminEditingPrizeId = null;
+let adminPrizeCache = [];
 let currentProfile = null;
 let suppressHash = false;
 let dashboardProfileRetryTimer = null;
@@ -3388,6 +3761,20 @@ if (adminPrizeForm) {
 if (adminPrizeImageFileInput) {
   adminPrizeImageFileInput.addEventListener("change", handlePrizeImageSelection);
 }
+
+if (adminAddButton) {
+  adminAddButton.addEventListener("click", () => {
+    openAdminCreateForm();
+  });
+}
+
+if (adminCancelButton) {
+  adminCancelButton.addEventListener("click", () => {
+    closeAdminForm({ resetFields: true, restoreFocus: true });
+  });
+}
+
+applyAdminFormDefaults();
 
 if (shippingForm) {
   shippingForm.addEventListener("submit", handleShippingSubmit);
