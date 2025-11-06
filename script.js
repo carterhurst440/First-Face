@@ -301,6 +301,10 @@ async function setRoute(route, { replaceHash = false } = {}) {
     return;
   }
 
+  if (!isAuthRoute) {
+    await ensureProfileSynced({ force: !currentProfile });
+  }
+
   if (!isAuthRoute && nextRoute === "admin" && !isAdmin()) {
     showToast("Admin access only", "error");
     nextRoute = "home";
@@ -417,6 +421,51 @@ async function waitForProfile(user, { interval = 1000, maxAttempts = 5, notify =
   }
 
   return null;
+}
+
+async function ensureProfileSynced({ force = false } = {}) {
+  if (!currentUser) {
+    return null;
+  }
+
+  const now = Date.now();
+  if (!force && currentProfile && now - lastProfileSync < PROFILE_SYNC_INTERVAL) {
+    return currentProfile;
+  }
+
+  if (profileSyncPromise && !force) {
+    return profileSyncPromise;
+  }
+
+  const syncPromise = (async () => {
+    try {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("id", currentUser.id)
+        .maybeSingle();
+
+      if (error) {
+        throw error;
+      }
+
+      if (data) {
+        const applied = applyProfileCredits(data);
+        lastProfileSync = Date.now();
+        return applied;
+      }
+
+      return currentProfile;
+    } catch (error) {
+      console.error("Unable to sync profile", error);
+      return currentProfile;
+    } finally {
+      profileSyncPromise = null;
+    }
+  })();
+
+  profileSyncPromise = syncPromise;
+  return syncPromise;
 }
 
 async function handleAuthFormSubmit(event) {
@@ -687,7 +736,8 @@ function closeShippingModal({ restoreFocus = false } = {}) {
   if (
     (!resetModal || resetModal.hidden) &&
     (!paytableModal || paytableModal.hidden) &&
-    (!adminPrizeModal || adminPrizeModal.hidden)
+    (!adminPrizeModal || adminPrizeModal.hidden) &&
+    (!prizeImageModal || prizeImageModal.hidden)
   ) {
     document.body.classList.remove("modal-open");
   }
@@ -696,6 +746,77 @@ function closeShippingModal({ restoreFocus = false } = {}) {
     shippingModalTrigger.focus();
   }
   shippingModalTrigger = null;
+}
+
+function openPrizeImageModal(prize) {
+  if (!prizeImageModal || !prizeImagePreview) {
+    return;
+  }
+
+  const imageUrl = typeof prize?.image_url === "string" ? prize.image_url.trim() : "";
+  if (!imageUrl) {
+    return;
+  }
+
+  const name = prize?.name ? String(prize.name).trim() : "Prize image";
+  prizeImageTrigger =
+    document.activeElement instanceof HTMLElement ? document.activeElement : null;
+  prizeImagePreview.src = imageUrl;
+  prizeImagePreview.alt = `${name} preview`;
+  if (prizeImageCaption) {
+    const costValue = Math.max(0, Math.round(Number(prize?.cost ?? 0)));
+    const currencyKey = (prize?.cost_currency ?? "units").toString().toLowerCase();
+    const currencyDetails = PRIZE_CURRENCIES[currencyKey] ?? PRIZE_CURRENCIES.units;
+    const details = [];
+    if (name) {
+      details.push(name);
+    }
+    if (costValue > 0) {
+      details.push(`${formatCurrency(costValue)} ${currencyDetails.label}`);
+    }
+    if (prize?.description) {
+      details.push(String(prize.description));
+    }
+    prizeImageCaption.textContent = details.join(" · ");
+  }
+
+  prizeImageModal.hidden = false;
+  prizeImageModal.classList.add("is-open");
+  prizeImageModal.setAttribute("aria-hidden", "false");
+  document.body.classList.add("modal-open");
+  prizeImageCloseButton?.focus();
+}
+
+function closePrizeImageModal({ restoreFocus = false } = {}) {
+  if (!prizeImageModal) {
+    return;
+  }
+
+  prizeImageModal.classList.remove("is-open");
+  prizeImageModal.setAttribute("aria-hidden", "true");
+  prizeImageModal.hidden = true;
+  if (prizeImagePreview) {
+    prizeImagePreview.src = "";
+    prizeImagePreview.alt = "";
+  }
+  if (prizeImageCaption) {
+    prizeImageCaption.textContent = "";
+  }
+
+  if (
+    (!resetModal || resetModal.hidden) &&
+    (!shippingModal || shippingModal.hidden) &&
+    (!paytableModal || paytableModal.hidden) &&
+    (!adminPrizeModal || adminPrizeModal.hidden) &&
+    (!prizeImageModal || prizeImageModal.hidden)
+  ) {
+    document.body.classList.remove("modal-open");
+  }
+
+  const focusTarget =
+    restoreFocus && prizeImageTrigger instanceof HTMLElement ? prizeImageTrigger : null;
+  prizeImageTrigger = null;
+  focusTarget?.focus();
 }
 
 async function notifyAdminPurchase({ purchase, prize, shipping }) {
@@ -829,6 +950,7 @@ async function loadDashboard(force = false) {
 
   if (resolvedProfile) {
     currentProfile = resolvedProfile;
+    lastProfileSync = Date.now();
     if (dashboardProfileRetryTimer) {
       clearTimeout(dashboardProfileRetryTimer);
       dashboardProfileRetryTimer = null;
@@ -887,6 +1009,20 @@ function renderPrize(prize) {
     img.src = imageUrl;
     img.alt = prize?.name ? `${prize.name} preview` : "Prize image";
     thumbWrap.appendChild(img);
+    thumbWrap.setAttribute("role", "button");
+    thumbWrap.setAttribute(
+      "aria-label",
+      prize?.name ? `View larger image of ${prize.name}` : "View larger prize image"
+    );
+    thumbWrap.tabIndex = 0;
+    const handlePreview = () => openPrizeImageModal(prize);
+    thumbWrap.addEventListener("click", handlePreview);
+    thumbWrap.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        handlePreview();
+      }
+    });
   } else {
     const placeholder = document.createElement("span");
     placeholder.className = "admin-prize-thumb-placeholder";
@@ -966,6 +1102,7 @@ async function loadPrizeShop(force = false) {
     return;
   }
   currentUser = user;
+  await ensureProfileSynced({ force: force || !currentProfile });
   if (prizesLoaded && !force) return;
   prizesLoaded = true;
   if (!prizeListEl) return;
@@ -1048,6 +1185,7 @@ async function handlePurchase(prize, button) {
     }
 
     await persistBankroll();
+    await ensureProfileSynced({ force: true });
 
     showToast(`Purchased ${prize.name}!`, "success");
     prizesLoaded = false;
@@ -1260,7 +1398,8 @@ function closeAdminForm({ resetFields = true, restoreFocus = false } = {}) {
   if (
     (!shippingModal || shippingModal.hidden) &&
     (!resetModal || resetModal.hidden) &&
-    (!paytableModal || paytableModal.hidden)
+    (!paytableModal || paytableModal.hidden) &&
+    (!prizeImageModal || prizeImageModal.hidden)
   ) {
     document.body.classList.remove("modal-open");
   }
@@ -1455,6 +1594,20 @@ function renderAdminPrizeRow(prize) {
     img.src = imageUrl;
     img.alt = prize?.name ? `${prize.name} preview` : "Prize image";
     thumbWrap.appendChild(img);
+    thumbWrap.setAttribute("role", "button");
+    thumbWrap.setAttribute(
+      "aria-label",
+      prize?.name ? `View larger image of ${prize.name}` : "View larger prize image"
+    );
+    thumbWrap.tabIndex = 0;
+    const handlePreview = () => openPrizeImageModal(prize);
+    thumbWrap.addEventListener("click", handlePreview);
+    thumbWrap.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        handlePreview();
+      }
+    });
   } else {
     const placeholder = document.createElement("span");
     placeholder.className = "admin-prize-thumb-placeholder";
@@ -1739,6 +1892,8 @@ function applySignedOutState() {
   adminPrizesLoaded = false;
   adminEditingPrizeId = null;
   adminPrizeCache = [];
+  profileSyncPromise = null;
+  lastProfileSync = 0;
 
   if (dashboardProfileRetryTimer) {
     clearFn(dashboardProfileRetryTimer);
@@ -1784,6 +1939,9 @@ function applySignedOutState() {
   }
   if (adminPrizeModal && !adminPrizeModal.hidden) {
     closeAdminForm({ resetFields: true, restoreFocus: false });
+  }
+  if (prizeImageModal && !prizeImageModal.hidden) {
+    closePrizeImageModal({ restoreFocus: false });
   }
 
   setSelectedChip(DENOMINATIONS[0], false);
@@ -2074,6 +2232,10 @@ const shippingAddressInput = document.getElementById("shipping-address");
 const shippingCloseButton = document.getElementById("shipping-close");
 const shippingCancelButton = document.getElementById("shipping-cancel");
 const shippingSubmitButton = document.getElementById("shipping-submit");
+const prizeImageModal = document.getElementById("prize-image-modal");
+const prizeImageCloseButton = document.getElementById("prize-image-close");
+const prizeImagePreview = document.getElementById("prize-image-preview");
+const prizeImageCaption = document.getElementById("prize-image-caption");
 
 const THEME_CLASS_MAP = {
   blue: "theme-blue",
@@ -2137,12 +2299,16 @@ let shippingModalTrigger = null;
 let activeShippingPurchase = null;
 let adminModalTrigger = null;
 let manualSignOutRequested = false;
+let prizeImageTrigger = null;
 
 const MAX_HISTORY_POINTS = 500;
 const LEADERBOARD_LIMIT = 20;
+const PROFILE_SYNC_INTERVAL = 15000;
 
 let bankrollInitialized = false;
 let lastSyncedBankroll = null;
+let profileSyncPromise = null;
+let lastProfileSync = 0;
 
 let playAreaUpdateFrame = null;
 
@@ -2418,6 +2584,7 @@ async function persistBankroll() {
         currentProfile.carter_cash_progress = carterCashProgress;
       }
     }
+    lastProfileSync = Date.now();
   } catch (error) {
     console.error("Unable to sync bankroll", error);
   }
@@ -2437,6 +2604,7 @@ function handleBankrollChanged() {
 function applyProfileCredits(profile, { resetHistory = false } = {}) {
   if (!profile) return null;
   currentProfile = profile;
+  lastProfileSync = Date.now();
   const numericCredits = Number(profile.credits);
   const nextBankroll = Number.isFinite(numericCredits) ? Math.round(numericCredits) : INITIAL_BANKROLL;
   bankroll = nextBankroll;
@@ -3240,6 +3408,7 @@ async function performAccountReset() {
     currentProfile.credits = bankroll;
   }
   await persistBankroll();
+  await ensureProfileSynced({ force: true });
   resetTable("Account reset. Select a chip and place your bets in the betting panel.", {
     clearDraws: true
   });
@@ -3272,7 +3441,8 @@ function closeResetModal({ restoreFocus = false } = {}) {
   if (
     (!paytableModal || paytableModal.hidden) &&
     (!shippingModal || shippingModal.hidden) &&
-    (!adminPrizeModal || adminPrizeModal.hidden)
+    (!adminPrizeModal || adminPrizeModal.hidden) &&
+    (!prizeImageModal || prizeImageModal.hidden)
   ) {
     document.body.classList.remove("modal-open");
   }
@@ -3725,7 +3895,8 @@ function closePaytableModal({ restoreFocus = false } = {}) {
   if (
     (!resetModal || resetModal.hidden) &&
     (!shippingModal || shippingModal.hidden) &&
-    (!adminPrizeModal || adminPrizeModal.hidden)
+    (!adminPrizeModal || adminPrizeModal.hidden) &&
+    (!prizeImageModal || prizeImageModal.hidden)
   ) {
     document.body.classList.remove("modal-open");
   }
@@ -3834,6 +4005,20 @@ if (shippingCloseButton) {
   });
 }
 
+if (prizeImageCloseButton) {
+  prizeImageCloseButton.addEventListener("click", () => {
+    closePrizeImageModal({ restoreFocus: true });
+  });
+}
+
+if (prizeImageModal) {
+  prizeImageModal.addEventListener("click", (event) => {
+    if (event.target === prizeImageModal) {
+      closePrizeImageModal({ restoreFocus: true });
+    }
+  });
+}
+
 if (showSignUpButton) {
   showSignUpButton.addEventListener("click", async () => {
     if (signupForm) {
@@ -3932,6 +4117,11 @@ if (resetCloseButton) {
 
 document.addEventListener("keydown", (event) => {
   if (event.key === "Escape") {
+    if (prizeImageModal && !prizeImageModal.hidden) {
+      closePrizeImageModal({ restoreFocus: true });
+      event.preventDefault();
+      return;
+    }
     if (resetModal && !resetModal.hidden) {
       closeResetModal({ restoreFocus: true });
       event.preventDefault();

@@ -1101,6 +1101,30 @@
 
     <div
       class="modal"
+      id="prize-image-modal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="prize-image-title"
+      hidden
+    >
+      <div class="modal-content prize-image-modal">
+        <div class="modal-header">
+          <h2 id="prize-image-title">Prize preview</h2>
+          <button type="button" class="modal-close" id="prize-image-close" aria-label="Close prize preview">
+            ×
+          </button>
+        </div>
+        <div class="modal-body">
+          <figure class="prize-image-frame">
+            <img id="prize-image-preview" alt="" />
+          </figure>
+          <p id="prize-image-caption" class="prize-image-caption"></p>
+        </div>
+      </div>
+    </div>
+
+    <div
+      class="modal"
       id="shipping-modal"
       role="dialog"
       aria-modal="true"

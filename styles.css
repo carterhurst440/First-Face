@@ -3023,7 +3023,7 @@ button:disabled {
   justify-content: center;
   padding: clamp(1.5rem, 6vw, 3rem);
   background: rgba(3, 6, 18, 0.78);
-  z-index: 30;
+  z-index: 5000;
 }
 
 .modal[hidden] {
@@ -3051,6 +3051,38 @@ button:disabled {
 
 .admin-modal .admin-form {
   gap: clamp(0.85rem, 2vw, 1.1rem);
+}
+
+.prize-image-modal {
+  width: min(720px, 96vw);
+  max-height: min(820px, 94vh);
+  overflow: hidden;
+  gap: clamp(0.9rem, 2vw, 1.2rem);
+}
+
+.prize-image-frame {
+  margin: 0;
+  position: relative;
+  border-radius: 18px;
+  overflow: hidden;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55), inset 0 0 40px rgba(63, 240, 255, 0.15);
+}
+
+.prize-image-frame img {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: min(640px, 76vh);
+  object-fit: contain;
+  background: radial-gradient(circle at center, rgba(12, 20, 44, 0.95), rgba(4, 8, 20, 0.92));
+}
+
+.prize-image-caption {
+  margin-top: 0.75rem;
+  font-size: 0.85rem;
+  letter-spacing: 0.08em;
+  text-align: center;
+  color: var(--muted);
 }
 
 .modal-header {
@@ -3529,6 +3561,19 @@ body.modal-open {
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+}
+
+.admin-prize-thumb[role="button"] {
+  cursor: zoom-in;
+  transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.admin-prize-thumb[role="button"]:hover,
+.admin-prize-thumb[role="button"]:focus-visible {
+  border-color: rgba(160, 248, 255, 0.55);
+  box-shadow: 0 14px 34px rgba(63, 240, 255, 0.24);
+  transform: translateY(-2px);
+  outline: none;
 }
 
 .admin-prize-thumb img {
