@@ -1024,67 +1024,80 @@
               </div>
               <ul id="admin-prize-list" class="admin-prize-list" aria-live="polite"></ul>
             </section>
-            <section id="admin-form-section" class="route-section admin-form-section" hidden>
-              <div class="admin-form-header">
-                <h2 id="admin-form-title">Create listing</h2>
-                <button type="button" class="secondary" id="admin-cancel-edit" hidden>Cancel</button>
-              </div>
-              <form id="admin-prize-form" class="admin-form">
-                <label class="admin-field">
-                  <span>Name</span>
-                  <input type="text" name="name" required />
-                </label>
-                <label class="admin-field">
-                  <span>Description</span>
-                  <textarea name="description" rows="3" placeholder="Optional"></textarea>
-                </label>
-                <label class="admin-field">
-                  <span>Upload image</span>
-                  <input
-                    type="file"
-                    id="prize-image-file"
-                    name="imageFile"
-                    accept="image/*"
-                  />
-                  <span class="admin-hint">Upload to fill the image URL automatically.</span>
-                </label>
-                <label class="admin-field">
-                  <span>Image URL</span>
-                  <input
-                    type="url"
-                    id="prize-image-url"
-                    name="imageUrl"
-                    placeholder="https://example.com/prize.jpg"
-                  />
-                </label>
-                <div class="admin-row">
-                  <label class="admin-field">
-                    <span>Cost currency</span>
-                    <select name="currency" required>
-                      <option value="units">Units</option>
-                      <option value="carter_cash">Carter Cash</option>
-                    </select>
-                  </label>
-                  <label class="admin-field">
-                    <span>Cost</span>
-                    <input type="number" name="cost" min="0" step="1" required />
-                  </label>
-                  <label class="admin-checkbox">
-                    <input type="checkbox" name="active" checked />
-                    <span>Active</span>
-                  </label>
-                </div>
-                <div class="admin-form-actions">
-                  <button type="submit" class="primary" id="admin-save-button">Create listing</button>
-                </div>
-                <p id="admin-prize-message" class="admin-message" role="status" aria-live="polite"></p>
-              </form>
-            </section>
           </div>
         </section>
       </main>
     </div>
     </section>
+
+    <div
+      class="modal"
+      id="admin-prize-modal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="admin-modal-title"
+      hidden
+    >
+      <div class="modal-content admin-modal">
+        <div class="modal-header">
+          <h2 id="admin-modal-title">Create listing</h2>
+          <button
+            type="button"
+            class="modal-close"
+            id="admin-modal-close"
+            aria-label="Close admin form"
+          >
+            ×
+          </button>
+        </div>
+        <form id="admin-prize-form" class="admin-form">
+          <label class="admin-field">
+            <span>Name</span>
+            <input type="text" name="name" required />
+          </label>
+          <label class="admin-field">
+            <span>Description</span>
+            <textarea name="description" rows="3" placeholder="Optional"></textarea>
+          </label>
+          <label class="admin-field">
+            <span>Upload image</span>
+            <input type="file" id="prize-image-file" name="imageFile" accept="image/*" />
+            <span class="admin-hint">Upload to fill the image URL automatically.</span>
+          </label>
+          <label class="admin-field">
+            <span>Image URL</span>
+            <input
+              type="url"
+              id="prize-image-url"
+              name="imageUrl"
+              placeholder="https://example.com/prize.jpg"
+            />
+          </label>
+          <div class="admin-row">
+            <label class="admin-field">
+              <span>Cost currency</span>
+              <select name="currency" required>
+                <option value="units">Units</option>
+                <option value="carter_cash">Carter Cash</option>
+              </select>
+            </label>
+            <label class="admin-field">
+              <span>Cost</span>
+              <input type="number" name="cost" min="0" step="1" required />
+            </label>
+            <label class="admin-checkbox">
+              <input type="checkbox" name="active" checked />
+              <span>Active</span>
+            </label>
+          </div>
+          <div class="modal-actions admin-form-actions">
+            <button type="button" class="secondary" id="admin-modal-cancel">Cancel</button>
+            <button type="submit" class="primary" id="admin-save-button">Create listing</button>
+          </div>
+          <p id="admin-prize-message" class="admin-message" role="status" aria-live="polite"></p>
+        </form>
+      </div>
+    </div>
 
     <div
       class="modal"

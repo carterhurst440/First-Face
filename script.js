@@ -686,7 +686,8 @@ function closeShippingModal({ restoreFocus = false } = {}) {
 
   if (
     (!resetModal || resetModal.hidden) &&
-    (!paytableModal || paytableModal.hidden)
+    (!paytableModal || paytableModal.hidden) &&
+    (!adminPrizeModal || adminPrizeModal.hidden)
   ) {
     document.body.classList.remove("modal-open");
   }
@@ -872,80 +873,86 @@ async function loadDashboard(force = false) {
 
 function renderPrize(prize) {
   const item = document.createElement("li");
-  item.className = "prize-item";
+  item.className = "admin-prize-item store-prize-item";
+  item.dataset.id = prize?.id ?? "";
 
-  const isActive = prize?.active !== false;
-  if (!isActive) {
-    item.classList.add("prize-item--sold");
-  }
+  const main = document.createElement("div");
+  main.className = "admin-prize-main";
 
-  const media = document.createElement("div");
-  media.className = "prize-media";
+  const thumbWrap = document.createElement("div");
+  thumbWrap.className = "admin-prize-thumb";
   const imageUrl = typeof prize?.image_url === "string" ? prize.image_url.trim() : "";
   if (imageUrl) {
     const img = document.createElement("img");
     img.src = imageUrl;
-    img.alt = prize?.name ? `${prize.name} prize` : "Prize";
-    img.className = "prize-image";
-    media.appendChild(img);
+    img.alt = prize?.name ? `${prize.name} preview` : "Prize image";
+    thumbWrap.appendChild(img);
   } else {
-    const placeholder = document.createElement("div");
-    placeholder.className = "prize-placeholder";
-    placeholder.textContent = "Prize";
-    media.appendChild(placeholder);
+    const placeholder = document.createElement("span");
+    placeholder.className = "admin-prize-thumb-placeholder";
+    placeholder.textContent = "No image";
+    thumbWrap.appendChild(placeholder);
   }
-  item.appendChild(media);
 
-  const body = document.createElement("div");
-  body.className = "prize-body";
+  const info = document.createElement("div");
+  info.className = "admin-prize-info";
 
-  const titleEl = document.createElement("h3");
-  titleEl.className = "prize-title";
-  titleEl.textContent = prize?.name ?? "Prize";
-  body.appendChild(titleEl);
+  const nameEl = document.createElement("h3");
+  nameEl.className = "admin-prize-name";
+  nameEl.textContent = prize?.name ?? "Prize";
+  info.appendChild(nameEl);
 
   if (prize?.description) {
     const descEl = document.createElement("p");
-    descEl.className = "prize-description";
+    descEl.className = "admin-prize-description";
     descEl.textContent = prize.description;
-    body.appendChild(descEl);
+    info.appendChild(descEl);
   }
 
-  const meta = document.createElement("div");
-  meta.className = "prize-meta";
-
-  const costValue = Number(prize?.cost ?? 0);
-  const formattedCost = formatCurrency(Math.max(0, Math.round(costValue)));
-  const costEl = document.createElement("span");
-  costEl.className = "prize-cost";
-  costEl.textContent = formattedCost;
-
-  const currencyKey = (prize?.cost_currency ?? "units").toLowerCase();
+  const currencyKey = (prize?.cost_currency ?? "units").toString().toLowerCase();
   const currencyDetails = PRIZE_CURRENCIES[currencyKey] ?? PRIZE_CURRENCIES.units;
-  const currencyEl = document.createElement("span");
-  currencyEl.className = "prize-currency";
-  currencyEl.textContent = currencyDetails.label;
+  const costValue = Math.max(0, Math.round(Number(prize?.cost ?? 0)));
+  const formattedCost = formatCurrency(costValue);
 
-  meta.append(costEl, currencyEl);
-  body.appendChild(meta);
+  const meta = document.createElement("div");
+  meta.className = "admin-prize-meta store-prize-meta";
+  meta.textContent = `${formattedCost} ${currencyDetails.label}`;
+  info.appendChild(meta);
 
-  const actions = document.createElement("div");
-  actions.className = "prize-actions";
+  main.append(thumbWrap, info);
+  item.appendChild(main);
+
+  const controls = document.createElement("div");
+  controls.className = "store-prize-controls";
+
+  const priceEl = document.createElement("span");
+  priceEl.className = "store-prize-price";
+  priceEl.textContent = `${formattedCost} ${currencyDetails.label}`;
+  controls.appendChild(priceEl);
+
   const button = document.createElement("button");
   button.type = "button";
-  button.className = "prize-button";
+  button.className = "primary store-prize-button";
 
+  const isActive = prize?.active !== false;
   if (isActive) {
-    button.textContent = `Redeem for ${formattedCost} ${currencyDetails.label}`;
+    button.textContent = "Redeem";
     button.addEventListener("click", () => handlePurchase(prize, button));
   } else {
     button.textContent = "Sold";
     button.disabled = true;
+    item.classList.add("is-sold");
   }
 
-  actions.appendChild(button);
-  body.appendChild(actions);
-  item.appendChild(body);
+  controls.appendChild(button);
+  item.appendChild(controls);
+
+  if (!isActive) {
+    const soldBadge = document.createElement("span");
+    soldBadge.className = "store-prize-badge";
+    soldBadge.textContent = "Sold";
+    item.appendChild(soldBadge);
+  }
 
   return item;
 }
@@ -964,6 +971,7 @@ async function loadPrizeShop(force = false) {
   if (!prizeListEl) return;
   prizeListEl.innerHTML = "";
   const loadingItem = document.createElement("li");
+  loadingItem.className = "admin-prize-empty";
   loadingItem.textContent = "Loading prizes...";
   prizeListEl.appendChild(loadingItem);
   const { data: prizes, error } = await supabase
@@ -975,6 +983,7 @@ async function loadPrizeShop(force = false) {
     console.error(error);
     prizeListEl.innerHTML = "";
     const errorItem = document.createElement("li");
+    errorItem.className = "admin-prize-empty";
     errorItem.textContent = "Unable to load prizes.";
     prizeListEl.appendChild(errorItem);
     showToast("Unable to load prizes", "error");
@@ -983,7 +992,7 @@ async function loadPrizeShop(force = false) {
   prizeListEl.innerHTML = "";
   if (!prizes || prizes.length === 0) {
     const empty = document.createElement("li");
-    empty.className = "prize-empty";
+    empty.className = "admin-prize-empty";
     empty.textContent = "No prizes are available right now. Check back soon.";
     prizeListEl.appendChild(empty);
     return;
@@ -1237,21 +1246,45 @@ function closeAdminForm({ resetFields = true, restoreFocus = false } = {}) {
   if (adminPrizeMessage) {
     adminPrizeMessage.textContent = "";
   }
-  if (adminFormTitle) {
-    adminFormTitle.textContent = "Create listing";
-  }
   if (adminSaveButton) {
     adminSaveButton.textContent = "Create listing";
   }
-  if (adminCancelButton) {
-    adminCancelButton.hidden = true;
+  if (adminModalTitle) {
+    adminModalTitle.textContent = "Create listing";
   }
-  if (adminFormSection) {
-    adminFormSection.hidden = true;
+  if (adminPrizeModal) {
+    adminPrizeModal.classList.remove("is-open");
+    adminPrizeModal.setAttribute("aria-hidden", "true");
+    adminPrizeModal.hidden = true;
   }
-  if (restoreFocus && adminAddButton) {
-    adminAddButton.focus();
+  if (
+    (!shippingModal || shippingModal.hidden) &&
+    (!resetModal || resetModal.hidden) &&
+    (!paytableModal || paytableModal.hidden)
+  ) {
+    document.body.classList.remove("modal-open");
   }
+  const focusTarget = restoreFocus
+    ? adminModalTrigger instanceof HTMLElement
+      ? adminModalTrigger
+      : adminAddButton
+    : null;
+  adminModalTrigger = null;
+  focusTarget?.focus();
+}
+
+function openAdminModal() {
+  if (!adminPrizeModal) {
+    return;
+  }
+  adminModalTrigger = document.activeElement instanceof HTMLElement ? document.activeElement : adminAddButton;
+  if (!adminPrizeModal.hidden) {
+    return;
+  }
+  adminPrizeModal.hidden = false;
+  adminPrizeModal.classList.add("is-open");
+  adminPrizeModal.setAttribute("aria-hidden", "false");
+  document.body.classList.add("modal-open");
 }
 
 function openAdminCreateForm() {
@@ -1267,19 +1300,13 @@ function openAdminCreateForm() {
   if (adminPrizeMessage) {
     adminPrizeMessage.textContent = "";
   }
-  if (adminFormTitle) {
-    adminFormTitle.textContent = "Create listing";
-  }
   if (adminSaveButton) {
     adminSaveButton.textContent = "Create listing";
   }
-  if (adminCancelButton) {
-    adminCancelButton.hidden = true;
+  if (adminModalTitle) {
+    adminModalTitle.textContent = "Create listing";
   }
-  if (adminFormSection) {
-    adminFormSection.hidden = false;
-    adminFormSection.scrollIntoView({ behavior: "smooth", block: "start" });
-  }
+  openAdminModal();
   const nameInput = adminPrizeForm?.querySelector('input[name="name"]');
   nameInput?.focus();
 }
@@ -1326,19 +1353,13 @@ function openAdminEditForm(prize) {
   if (adminPrizeMessage) {
     adminPrizeMessage.textContent = "";
   }
-  if (adminFormTitle) {
-    adminFormTitle.textContent = "Edit listing";
-  }
   if (adminSaveButton) {
     adminSaveButton.textContent = "Save changes";
   }
-  if (adminCancelButton) {
-    adminCancelButton.hidden = false;
+  if (adminModalTitle) {
+    adminModalTitle.textContent = "Edit listing";
   }
-  if (adminFormSection) {
-    adminFormSection.hidden = false;
-    adminFormSection.scrollIntoView({ behavior: "smooth", block: "start" });
-  }
+  openAdminModal();
   nameInput?.focus();
 }
 
@@ -1761,6 +1782,9 @@ function applySignedOutState() {
   if (shippingModal && !shippingModal.hidden) {
     closeShippingModal({ restoreFocus: false });
   }
+  if (adminPrizeModal && !adminPrizeModal.hidden) {
+    closeAdminForm({ resetFields: true, restoreFocus: false });
+  }
 
   setSelectedChip(DENOMINATIONS[0], false);
   resetTable("Select a chip and place your bets in the betting panel.", { clearDraws: true });
@@ -1792,17 +1816,18 @@ function applySignedOutState() {
       }
     }, 0);
   }
+
+  manualSignOutRequested = false;
 }
 
 async function handleSignOut() {
+  manualSignOutRequested = true;
   const { error } = await supabase.auth.signOut();
   if (error) {
+    manualSignOutRequested = false;
     console.error(error);
     showToast("Unable to sign out", "error");
-    return;
   }
-  applySignedOutState();
-  showToast("Signed out", "info");
 }
 
 export async function logGameRun(score, metadata = {}) {
@@ -2030,16 +2055,17 @@ const dashboardCarterEl = document.getElementById("dashboard-carter-cash");
 const dashboardRunsEl = document.getElementById("dashboard-runs");
 const prizeListEl = document.getElementById("prize-list");
 const adminNavButton = document.getElementById("admin-nav");
-const adminFormSection = document.getElementById("admin-form-section");
-const adminFormTitle = document.getElementById("admin-form-title");
 const adminAddButton = document.getElementById("admin-add-button");
-const adminCancelButton = document.getElementById("admin-cancel-edit");
 const adminSaveButton = document.getElementById("admin-save-button");
 const adminPrizeListEl = document.getElementById("admin-prize-list");
 const adminPrizeForm = document.getElementById("admin-prize-form");
 const adminPrizeMessage = document.getElementById("admin-prize-message");
 const adminPrizeImageUrlInput = document.getElementById("prize-image-url");
 const adminPrizeImageFileInput = document.getElementById("prize-image-file");
+const adminPrizeModal = document.getElementById("admin-prize-modal");
+const adminModalTitle = document.getElementById("admin-modal-title");
+const adminModalCloseButton = document.getElementById("admin-modal-close");
+const adminModalCancelButton = document.getElementById("admin-modal-cancel");
 const shippingModal = document.getElementById("shipping-modal");
 const shippingForm = document.getElementById("shipping-form");
 const shippingSummaryEl = document.getElementById("shipping-summary");
@@ -2109,6 +2135,8 @@ let resetModalTrigger = null;
 
 let shippingModalTrigger = null;
 let activeShippingPurchase = null;
+let adminModalTrigger = null;
+let manualSignOutRequested = false;
 
 const MAX_HISTORY_POINTS = 500;
 const LEADERBOARD_LIMIT = 20;
@@ -3241,7 +3269,11 @@ function closeResetModal({ restoreFocus = false } = {}) {
   resetModal.classList.remove("is-open");
   resetModal.setAttribute("aria-hidden", "true");
   resetModal.hidden = true;
-  if (!paytableModal || paytableModal.hidden) {
+  if (
+    (!paytableModal || paytableModal.hidden) &&
+    (!shippingModal || shippingModal.hidden) &&
+    (!adminPrizeModal || adminPrizeModal.hidden)
+  ) {
     document.body.classList.remove("modal-open");
   }
   if (restoreFocus && resetModalTrigger instanceof HTMLElement) {
@@ -3690,7 +3722,11 @@ function closePaytableModal({ restoreFocus = false } = {}) {
   paytableModal.classList.remove("is-open");
   paytableModal.setAttribute("aria-hidden", "true");
   paytableModal.hidden = true;
-  if (!resetModal || resetModal.hidden) {
+  if (
+    (!resetModal || resetModal.hidden) &&
+    (!shippingModal || shippingModal.hidden) &&
+    (!adminPrizeModal || adminPrizeModal.hidden)
+  ) {
     document.body.classList.remove("modal-open");
   }
   updateActivePaytableUI();
@@ -3768,9 +3804,15 @@ if (adminAddButton) {
   });
 }
 
-if (adminCancelButton) {
-  adminCancelButton.addEventListener("click", () => {
+if (adminModalCancelButton) {
+  adminModalCancelButton.addEventListener("click", () => {
     closeAdminForm({ resetFields: true, restoreFocus: true });
+  });
+}
+
+if (adminModalCloseButton) {
+  adminModalCloseButton.addEventListener("click", () => {
+    closeAdminForm({ resetFields: false, restoreFocus: true });
   });
 }
 
@@ -3910,7 +3952,7 @@ document.addEventListener("keydown", (event) => {
 
 updateAdminVisibility(currentUser);
 
-supabase.auth.onAuthStateChange(async (_event, session) => {
+supabase.auth.onAuthStateChange(async (event, session) => {
   if (session?.user) {
     currentUser = session.user;
     if (authEmailInput && currentUser.email) {
@@ -3936,9 +3978,16 @@ supabase.auth.onAuthStateChange(async (_event, session) => {
         }
       }
     });
+    manualSignOutRequested = false;
     return;
   }
 
+  if (manualSignOutRequested) {
+    showToast("Signed out", "info");
+  } else if (event === "TOKEN_REFRESHED" || event === "SIGNED_OUT" || event === "USER_DELETED") {
+    showToast("Session expired. Please sign in again.", "warning");
+  }
+  manualSignOutRequested = false;
   applySignedOutState();
 });
 

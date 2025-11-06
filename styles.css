@@ -679,15 +679,78 @@ body {
   color: rgba(224, 244, 255, 0.76);
 }
 
+
 .prize-list {
   list-style: none;
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr));
-  justify-content: center;
-  justify-items: center;
-  gap: clamp(0.75rem, 2vw, 1.25rem);
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1rem;
   margin: 0;
   padding: 0;
+}
+
+.store-prize-item {
+  position: relative;
+}
+
+.store-prize-meta {
+  color: rgba(224, 244, 255, 0.72);
+}
+
+.store-prize-controls {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 0.65rem;
+  flex: 0 0 clamp(170px, 28vw, 220px);
+}
+
+.store-prize-price {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.35rem 0.75rem;
+  border-radius: 999px;
+  border: 1px solid rgba(160, 248, 255, 0.45);
+  background: rgba(6, 24, 52, 0.72);
+  font-family: "Play", system-ui, sans-serif;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  font-size: 0.7rem;
+  color: rgba(224, 244, 255, 0.92);
+}
+
+.store-prize-button {
+  min-width: 8rem;
+  padding: 0.55rem 1.4rem;
+  font-size: 0.78rem;
+  letter-spacing: 0.16em;
+}
+
+.store-prize-item.is-sold .store-prize-button {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.store-prize-badge {
+  position: absolute;
+  top: 0.85rem;
+  left: 0.85rem;
+  padding: 0.3rem 0.75rem;
+  border-radius: 999px;
+  background: linear-gradient(135deg, rgba(255, 68, 119, 0.92), rgba(255, 150, 86, 0.92));
+  color: #fff;
+  font-size: 0.66rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.35);
+}
+
+@media (min-width: 900px) {
+  .prize-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 .prize-empty {
@@ -2977,6 +3040,17 @@ button:disabled {
   display: flex;
   flex-direction: column;
   gap: clamp(0.9rem, 2vw, 1.2rem);
+}
+
+.admin-modal {
+  width: min(560px, 94vw);
+  max-height: min(640px, 92vh);
+  overflow-y: auto;
+  gap: clamp(1rem, 2.5vw, 1.4rem);
+}
+
+.admin-modal .admin-form {
+  gap: clamp(0.85rem, 2vw, 1.1rem);
 }
 
 .modal-header {
