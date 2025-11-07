@@ -96,7 +96,6 @@ const DEAL_DELAY_STEP = 40;
 const PROFILE_FETCH_ROUNDS = 3;
 const PROFILE_RETRY_DELAY_MS = 1500;
 const PROFILE_ATTEMPT_MAX = 12;
-const INITIAL_AUTH_EVENT_TIMEOUT_MS = 15000;
 const SUITS = [
   { symbol: "♠", color: "black", name: "Spades" },
   { symbol: "♥", color: "red", name: "Hearts" },
@@ -418,7 +417,9 @@ async function waitForProfile(user, options = {}) {
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     const { data, error } = await supabase
       .from("profiles")
-      .select("*")
+      .select(
+        "id, username, credits, carter_cash, carter_cash_progress, first_name, last_name"
+      )
       .eq("id", userId)
       .maybeSingle();
 
@@ -434,10 +435,10 @@ async function waitForProfile(user, options = {}) {
 
     if (data) {
       const missing = [];
-      if (typeof data.credits !== "number") {
+      if (!Number.isFinite(Number(data.credits))) {
         missing.push("credits");
       }
-      if (typeof data.carter_cash !== "number") {
+      if (!Number.isFinite(Number(data.carter_cash))) {
         missing.push("carter_cash");
       }
       if (missing.length) {
@@ -4454,42 +4455,6 @@ async function handleSignedIn(user, initialRoute, source = "unknown") {
   return true;
 }
 
-function waitForInitialAuthEvent(timeoutMs = INITIAL_AUTH_EVENT_TIMEOUT_MS) {
-  console.info(
-    `[RTN] bootstrapAuth waiting for SIGNED_IN event (timeout=${timeoutMs}ms)`
-  );
-
-  return new Promise((resolve) => {
-    let settled = false;
-    let timeoutId = null;
-    const {
-      data: { subscription }
-    } = supabase.auth.onAuthStateChange((event, session) => {
-      console.info(
-        `[RTN] waitForInitialAuthEvent observed event="${event}" sessionUser=${session?.user?.id ?? "null"}`
-      );
-      if (!settled && event === "SIGNED_IN" && session?.user) {
-        settled = true;
-        if (timeoutId) {
-          clearTimeout(timeoutId);
-        }
-        subscription.unsubscribe();
-        resolve(session);
-      }
-    });
-
-    timeoutId = setTimeout(() => {
-      if (settled) return;
-      settled = true;
-      subscription.unsubscribe();
-      console.warn(
-        `[RTN] waitForInitialAuthEvent timed out after ${timeoutMs}ms without receiving SIGNED_IN`
-      );
-      resolve(null);
-    }, timeoutMs);
-  });
-}
-
 async function bootstrapAuth(initialRoute) {
   console.info(`[RTN] bootstrapAuth starting (initialRoute=${initialRoute})`);
 
@@ -4511,22 +4476,8 @@ async function bootstrapAuth(initialRoute) {
     }
 
     console.info("[RTN] bootstrapAuth getSession returned no active session");
-
-    const waitedSession = await waitForInitialAuthEvent();
-    if (waitedSession?.user) {
-      const applied = await handleSignedIn(
-        waitedSession.user,
-        initialRoute,
-        "bootstrapAuth:waitForAuthEvent"
-      );
-      console.info(
-        `[RTN] bootstrapAuth applied session from waitForInitialAuthEvent: ${applied}`
-      );
-      return applied;
-    }
-
-    console.warn(
-      "[RTN] bootstrapAuth did not receive a session during initial auth wait; falling back to login"
+    console.info(
+      "[RTN] bootstrapAuth will show login immediately; awaiting future auth events separately"
     );
     return false;
   } catch (error) {
