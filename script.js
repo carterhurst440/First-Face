@@ -93,6 +93,10 @@ const PRIZE_CURRENCIES = {
 const PRIZE_IMAGE_BUCKET = "prize-images";
 const DEAL_DELAY = 420;
 const DEAL_DELAY_STEP = 40;
+const PROFILE_FETCH_ROUNDS = 3;
+const PROFILE_RETRY_DELAY_MS = 1500;
+const PROFILE_ATTEMPT_MAX = 12;
+const INITIAL_AUTH_EVENT_TIMEOUT_MS = 15000;
 const SUITS = [
   { symbol: "♠", color: "black", name: "Spades" },
   { symbol: "♥", color: "red", name: "Hearts" },
@@ -429,6 +433,20 @@ async function waitForProfile(user, options = {}) {
     }
 
     if (data) {
+      const missing = [];
+      if (typeof data.credits !== "number") {
+        missing.push("credits");
+      }
+      if (typeof data.carter_cash !== "number") {
+        missing.push("carter_cash");
+      }
+      if (missing.length) {
+        console.warn(
+          `[RTN] waitForProfile profile missing fields [${missing.join(", ")}]`,
+          data
+        );
+      }
+
       console.info("[RTN] waitForProfile returning profile", data);
       return data;
     }
@@ -4386,13 +4404,25 @@ async function handleSignedIn(user, initialRoute, source = "unknown") {
   );
 
   let profile = null;
-  try {
-    profile = await waitForProfile(currentUser, {
-      interval: 1000,
-      maxAttempts: 10
-    });
-  } catch (error) {
-    console.error("[RTN] handleSignedIn waitForProfile error", error);
+  for (let round = 1; round <= PROFILE_FETCH_ROUNDS && !profile; round++) {
+    console.info(
+      `[RTN] handleSignedIn profile fetch round ${round} of ${PROFILE_FETCH_ROUNDS}`
+    );
+    try {
+      profile = await waitForProfile(currentUser, {
+        interval: 1000,
+        maxAttempts: PROFILE_ATTEMPT_MAX
+      });
+    } catch (error) {
+      console.error("[RTN] handleSignedIn waitForProfile error", error);
+    }
+
+    if (!profile && round < PROFILE_FETCH_ROUNDS) {
+      console.warn(
+        `[RTN] handleSignedIn profile fetch round ${round} failed; retrying after ${PROFILE_RETRY_DELAY_MS}ms`
+      );
+      await new Promise((res) => setTimeout(res, PROFILE_RETRY_DELAY_MS));
+    }
   }
 
   if (!profile) {
@@ -4424,6 +4454,42 @@ async function handleSignedIn(user, initialRoute, source = "unknown") {
   return true;
 }
 
+function waitForInitialAuthEvent(timeoutMs = INITIAL_AUTH_EVENT_TIMEOUT_MS) {
+  console.info(
+    `[RTN] bootstrapAuth waiting for SIGNED_IN event (timeout=${timeoutMs}ms)`
+  );
+
+  return new Promise((resolve) => {
+    let settled = false;
+    let timeoutId = null;
+    const {
+      data: { subscription }
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      console.info(
+        `[RTN] waitForInitialAuthEvent observed event="${event}" sessionUser=${session?.user?.id ?? "null"}`
+      );
+      if (!settled && event === "SIGNED_IN" && session?.user) {
+        settled = true;
+        if (timeoutId) {
+          clearTimeout(timeoutId);
+        }
+        subscription.unsubscribe();
+        resolve(session);
+      }
+    });
+
+    timeoutId = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      subscription.unsubscribe();
+      console.warn(
+        `[RTN] waitForInitialAuthEvent timed out after ${timeoutMs}ms without receiving SIGNED_IN`
+      );
+      resolve(null);
+    }, timeoutMs);
+  });
+}
+
 async function bootstrapAuth(initialRoute) {
   console.info(`[RTN] bootstrapAuth starting (initialRoute=${initialRoute})`);
 
@@ -4445,6 +4511,23 @@ async function bootstrapAuth(initialRoute) {
     }
 
     console.info("[RTN] bootstrapAuth getSession returned no active session");
+
+    const waitedSession = await waitForInitialAuthEvent();
+    if (waitedSession?.user) {
+      const applied = await handleSignedIn(
+        waitedSession.user,
+        initialRoute,
+        "bootstrapAuth:waitForAuthEvent"
+      );
+      console.info(
+        `[RTN] bootstrapAuth applied session from waitForInitialAuthEvent: ${applied}`
+      );
+      return applied;
+    }
+
+    console.warn(
+      "[RTN] bootstrapAuth did not receive a session during initial auth wait; falling back to login"
+    );
     return false;
   } catch (error) {
     console.error("[RTN] bootstrapAuth exception during getSession", error);

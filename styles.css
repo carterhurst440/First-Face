@@ -436,6 +436,102 @@ body {
   min-height: 100vh;
 }
 
+.loading-screen {
+  position: fixed;
+  inset: 0;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 1.5rem;
+  background: radial-gradient(circle at 50% 20%, rgba(63, 240, 255, 0.12), transparent 62%),
+    radial-gradient(circle at 20% 80%, rgba(140, 109, 255, 0.08), transparent 68%),
+    rgba(2, 6, 22, 0.92);
+  z-index: 999;
+  text-align: center;
+  padding: 2rem;
+}
+
+body[data-app-state="loading"] .loading-screen {
+  display: flex;
+}
+
+body[data-app-state="ready"] .loading-screen {
+  display: none;
+}
+
+.loading-emblem {
+  position: relative;
+  width: clamp(140px, 32vw, 220px);
+  aspect-ratio: 1 / 1;
+}
+
+.loading-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 3px solid transparent;
+  animation: loading-spin 3.6s linear infinite;
+}
+
+.loading-ring.ring-outer {
+  border-top-color: rgba(63, 240, 255, 0.8);
+  border-left-color: rgba(140, 109, 255, 0.6);
+  filter: drop-shadow(0 0 12px rgba(63, 240, 255, 0.55));
+}
+
+.loading-ring.ring-middle {
+  inset: 16%;
+  border-right-color: rgba(255, 59, 213, 0.75);
+  border-bottom-color: rgba(63, 240, 255, 0.75);
+  animation-duration: 2.8s;
+}
+
+.loading-ring.ring-inner {
+  inset: 30%;
+  border-top-color: rgba(125, 255, 138, 0.8);
+  border-left-color: rgba(63, 240, 255, 0.75);
+  animation-duration: 1.9s;
+}
+
+.loading-core {
+  position: absolute;
+  inset: 44%;
+  border-radius: 50%;
+  background: radial-gradient(circle at 30% 30%, rgba(63, 240, 255, 0.95), rgba(3, 12, 42, 0.9));
+  box-shadow: 0 0 18px rgba(63, 240, 255, 0.62);
+  animation: loading-pulse 1.2s ease-in-out infinite;
+}
+
+.loading-text {
+  font-family: "Audiowide", "Play", sans-serif;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: rgba(226, 247, 255, 0.92);
+  text-shadow: 0 0 12px rgba(63, 240, 255, 0.42);
+}
+
+@keyframes loading-spin {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes loading-pulse {
+  0%,
+  100% {
+    transform: scale(0.92);
+    opacity: 0.72;
+  }
+  50% {
+    transform: scale(1.08);
+    opacity: 1;
+  }
+}
+
 .app {
   min-height: 100vh;
   width: 100%;
