@@ -4316,9 +4316,11 @@ async function initializeApp() {
   console.info("[RTN] initializeApp starting");
   stripSupabaseRedirectHash();
 
+  let session = null;
+
   try {
     const {
-      data: { session },
+      data: { session: fetchedSession },
       error
     } = await supabase.auth.getSession();
 
@@ -4326,21 +4328,35 @@ async function initializeApp() {
       throw error;
     }
 
+    session = fetchedSession ?? null;
+  } catch (error) {
+    console.error("Error retrieving session during init", error);
+  }
+
+  const initialRoute = getRouteFromHash();
+
+  try {
     if (session?.user) {
       currentUser = session.user;
       updateAdminVisibility(currentUser);
-      const profile = await waitForProfile(currentUser, {
+      await setRoute(initialRoute, { replaceHash: true });
+      ensureLeaderboardSubscription();
+      scheduleLeaderboardRefresh();
+
+      waitForProfile(currentUser, {
         interval: 1000,
         maxAttempts: 10,
         notify: false
-      });
-      if (!profile) {
-        await ensureProfileSynced({ force: true });
-      }
-      ensureLeaderboardSubscription();
-      scheduleLeaderboardRefresh();
-      const initialRoute = getRouteFromHash();
-      await setRoute(initialRoute, { replaceHash: true });
+      })
+        .then((profile) => {
+          if (!profile) {
+            return ensureProfileSynced({ force: true });
+          }
+          return profile;
+        })
+        .catch((profileError) => {
+          console.error("Profile warmup failed", profileError);
+        });
     } else {
       showAuthView("login");
       updateHash("auth", { replace: true });
