@@ -45,6 +45,16 @@ function markAppReady() {
   }
 }
 
+if (typeof window !== "undefined") {
+  window.addEventListener("load", () => {
+    const body = document.body;
+    if (body && body.dataset.appState !== "ready") {
+      console.warn("[RTN] load handler forcing app ready");
+      body.dataset.appState = "ready";
+    }
+  });
+}
+
 const PAYTABLES = [
   {
     id: "paytable-1",
@@ -4370,4 +4380,7 @@ async function initializeApp() {
   }
 }
 
+console.info("[RTN] initializeApp defined");
+
+console.info("[RTN] calling initializeApp()");
 initializeApp();
