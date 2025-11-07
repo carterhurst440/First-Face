@@ -421,9 +421,9 @@ async function waitForProfile(user, { interval = 1000, maxAttempts = 5, notify =
     if (data) {
       console.info(`[RTN] waitForProfile succeeded for user ${user.id}`);
       console.info(
-        `[RTN] waitForProfile applying profile credits (credits=${data.credits}, carterCash=${data.carter_cash})`
+        `[RTN] waitForProfile returning profile (credits=${data.credits}, carterCash=${data.carter_cash})`
       );
-      return applyProfileCredits(data, { resetHistory: !bankrollInitialized });
+      return data;
     }
 
     if (!notified) {
@@ -972,14 +972,21 @@ async function loadDashboard(force = false) {
   }
 
   if (resolvedProfile) {
-    currentProfile = resolvedProfile;
+    console.info(
+      `[RTN] loadDashboard applying profile ${resolvedProfile.id} (credits=${resolvedProfile.credits}, carterCash=${resolvedProfile.carter_cash})`
+    );
+    const appliedProfile = applyProfileCredits(resolvedProfile, {
+      resetHistory: !bankrollInitialized
+    });
+    const profileForDashboard = appliedProfile ?? resolvedProfile;
+    currentProfile = profileForDashboard;
     lastProfileSync = Date.now();
     if (dashboardProfileRetryTimer) {
       clearTimeout(dashboardProfileRetryTimer);
       dashboardProfileRetryTimer = null;
     }
-    updateDashboardCreditsDisplay(resolvedProfile.credits ?? 0);
-    updateDashboardCarterDisplay(resolvedProfile.carter_cash ?? 0);
+    updateDashboardCreditsDisplay(profileForDashboard.credits ?? 0);
+    updateDashboardCarterDisplay(profileForDashboard.carter_cash ?? 0);
   } else if (dashboardCreditsEl) {
     dashboardCreditsEl.textContent = "Setting up your account...";
     updateDashboardCarterDisplay("–");
@@ -4391,23 +4398,44 @@ async function applySessionAndRoute(session, initialRoute, source = "unknown") {
   console.info(
     `[RTN] applySessionAndRoute scheduling waitForProfile for ${currentUser.id} (source=${source})`
   );
-  waitForProfile(currentUser, {
-    interval: 1000,
-    maxAttempts: 10,
-    notify: source !== "getSession"
-  })
-    .then((profile) => {
-      if (!profile) {
-        console.warn(
-          "[RTN] waitForProfile returned null after applySessionAndRoute; attempting ensureProfileSynced"
+  (async () => {
+    try {
+      console.info(
+        `[RTN] applySessionAndRoute waiting for profile via waitForProfile (source=${source})`
+      );
+      const profile = await waitForProfile(currentUser, {
+        interval: 1000,
+        maxAttempts: 10,
+        notify: source !== "getSession"
+      });
+
+      if (profile) {
+        console.info(
+          `[RTN] applySessionAndRoute received profile ${profile.id}; updating header`
         );
-        return ensureProfileSynced({ force: true });
+        const appliedProfile = applyProfileCredits(profile, {
+          resetHistory: !bankrollInitialized
+        });
+        const headerProfile = appliedProfile ?? profile;
+        console.info(
+          `[RTN] applySessionAndRoute header updated (bankroll=${headerProfile.credits}, carterCash=${headerProfile.carter_cash})`
+        );
+        return;
       }
-      return profile;
-    })
-    .catch((profileError) => {
+
+      console.warn(
+        "[RTN] waitForProfile returned null after applySessionAndRoute; attempting ensureProfileSynced"
+      );
+      const fallbackProfile = await ensureProfileSynced({ force: true });
+      if (fallbackProfile) {
+        console.info(
+          `[RTN] applySessionAndRoute fallback header sync (bankroll=${fallbackProfile.credits}, carterCash=${fallbackProfile.carter_cash})`
+        );
+      }
+    } catch (profileError) {
       console.error("[RTN] Profile warmup failed", profileError);
-    });
+    }
+  })();
 
   return true;
 }
