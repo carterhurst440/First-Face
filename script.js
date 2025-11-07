@@ -453,6 +453,10 @@ async function waitForProfile(user, options = {}) {
       return data;
     }
 
+    console.warn(
+      `[RTN] waitForProfile attempt ${attempt} found no profile row for user ${userId}; retrying after ${interval}ms`
+    );
+
     await new Promise((res) => setTimeout(res, interval));
   }
 
