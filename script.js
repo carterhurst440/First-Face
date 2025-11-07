@@ -420,6 +420,9 @@ async function waitForProfile(user, { interval = 1000, maxAttempts = 5, notify =
 
     if (data) {
       console.info(`[RTN] waitForProfile succeeded for user ${user.id}`);
+      console.info(
+        `[RTN] waitForProfile applying profile credits (credits=${data.credits}, carterCash=${data.carter_cash})`
+      );
       return applyProfileCredits(data, { resetHistory: !bankrollInitialized });
     }
 
@@ -467,6 +470,9 @@ async function ensureProfileSynced({ force = false } = {}) {
       }
 
       if (data) {
+        console.info(
+          `[RTN] ensureProfileSynced fetched profile for ${currentUser.id}; updating header`
+        );
         const applied = applyProfileCredits(data);
         lastProfileSync = Date.now();
         return applied;
@@ -2728,24 +2734,47 @@ function handleBankrollChanged() {
   }
 }
 
-function applyProfileCredits(profile, { resetHistory = false } = {}) {
-  if (!profile) return null;
-  currentProfile = profile;
-  lastProfileSync = Date.now();
+function renderHeaderFromProfile(profile) {
+  if (!profile) {
+    console.warn("[RTN] renderHeaderFromProfile called without a profile");
+    return;
+  }
+
   const numericCredits = Number(profile.credits);
   const nextBankroll = Number.isFinite(numericCredits) ? Math.round(numericCredits) : INITIAL_BANKROLL;
+  const numericCarter = Number(profile.carter_cash);
+  const nextCarterCash = Number.isFinite(numericCarter) ? Math.round(numericCarter) : 0;
+  const numericProgress = Number(profile.carter_cash_progress);
+  const nextProgress =
+    Number.isFinite(numericProgress) && numericProgress >= 0 ? Number(numericProgress) : 0;
+
+  console.info(
+    `[RTN] renderHeaderFromProfile updating header (bankroll=${nextBankroll}, carterCash=${nextCarterCash}, progress=${nextProgress})`
+  );
+
   bankroll = nextBankroll;
+  lastSyncedBankroll = bankroll;
+  stopBankrollAnimation();
   updateBankroll();
   updateDashboardCreditsDisplay(nextBankroll);
-  lastSyncedBankroll = bankroll;
-  const numericCarter = Number(profile.carter_cash);
-  carterCash = Number.isFinite(numericCarter) ? Math.round(numericCarter) : 0;
-  const numericProgress = Number(profile.carter_cash_progress);
-  carterCashProgress = Number.isFinite(numericProgress) && numericProgress >= 0 ? numericProgress : 0;
+
+  carterCash = nextCarterCash;
+  carterCashProgress = nextProgress;
   lastSyncedCarterCash = carterCash;
   lastSyncedCarterProgress = carterCashProgress;
   stopCarterCashAnimation();
   updateCarterCashDisplay();
+}
+
+function applyProfileCredits(profile, { resetHistory = false } = {}) {
+  if (!profile) return null;
+  console.info(
+    `[RTN] applyProfileCredits storing profile ${profile.id} with credits=${profile.credits} carterCash=${profile.carter_cash}`
+  );
+  currentProfile = profile;
+  lastProfileSync = Date.now();
+  renderHeaderFromProfile(profile);
+
   const shouldResetHistory = resetHistory || !bankrollInitialized;
   if (shouldResetHistory) {
     bankrollHistory = [bankroll];
