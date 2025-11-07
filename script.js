@@ -1,5 +1,19 @@
 import { supabase } from "./supabaseClient.js";
 
+console.info("[RTN] main script loaded");
+
+if (typeof window !== "undefined") {
+  window.addEventListener("error", (event) => {
+    const detail = event?.error ?? event?.message ?? "Unknown error";
+    console.error("[RTN] Global error", detail);
+  });
+
+  window.addEventListener("unhandledrejection", (event) => {
+    const reason = event?.reason ?? "Unknown promise rejection";
+    console.error("[RTN] Unhandled rejection", reason);
+  });
+}
+
 function stripSupabaseRedirectHash() {
   if (typeof window === "undefined") {
     return;
@@ -4299,6 +4313,7 @@ window.addEventListener("resize", schedulePlayAreaHeightUpdate);
 window.addEventListener("resize", drawBankrollChart);
 
 async function initializeApp() {
+  console.info("[RTN] initializeApp starting");
   stripSupabaseRedirectHash();
 
   try {
