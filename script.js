@@ -7,6 +7,8 @@ if (typeof document !== "undefined" && document.body) {
   console.info("[RTN] body dataset appState set to \"loading\" on script load");
 }
 
+let appReady = false;
+
 if (typeof window !== "undefined") {
   window.addEventListener("error", (event) => {
     const detail = event?.error ?? event?.message ?? "Unknown error";
@@ -44,21 +46,17 @@ function markAppReady() {
     return;
   }
 
+  if (appReady) {
+    console.info("[RTN] markAppReady called but app is already ready");
+    return;
+  }
+
   const { body } = document;
   if (body) {
     body.dataset.appState = "ready";
     console.info("[RTN] markAppReady called; UI now visible");
+    appReady = true;
   }
-}
-
-if (typeof window !== "undefined") {
-  window.addEventListener("load", () => {
-    const body = document.body;
-    if (body && body.dataset.appState !== "ready") {
-      console.warn("[RTN] load handler forcing app ready");
-      body.dataset.appState = "ready";
-    }
-  });
 }
 
 const PAYTABLES = [
