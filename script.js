@@ -4325,44 +4325,29 @@ supabase.auth.onAuthStateChange(async (event, session) => {
   console.info(
     `[RTN] onAuthStateChange event="${event}" sessionUser=${session?.user?.id ?? 'null'}`
   );
-  if (session?.user) {
+
+  if (event === "SIGNED_IN" && session?.user) {
     const routeFromHash = getRouteFromHash();
     const targetRoute = AUTH_ROUTES.has(routeFromHash) ? "home" : routeFromHash;
-    try {
-      const applied = await applySessionAndRoute(
-        session,
-        targetRoute,
-        `onAuthStateChange:${event}`
-      );
-      console.info(
-        `[RTN] onAuthStateChange applySessionAndRoute result=${applied} (event=${event})`
-      );
-      if (!applied) {
-        console.warn(
-          "[RTN] onAuthStateChange unable to apply session; reverting to auth view"
-        );
-        showToast("Unable to load profile. Please sign in again.", "error");
-        applySignedOutState();
-        return;
-      }
-    } catch (applyError) {
-      console.error("[RTN] onAuthStateChange failed to apply session", applyError);
+    const applied = await handleSignedIn(session.user, targetRoute, `onAuthStateChange:${event}`);
+    if (!applied) {
       showToast("Unable to load profile. Please sign in again.", "error");
       applySignedOutState();
-      return;
+    } else {
+      manualSignOutRequested = false;
     }
-    manualSignOutRequested = false;
     return;
   }
 
-  const isSignedOutEvent = event === "SIGNED_OUT" || event === "USER_DELETED";
-  if (manualSignOutRequested) {
-    showToast("Signed out", "info");
-  } else if (isSignedOutEvent) {
-    showToast("Session expired. Please sign in again.", "warning");
+  if (event === "SIGNED_OUT" || event === "USER_DELETED") {
+    if (manualSignOutRequested) {
+      showToast("Signed out", "info");
+    } else {
+      showToast("Session expired. Please sign in again.", "warning");
+    }
+    manualSignOutRequested = false;
+    applySignedOutState();
   }
-  manualSignOutRequested = false;
-  applySignedOutState();
 });
 
 initTheme();
@@ -4378,13 +4363,23 @@ resetBankrollHistory();
 window.addEventListener("resize", schedulePlayAreaHeightUpdate);
 window.addEventListener("resize", drawBankrollChart);
 
-async function applySessionAndRoute(session, initialRoute, source = "unknown") {
-  if (!session?.user) {
-    console.warn(`[RTN] applySessionAndRoute called without session (source=${source})`);
+let lastHandledUserId = null;
+
+async function handleSignedIn(user, initialRoute, source = "unknown") {
+  if (!user) {
+    console.warn(`[RTN] handleSignedIn called without user (source=${source})`);
     return false;
   }
 
-  currentUser = session.user;
+  if (lastHandledUserId === user.id && source !== "onAuthStateChange:USER_UPDATED") {
+    console.info(
+      `[RTN] handleSignedIn skipped duplicate for user ${user.id} (source=${source})`
+    );
+    return true;
+  }
+  lastHandledUserId = user.id;
+
+  currentUser = user;
   manualSignOutRequested = false;
   updateAdminVisibility(currentUser);
 
@@ -4393,8 +4388,9 @@ async function applySessionAndRoute(session, initialRoute, source = "unknown") {
   }
 
   console.info(
-    `[RTN] applySessionAndRoute waiting for profile (source=${source}) for user ${currentUser.id}`
+    `[RTN] handleSignedIn fetching profile for user ${currentUser.id} (source=${source})`
   );
+
   let profile = null;
   try {
     profile = await waitForProfile(currentUser, {
@@ -4402,24 +4398,13 @@ async function applySessionAndRoute(session, initialRoute, source = "unknown") {
       maxAttempts: 10,
       notify: source !== "getSession"
     });
-  } catch (profileError) {
-    console.error("[RTN] applySessionAndRoute waitForProfile threw", profileError);
-  }
-
-  if (!profile) {
-    console.warn(
-      `[RTN] applySessionAndRoute did not receive profile from waitForProfile; attempting ensureProfileSynced (source=${source})`
-    );
-    try {
-      profile = await ensureProfileSynced({ force: true });
-    } catch (syncError) {
-      console.error("[RTN] applySessionAndRoute ensureProfileSynced threw", syncError);
-    }
+  } catch (error) {
+    console.error("[RTN] handleSignedIn waitForProfile error", error);
   }
 
   if (!profile) {
     console.error(
-      `[RTN] applySessionAndRoute unable to load profile for user ${currentUser.id}; aborting route application`
+      `[RTN] handleSignedIn unable to load profile for user ${currentUser.id}; aborting route application`
     );
     return false;
   }
@@ -4438,7 +4423,7 @@ async function applySessionAndRoute(session, initialRoute, source = "unknown") {
     : initialRoute;
 
   console.info(
-    `[RTN] applySessionAndRoute routing to initial route "${resolvedRoute}" for user ${currentUser.id} (source=${source})`
+    `[RTN] handleSignedIn routing to "${resolvedRoute}" for user ${currentUser.id} (source=${source})`
   );
 
   await setRoute(resolvedRoute, { replaceHash: true });
@@ -4449,33 +4434,29 @@ async function applySessionAndRoute(session, initialRoute, source = "unknown") {
 async function bootstrapAuth(initialRoute) {
   console.info(`[RTN] bootstrapAuth starting (initialRoute=${initialRoute})`);
 
-  let sessionFromGet = null;
   try {
     console.info("[RTN] bootstrapAuth requesting session from Supabase");
     const { data, error } = await supabase.auth.getSession();
     if (error) {
       console.error("[RTN] bootstrapAuth getSession error", error);
     }
-    sessionFromGet = data?.session ?? null;
-    if (sessionFromGet?.user) {
+
+    const session = data?.session ?? null;
+    if (session?.user) {
       console.info(
-        `[RTN] bootstrapAuth getSession returned user ${sessionFromGet.user.id} (email=${sessionFromGet.user.email})`
+        `[RTN] bootstrapAuth getSession returned user ${session.user.id} (email=${session.user.email})`
       );
-    } else {
-      console.info("[RTN] bootstrapAuth getSession returned no active session");
+      const applied = await handleSignedIn(session.user, initialRoute, "getSession");
+      console.info(`[RTN] bootstrapAuth applied session from getSession: ${applied}`);
+      return applied;
     }
+
+    console.info("[RTN] bootstrapAuth getSession returned no active session");
+    return false;
   } catch (error) {
     console.error("[RTN] bootstrapAuth exception during getSession", error);
+    return false;
   }
-
-  if (sessionFromGet?.user) {
-    const applied = await applySessionAndRoute(sessionFromGet, initialRoute, "getSession");
-    console.info(`[RTN] bootstrapAuth applied session from getSession: ${applied}`);
-    return applied;
-  }
-
-  console.info("[RTN] bootstrapAuth no session available; will show auth view");
-  return false;
 }
 
 async function initializeApp() {
