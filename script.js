@@ -395,9 +395,17 @@ async function refreshCurrentUser() {
 }
 
 async function waitForProfile(user, { interval = 1000, maxAttempts = 5, notify = false } = {}) {
-  if (!user) return null;
+  if (!user) {
+    console.warn("[RTN] waitForProfile called without a user");
+    return null;
+  }
+
+  console.info(
+    `[RTN] waitForProfile starting for user ${user.id} (interval=${interval}ms, maxAttempts=${maxAttempts})`
+  );
   let notified = false;
   for (let attempt = 0; maxAttempts === Infinity || attempt < maxAttempts; attempt++) {
+    console.debug(`[RTN] waitForProfile attempt ${attempt + 1}`);
     const { data, error } = await supabase
       .from("profiles")
       .select("*")
@@ -405,12 +413,13 @@ async function waitForProfile(user, { interval = 1000, maxAttempts = 5, notify =
       .maybeSingle();
 
     if (error && error.code !== "PGRST116") {
-      console.error(error);
+      console.error("[RTN] waitForProfile error", error);
       showToast("Unable to load profile", "error");
       return null;
     }
 
     if (data) {
+      console.info(`[RTN] waitForProfile succeeded for user ${user.id}`);
       return applyProfileCredits(data, { resetHistory: !bankrollInitialized });
     }
 
@@ -419,12 +428,15 @@ async function waitForProfile(user, { interval = 1000, maxAttempts = 5, notify =
       if (notify) {
         showToast("Setting up your account...", "info");
       }
-      console.log("Waiting for profile creation by server trigger...");
+      console.log("[RTN] Waiting for profile creation by server trigger...");
     }
 
     await new Promise((resolve) => setTimeout(resolve, interval));
   }
 
+  console.warn(
+    `[RTN] waitForProfile timed out for user ${user.id} after ${maxAttempts} attempts`
+  );
   return null;
 }
 
@@ -4322,37 +4334,55 @@ resetBankrollHistory();
 window.addEventListener("resize", schedulePlayAreaHeightUpdate);
 window.addEventListener("resize", drawBankrollChart);
 
-async function initializeApp() {
-  console.info("[RTN] initializeApp starting");
-  stripSupabaseRedirectHash();
-
-  let session = null;
-
+async function bootstrapAuth() {
+  console.info("[RTN] bootstrapAuth invoked");
   try {
+    console.info("[RTN] bootstrapAuth requesting session from Supabase");
     const {
-      data: { session: fetchedSession },
+      data: { session },
       error
     } = await supabase.auth.getSession();
 
     if (error) {
-      throw error;
+      console.error("[RTN] bootstrapAuth getSession error", error);
+      return null;
     }
 
-    session = fetchedSession ?? null;
+    if (session?.user) {
+      console.info(
+        `[RTN] bootstrapAuth received session for user ${session.user.id} (email=${session.user.email})`
+      );
+    } else {
+      console.info("[RTN] bootstrapAuth did not find an active session");
+    }
+
+    return session ?? null;
   } catch (error) {
-    console.error("Error retrieving session during init", error);
+    console.error("[RTN] bootstrapAuth exception", error);
+    return null;
   }
+}
+
+async function initializeApp() {
+  console.info("[RTN] initializeApp starting");
+  stripSupabaseRedirectHash();
+
+  const session = await bootstrapAuth();
+  console.info(`[RTN] initializeApp bootstrapAuth returned session: ${Boolean(session)}`);
 
   const initialRoute = getRouteFromHash();
+  console.info(`[RTN] initializeApp initial route resolved to "${initialRoute}"`);
 
   try {
     if (session?.user) {
       currentUser = session.user;
       updateAdminVisibility(currentUser);
+      console.info(`[RTN] initializeApp routing to "${initialRoute}" for user ${currentUser.id}`);
       await setRoute(initialRoute, { replaceHash: true });
       ensureLeaderboardSubscription();
       scheduleLeaderboardRefresh();
 
+      console.info(`[RTN] initializeApp scheduling waitForProfile for ${currentUser.id}`);
       waitForProfile(currentUser, {
         interval: 1000,
         maxAttempts: 10,
@@ -4360,19 +4390,22 @@ async function initializeApp() {
       })
         .then((profile) => {
           if (!profile) {
+            console.warn("[RTN] waitForProfile returned null during init, forcing ensureProfileSynced");
             return ensureProfileSynced({ force: true });
           }
           return profile;
         })
         .catch((profileError) => {
-          console.error("Profile warmup failed", profileError);
+          console.error("[RTN] Profile warmup failed", profileError);
         });
     } else {
+      console.info("[RTN] initializeApp showing auth view (no session found)");
       showAuthView("login");
       updateHash("auth", { replace: true });
     }
   } catch (error) {
-    console.error("Error initializing app:", error);
+    console.error("[RTN] Error initializing app:", error);
+    console.info("[RTN] initializeApp showing auth view due to initialization error");
     showAuthView("login");
     updateHash("auth", { replace: true });
   } finally {
