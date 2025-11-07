@@ -8,4 +8,11 @@ if (!supabaseUrl || !supabaseAnonKey) {
   console.warn('Supabase URL or anon key missing');
 }
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    persistSession: true,
+    autoRefreshToken: true,
+  },
+});
+
+console.info('[RTN] Supabase client initialized with session persistence enabled');

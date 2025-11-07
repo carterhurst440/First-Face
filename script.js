@@ -4282,6 +4282,9 @@ document.addEventListener("keydown", (event) => {
 updateAdminVisibility(currentUser);
 
 supabase.auth.onAuthStateChange(async (event, session) => {
+  console.info(
+    `[RTN] onAuthStateChange event="${event}" sessionUser=${session?.user?.id ?? 'null'}`
+  );
   if (session?.user) {
     currentUser = session.user;
     if (authEmailInput && currentUser.email) {
