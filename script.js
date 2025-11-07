@@ -4286,30 +4286,20 @@ supabase.auth.onAuthStateChange(async (event, session) => {
     `[RTN] onAuthStateChange event="${event}" sessionUser=${session?.user?.id ?? 'null'}`
   );
   if (session?.user) {
-    currentUser = session.user;
-    if (authEmailInput && currentUser.email) {
-      authEmailInput.value = currentUser.email;
+    const routeFromHash = getRouteFromHash();
+    const targetRoute = AUTH_ROUTES.has(routeFromHash) ? "home" : routeFromHash;
+    try {
+      const applied = await applySessionAndRoute(
+        session,
+        targetRoute,
+        `onAuthStateChange:${event}`
+      );
+      console.info(
+        `[RTN] onAuthStateChange applySessionAndRoute result=${applied} (event=${event})`
+      );
+    } catch (applyError) {
+      console.error("[RTN] onAuthStateChange failed to apply session", applyError);
     }
-    updateAdminVisibility(currentUser);
-    if (appShell) {
-      appShell.removeAttribute("data-hidden");
-    }
-    ensureLeaderboardSubscription();
-    scheduleLeaderboardRefresh();
-    const route = getRouteFromHash();
-    await setRoute(route, { replaceHash: true });
-    waitForProfile(currentUser, {
-      interval: 1000,
-      maxAttempts: 10,
-      notify: true
-    }).then((profile) => {
-      if (profile) {
-        currentProfile = profile;
-        if (currentRoute === "dashboard") {
-          loadDashboard(true);
-        }
-      }
-    });
     manualSignOutRequested = false;
     return;
   }
@@ -4349,14 +4339,22 @@ async function applySessionAndRoute(session, initialRoute, source = "unknown") {
   manualSignOutRequested = false;
   updateAdminVisibility(currentUser);
 
+  if (authEmailInput && currentUser.email) {
+    authEmailInput.value = currentUser.email;
+  }
+
   if (appShell) {
     appShell.removeAttribute("data-hidden");
   }
 
+  const resolvedRoute = !initialRoute || AUTH_ROUTES.has(initialRoute)
+    ? "home"
+    : initialRoute;
+
   console.info(
-    `[RTN] applySessionAndRoute routing to initial route "${initialRoute}" for user ${currentUser.id} (source=${source})`
+    `[RTN] applySessionAndRoute routing to initial route "${resolvedRoute}" for user ${currentUser.id} (source=${source})`
   );
-  await setRoute(initialRoute, { replaceHash: true });
+  await setRoute(resolvedRoute, { replaceHash: true });
 
   ensureLeaderboardSubscription();
   scheduleLeaderboardRefresh();
