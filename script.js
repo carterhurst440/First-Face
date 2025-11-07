@@ -2,6 +2,11 @@ import { supabase } from "./supabaseClient.js";
 
 console.info("[RTN] main script loaded");
 
+if (typeof document !== "undefined" && document.body) {
+  document.body.dataset.appState = "loading";
+  console.info("[RTN] body dataset appState set to \"loading\" on script load");
+}
+
 if (typeof window !== "undefined") {
   window.addEventListener("error", (event) => {
     const detail = event?.error ?? event?.message ?? "Unknown error";
@@ -42,6 +47,7 @@ function markAppReady() {
   const { body } = document;
   if (body) {
     body.dataset.appState = "ready";
+    console.info("[RTN] markAppReady called; UI now visible");
   }
 }
 
@@ -4333,8 +4339,19 @@ supabase.auth.onAuthStateChange(async (event, session) => {
       console.info(
         `[RTN] onAuthStateChange applySessionAndRoute result=${applied} (event=${event})`
       );
+      if (!applied) {
+        console.warn(
+          "[RTN] onAuthStateChange unable to apply session; reverting to auth view"
+        );
+        showToast("Unable to load profile. Please sign in again.", "error");
+        applySignedOutState();
+        return;
+      }
     } catch (applyError) {
       console.error("[RTN] onAuthStateChange failed to apply session", applyError);
+      showToast("Unable to load profile. Please sign in again.", "error");
+      applySignedOutState();
+      return;
     }
     manualSignOutRequested = false;
     return;
@@ -4363,8 +4380,6 @@ resetBankrollHistory();
 window.addEventListener("resize", schedulePlayAreaHeightUpdate);
 window.addEventListener("resize", drawBankrollChart);
 
-const AUTH_EVENT_TIMEOUT_MS = 4000;
-
 async function applySessionAndRoute(session, initialRoute, source = "unknown") {
   if (!session?.user) {
     console.warn(`[RTN] applySessionAndRoute called without session (source=${source})`);
@@ -4379,6 +4394,43 @@ async function applySessionAndRoute(session, initialRoute, source = "unknown") {
     authEmailInput.value = currentUser.email;
   }
 
+  console.info(
+    `[RTN] applySessionAndRoute waiting for profile (source=${source}) for user ${currentUser.id}`
+  );
+  let profile = null;
+  try {
+    profile = await waitForProfile(currentUser, {
+      interval: 1000,
+      maxAttempts: 10,
+      notify: source !== "getSession"
+    });
+  } catch (profileError) {
+    console.error("[RTN] applySessionAndRoute waitForProfile threw", profileError);
+  }
+
+  if (!profile) {
+    console.warn(
+      `[RTN] applySessionAndRoute did not receive profile from waitForProfile; attempting ensureProfileSynced (source=${source})`
+    );
+    try {
+      profile = await ensureProfileSynced({ force: true });
+    } catch (syncError) {
+      console.error("[RTN] applySessionAndRoute ensureProfileSynced threw", syncError);
+    }
+  }
+
+  if (!profile) {
+    console.error(
+      `[RTN] applySessionAndRoute unable to load profile for user ${currentUser.id}; aborting route application`
+    );
+    return false;
+  }
+
+  applyProfileCredits(profile, { resetHistory: !bankrollInitialized });
+
+  ensureLeaderboardSubscription();
+  scheduleLeaderboardRefresh();
+
   if (appShell) {
     appShell.removeAttribute("data-hidden");
   }
@@ -4390,52 +4442,8 @@ async function applySessionAndRoute(session, initialRoute, source = "unknown") {
   console.info(
     `[RTN] applySessionAndRoute routing to initial route "${resolvedRoute}" for user ${currentUser.id} (source=${source})`
   );
+
   await setRoute(resolvedRoute, { replaceHash: true });
-
-  ensureLeaderboardSubscription();
-  scheduleLeaderboardRefresh();
-
-  console.info(
-    `[RTN] applySessionAndRoute scheduling waitForProfile for ${currentUser.id} (source=${source})`
-  );
-  (async () => {
-    try {
-      console.info(
-        `[RTN] applySessionAndRoute waiting for profile via waitForProfile (source=${source})`
-      );
-      const profile = await waitForProfile(currentUser, {
-        interval: 1000,
-        maxAttempts: 10,
-        notify: source !== "getSession"
-      });
-
-      if (profile) {
-        console.info(
-          `[RTN] applySessionAndRoute received profile ${profile.id}; updating header`
-        );
-        const appliedProfile = applyProfileCredits(profile, {
-          resetHistory: !bankrollInitialized
-        });
-        const headerProfile = appliedProfile ?? profile;
-        console.info(
-          `[RTN] applySessionAndRoute header updated (bankroll=${headerProfile.credits}, carterCash=${headerProfile.carter_cash})`
-        );
-        return;
-      }
-
-      console.warn(
-        "[RTN] waitForProfile returned null after applySessionAndRoute; attempting ensureProfileSynced"
-      );
-      const fallbackProfile = await ensureProfileSynced({ force: true });
-      if (fallbackProfile) {
-        console.info(
-          `[RTN] applySessionAndRoute fallback header sync (bankroll=${fallbackProfile.credits}, carterCash=${fallbackProfile.carter_cash})`
-        );
-      }
-    } catch (profileError) {
-      console.error("[RTN] Profile warmup failed", profileError);
-    }
-  })();
 
   return true;
 }
@@ -4468,48 +4476,8 @@ async function bootstrapAuth(initialRoute) {
     return applied;
   }
 
-  console.info(
-    `[RTN] bootstrapAuth waiting up to ${AUTH_EVENT_TIMEOUT_MS}ms for SIGNED_IN auth event`
-  );
-
-  return new Promise((resolve) => {
-    let settled = false;
-    let timeoutId = null;
-
-    const { data } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.info(
-        `[RTN] bootstrapAuth temporary listener received event="${event}" sessionUser=${session?.user?.id ?? "null"}`
-      );
-
-      if (event === "SIGNED_IN" && session?.user && !settled) {
-        settled = true;
-        if (timeoutId) {
-          clearTimeout(timeoutId);
-        }
-        data?.subscription?.unsubscribe();
-        try {
-          const applied = await applySessionAndRoute(session, initialRoute, "auth listener");
-          console.info(
-            `[RTN] bootstrapAuth applied session from auth listener: ${applied}`
-          );
-          resolve(applied);
-        } catch (error) {
-          console.error("[RTN] bootstrapAuth failed to apply session from auth listener", error);
-          resolve(false);
-        }
-      }
-    });
-
-    timeoutId = setTimeout(() => {
-      if (settled) return;
-      settled = true;
-      console.warn(
-        `[RTN] bootstrapAuth timed out waiting for auth state change after ${AUTH_EVENT_TIMEOUT_MS}ms`
-      );
-      data?.subscription?.unsubscribe();
-      resolve(false);
-    }, AUTH_EVENT_TIMEOUT_MS);
-  });
+  console.info("[RTN] bootstrapAuth no session available; will show auth view");
+  return false;
 }
 
 async function initializeApp() {
