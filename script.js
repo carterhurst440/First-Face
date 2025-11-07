@@ -424,9 +424,14 @@ async function waitForProfile(user, options = {}) {
       .eq("id", userId)
       .maybeSingle();
 
-    console.log(
-      `[RTN] waitForProfile attempt ${attempt} for user ${userId}`,
-      { data, error }
+    const dataSummary = data
+      ? `credits=${data.credits ?? "null"}, carter_cash=${data.carter_cash ?? "null"}, first_name=${data.first_name ? "yes" : "no"}, last_name=${data.last_name ? "yes" : "no"}`
+      : "null";
+    const errorSummary = error
+      ? `${error.message ?? error}`
+      : "null";
+    console.info(
+      `[RTN] waitForProfile attempt ${attempt} for user ${userId} -> data(${dataSummary}) error(${errorSummary})`
     );
 
     if (error) {
@@ -1933,7 +1938,8 @@ function cleanupLeaderboardSubscription() {
   }
 }
 
-function applySignedOutState() {
+function applySignedOutState(reason = "unknown") {
+  console.warn(`[RTN] applySignedOutState invoked (reason=${reason})`);
   const clearFn = typeof window !== "undefined" ? window.clearTimeout : clearTimeout;
   lastSyncedBankroll = null;
   bankrollInitialized = false;
@@ -4350,7 +4356,7 @@ supabase.auth.onAuthStateChange(async (event, session) => {
     const applied = await handleSignedIn(session.user, targetRoute, `onAuthStateChange:${event}`);
     if (!applied) {
       showToast("Unable to load profile. Please sign in again.", "error");
-      applySignedOutState();
+      applySignedOutState("profile-load-failed");
     } else {
       manualSignOutRequested = false;
     }
@@ -4364,7 +4370,8 @@ supabase.auth.onAuthStateChange(async (event, session) => {
       showToast("Session expired. Please sign in again.", "warning");
     }
     manualSignOutRequested = false;
-    applySignedOutState();
+    const reason = event === "SIGNED_OUT" ? "signed-out" : "user-deleted";
+    applySignedOutState(reason);
   }
 });
 
