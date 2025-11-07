@@ -93,9 +93,10 @@ const PRIZE_CURRENCIES = {
 const PRIZE_IMAGE_BUCKET = "prize-images";
 const DEAL_DELAY = 420;
 const DEAL_DELAY_STEP = 40;
-const PROFILE_FETCH_ROUNDS = 3;
-const PROFILE_RETRY_DELAY_MS = 1500;
-const PROFILE_ATTEMPT_MAX = 12;
+const PROFILE_FETCH_ROUNDS = 2;
+const PROFILE_RETRY_DELAY_MS = 1200;
+const PROFILE_ATTEMPT_MAX = 5;
+const PROFILE_FETCH_TIMEOUT_MS = 10000;
 const SUITS = [
   { symbol: "♠", color: "black", name: "Spades" },
   { symbol: "♥", color: "red", name: "Hearts" },
@@ -4405,6 +4406,9 @@ async function handleSignedIn(user, initialRoute, source = "unknown") {
   );
 
   let profile = null;
+  const profileStart = Date.now();
+  const profileDeadline = profileStart + PROFILE_FETCH_TIMEOUT_MS;
+
   for (let round = 1; round <= PROFILE_FETCH_ROUNDS && !profile; round++) {
     console.info(
       `[RTN] handleSignedIn profile fetch round ${round} of ${PROFILE_FETCH_ROUNDS}`
@@ -4418,18 +4422,43 @@ async function handleSignedIn(user, initialRoute, source = "unknown") {
       console.error("[RTN] handleSignedIn waitForProfile error", error);
     }
 
-    if (!profile && round < PROFILE_FETCH_ROUNDS) {
+    if (profile) {
+      break;
+    }
+
+    const now = Date.now();
+    if (now >= profileDeadline) {
       console.warn(
-        `[RTN] handleSignedIn profile fetch round ${round} failed; retrying after ${PROFILE_RETRY_DELAY_MS}ms`
+        `[RTN] handleSignedIn profile fetch exceeded timeout (${PROFILE_FETCH_TIMEOUT_MS}ms); aborting retries`
       );
-      await new Promise((res) => setTimeout(res, PROFILE_RETRY_DELAY_MS));
+      break;
+    }
+
+    if (round < PROFILE_FETCH_ROUNDS) {
+      const remaining = profileDeadline - now;
+      const delay = Math.min(PROFILE_RETRY_DELAY_MS, Math.max(0, remaining));
+      console.warn(
+        `[RTN] handleSignedIn profile fetch round ${round} failed; retrying after ${delay}ms`
+      );
+      if (delay > 0) {
+        await new Promise((res) => setTimeout(res, delay));
+      }
     }
   }
 
   if (!profile) {
+    const elapsed = Date.now() - profileStart;
     console.error(
-      `[RTN] handleSignedIn unable to load profile for user ${currentUser.id}; aborting route application`
+      `[RTN] handleSignedIn unable to load profile for user ${currentUser.id} after ${elapsed}ms; aborting route application`
     );
+    if (source === "getSession") {
+      try {
+        console.warn("[RTN] handleSignedIn signing out due to profile load failure during bootstrap");
+        await supabase.auth.signOut();
+      } catch (signOutError) {
+        console.error("[RTN] handleSignedIn signOut after profile failure errored", signOutError);
+      }
+    }
     return false;
   }
 
