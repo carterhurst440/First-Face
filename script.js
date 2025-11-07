@@ -398,51 +398,46 @@ async function refreshCurrentUser() {
   return currentUser;
 }
 
-async function waitForProfile(user, { interval = 1000, maxAttempts = 5, notify = false } = {}) {
-  if (!user) {
-    console.warn("[RTN] waitForProfile called without a user");
+async function waitForProfile(user, options = {}) {
+  const { interval = 1000, maxAttempts = 10 } = options;
+
+  const userId = user?.id;
+  if (!userId) {
+    console.warn("[RTN] waitForProfile called without user id");
     return null;
   }
 
   console.info(
-    `[RTN] waitForProfile starting for user ${user.id} (interval=${interval}ms, maxAttempts=${maxAttempts})`
+    `[RTN] waitForProfile starting for user ${userId} (interval=${interval}ms, maxAttempts=${maxAttempts})`
   );
-  let notified = false;
-  for (let attempt = 0; maxAttempts === Infinity || attempt < maxAttempts; attempt++) {
-    console.debug(`[RTN] waitForProfile attempt ${attempt + 1}`);
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     const { data, error } = await supabase
       .from("profiles")
       .select("*")
-      .eq("id", user.id)
+      .eq("id", userId)
       .maybeSingle();
 
-    if (error && error.code !== "PGRST116") {
-      console.error("[RTN] waitForProfile error", error);
-      showToast("Unable to load profile", "error");
+    console.log(
+      `[RTN] waitForProfile attempt ${attempt} for user ${userId}`,
+      { data, error }
+    );
+
+    if (error) {
+      console.error("[RTN] waitForProfile Supabase error", error);
       return null;
     }
 
     if (data) {
-      console.info(`[RTN] waitForProfile succeeded for user ${user.id}`);
-      console.info(
-        `[RTN] waitForProfile returning profile (credits=${data.credits}, carterCash=${data.carter_cash})`
-      );
+      console.info("[RTN] waitForProfile returning profile", data);
       return data;
     }
 
-    if (!notified) {
-      notified = true;
-      if (notify) {
-        showToast("Setting up your account...", "info");
-      }
-      console.log("[RTN] Waiting for profile creation by server trigger...");
-    }
-
-    await new Promise((resolve) => setTimeout(resolve, interval));
+    await new Promise((res) => setTimeout(res, interval));
   }
 
   console.warn(
-    `[RTN] waitForProfile timed out for user ${user.id} after ${maxAttempts} attempts`
+    `[RTN] waitForProfile exhausted attempts for user ${userId} without finding a profile`
   );
   return null;
 }
@@ -970,8 +965,7 @@ async function loadDashboard(force = false) {
   if (!resolvedProfile || force) {
     resolvedProfile = await waitForProfile(currentUser, {
       interval: 1000,
-      maxAttempts: 5,
-      notify: false
+      maxAttempts: 5
     });
   }
 
@@ -4395,8 +4389,7 @@ async function handleSignedIn(user, initialRoute, source = "unknown") {
   try {
     profile = await waitForProfile(currentUser, {
       interval: 1000,
-      maxAttempts: 10,
-      notify: source !== "getSession"
+      maxAttempts: 10
     });
   } catch (error) {
     console.error("[RTN] handleSignedIn waitForProfile error", error);
