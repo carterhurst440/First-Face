@@ -99,6 +99,7 @@ const PROFILE_FETCH_ROUNDS = 2;
 const PROFILE_RETRY_DELAY_MS = 1200;
 const PROFILE_ATTEMPT_MAX = 5;
 const PROFILE_FETCH_TIMEOUT_MS = 10000;
+const BOOTSTRAP_TIMEOUT_MS = 6000;
 const SUITS = [
   { symbol: "♠", color: "black", name: "Spades" },
   { symbol: "♥", color: "red", name: "Hearts" },
@@ -4495,18 +4496,48 @@ async function initializeApp() {
 
   const initialRoute = getRouteFromHash();
   let sessionApplied = false;
+  let timedOut = false;
 
-  try {
-    sessionApplied = await bootstrapAuth(initialRoute);
-  } catch (error) {
-    console.error("[RTN] initializeApp bootstrap error", error);
+  const bootstrapPromise = bootstrapAuth(initialRoute)
+    .then((applied) => {
+      sessionApplied = Boolean(applied);
+      return sessionApplied;
+    })
+    .catch((error) => {
+      console.error("[RTN] initializeApp bootstrap error", error);
+      return false;
+    });
+
+  const result = await Promise.race([
+    bootstrapPromise,
+    (async () => {
+      await delay(BOOTSTRAP_TIMEOUT_MS);
+      timedOut = true;
+      return "timeout";
+    })()
+  ]);
+
+  if (result === "timeout") {
+    console.warn(
+      `[RTN] bootstrapAuth did not resolve within ${BOOTSTRAP_TIMEOUT_MS}ms; forcing auth screen`
+    );
   }
 
-  if (!sessionApplied) {
-    displayAuthScreen({ focus: false, replaceHash: true });
+  if (result !== true && !sessionApplied) {
+    try {
+      displayAuthScreen({ focus: false, replaceHash: true });
+    } catch (error) {
+      console.error("[RTN] initializeApp displayAuthScreen error", error);
+    }
   }
 
   markAppReady();
+
+  if (timedOut) {
+    bootstrapPromise.catch((error) => {
+      console.error("[RTN] bootstrapAuth rejected after timeout", error);
+    });
+  }
 }
 
 initializeApp();
