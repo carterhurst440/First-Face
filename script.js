@@ -11,6 +11,16 @@ let appReady = false;
 
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+function startStopwatch(label) {
+  const startedAt = Date.now();
+  console.info(`[RTN] ${label} started`);
+  return (details = "") => {
+    const duration = Date.now() - startedAt;
+    const suffix = details ? ` ${details}` : "";
+    console.info(`[RTN] ${label} finished in ${duration}ms${suffix}`);
+  };
+}
+
 if (typeof window !== "undefined") {
   window.addEventListener("error", (event) => {
     const detail = event?.error ?? event?.message ?? "Unknown error";
@@ -439,6 +449,9 @@ async function fetchProfileWithRetries(
   const deadline = Number.isFinite(timeoutMs) ? Date.now() + timeoutMs : Infinity;
 
   for (let attempt = 1; attempt <= attempts; attempt++) {
+    const attemptStopwatch = startStopwatch(
+      `fetchProfileWithRetries attempt ${attempt}/${attempts} for ${userId}`
+    );
     const { data, error } = await supabase
       .from("profiles")
       .select(
@@ -446,6 +459,14 @@ async function fetchProfileWithRetries(
       )
       .eq("id", userId)
       .maybeSingle();
+
+    if (error) {
+      attemptStopwatch("(error)");
+    } else if (data) {
+      attemptStopwatch("(profile found)");
+    } else {
+      attemptStopwatch("(no data)");
+    }
 
     if (error) {
       console.error("[RTN] fetchProfileWithRetries Supabase error", error);
@@ -458,6 +479,11 @@ async function fetchProfileWithRetries(
 
     const remaining = deadline - Date.now();
     if (remaining <= 0 || attempt === attempts) {
+      if (remaining <= 0) {
+        console.warn(
+          `[RTN] fetchProfileWithRetries deadline reached for user ${userId} (timeoutMs=${timeoutMs})`
+        );
+      }
       break;
     }
 
@@ -4433,7 +4459,11 @@ async function handleSignedIn(user, initialRoute, source = "unknown") {
     authEmailInput.value = currentUser.email;
   }
 
+  const profileStopwatch = startStopwatch(
+    `handleSignedIn profile fetch for ${currentUser.id}`
+  );
   const profile = await fetchProfileWithRetries(currentUser.id);
+  profileStopwatch(profile ? "(profile loaded)" : "(no profile)");
 
   if (!profile) {
     console.error(
@@ -4473,7 +4503,9 @@ async function handleSignedIn(user, initialRoute, source = "unknown") {
 
 async function bootstrapAuth(initialRoute) {
   try {
+    const getSessionStopwatch = startStopwatch("bootstrapAuth getSession");
     const { data, error } = await supabase.auth.getSession();
+    getSessionStopwatch(error ? "(error)" : "(resolved)");
     if (error) {
       console.error("[RTN] bootstrapAuth getSession error", error);
       return false;
@@ -4484,7 +4516,10 @@ async function bootstrapAuth(initialRoute) {
       return false;
     }
 
-    return handleSignedIn(session.user, initialRoute, "bootstrap");
+    const handleSignedInStopwatch = startStopwatch("bootstrapAuth handleSignedIn");
+    return handleSignedIn(session.user, initialRoute, "bootstrap").finally(() => {
+      handleSignedInStopwatch();
+    });
   } catch (error) {
     console.error("[RTN] bootstrapAuth unexpected error", error);
     return false;
@@ -4498,12 +4533,16 @@ async function initializeApp() {
   let sessionApplied = false;
   let timedOut = false;
 
+  const bootstrapStopwatch = startStopwatch("initializeApp bootstrap race");
+
   const bootstrapPromise = bootstrapAuth(initialRoute)
     .then((applied) => {
       sessionApplied = Boolean(applied);
+      bootstrapStopwatch(`(resolved=${sessionApplied})`);
       return sessionApplied;
     })
     .catch((error) => {
+      bootstrapStopwatch("(rejected)");
       console.error("[RTN] initializeApp bootstrap error", error);
       return false;
     });
@@ -4521,6 +4560,7 @@ async function initializeApp() {
     console.warn(
       `[RTN] bootstrapAuth did not resolve within ${BOOTSTRAP_TIMEOUT_MS}ms; forcing auth screen`
     );
+    bootstrapStopwatch("(timeout)");
   }
 
   if (result !== true && !sessionApplied) {
