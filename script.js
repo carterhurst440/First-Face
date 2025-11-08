@@ -9,6 +9,18 @@ if (typeof document !== "undefined" && document.body) {
 
 let appReady = false;
 
+const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+function startStopwatch(label) {
+  const startedAt = Date.now();
+  console.info(`[RTN] ${label} started`);
+  return (details = "") => {
+    const duration = Date.now() - startedAt;
+    const suffix = details ? ` ${details}` : "";
+    console.info(`[RTN] ${label} finished in ${duration}ms${suffix}`);
+  };
+}
+
 if (typeof window !== "undefined") {
   window.addEventListener("error", (event) => {
     const detail = event?.error ?? event?.message ?? "Unknown error";
@@ -97,6 +109,7 @@ const PROFILE_FETCH_ROUNDS = 2;
 const PROFILE_RETRY_DELAY_MS = 1200;
 const PROFILE_ATTEMPT_MAX = 5;
 const PROFILE_FETCH_TIMEOUT_MS = 10000;
+const BOOTSTRAP_TIMEOUT_MS = 6000;
 const SUITS = [
   { symbol: "♠", color: "black", name: "Spades" },
   { symbol: "♥", color: "red", name: "Hearts" },
@@ -388,34 +401,57 @@ function handleHashChange() {
 }
 
 async function refreshCurrentUser() {
-  const { data, error } = await supabase.auth.getUser();
-  if (error) {
-    console.error(error);
-    currentUser = null;
-    await setRoute("auth", { replaceHash: true });
+  try {
+    const { data, error } = await supabase.auth.getUser();
+    if (error) {
+      console.error("[RTN] refreshCurrentUser getUser error", error);
+      forceAuth("refresh-user-error", {
+        message: "Session error. Please sign in again.",
+        tone: "warning"
+      });
+      return null;
+    }
+
+    const nextUser = data?.user ?? null;
+    if (!nextUser) {
+      forceAuth("refresh-user-missing", {
+        message: "Please sign in to continue.",
+        tone: "warning"
+      });
+      return null;
+    }
+
+    currentUser = nextUser;
+    return currentUser;
+  } catch (error) {
+    console.error("[RTN] refreshCurrentUser exception", error);
+    forceAuth("refresh-user-exception", {
+      message: "Authentication failed. Please sign in again.",
+      tone: "error"
+    });
     return null;
   }
-  currentUser = data?.user ?? null;
-  if (!currentUser) {
-    await setRoute("auth", { replaceHash: true });
-  }
-  return currentUser;
 }
 
-async function waitForProfile(user, options = {}) {
-  const { interval = 1000, maxAttempts = 10 } = options;
-
-  const userId = user?.id;
+async function fetchProfileWithRetries(
+  userId,
+  {
+    attempts = PROFILE_FETCH_ROUNDS * PROFILE_ATTEMPT_MAX,
+    delayMs = PROFILE_RETRY_DELAY_MS,
+    timeoutMs = PROFILE_FETCH_TIMEOUT_MS
+  } = {}
+) {
   if (!userId) {
-    console.warn("[RTN] waitForProfile called without user id");
+    console.warn("[RTN] fetchProfileWithRetries called without user id");
     return null;
   }
 
-  console.info(
-    `[RTN] waitForProfile starting for user ${userId} (interval=${interval}ms, maxAttempts=${maxAttempts})`
-  );
+  const deadline = Number.isFinite(timeoutMs) ? Date.now() + timeoutMs : Infinity;
 
-  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    const attemptStopwatch = startStopwatch(
+      `fetchProfileWithRetries attempt ${attempt}/${attempts} for ${userId}`
+    );
     const { data, error } = await supabase
       .from("profiles")
       .select(
@@ -424,50 +460,37 @@ async function waitForProfile(user, options = {}) {
       .eq("id", userId)
       .maybeSingle();
 
-    const dataSummary = data
-      ? `credits=${data.credits ?? "null"}, carter_cash=${data.carter_cash ?? "null"}, first_name=${data.first_name ? "yes" : "no"}, last_name=${data.last_name ? "yes" : "no"}`
-      : "null";
-    const errorSummary = error
-      ? `${error.message ?? error}`
-      : "null";
-    console.info(
-      `[RTN] waitForProfile attempt ${attempt} for user ${userId} -> data(${dataSummary}) error(${errorSummary})`
-    );
+    if (error) {
+      attemptStopwatch("(error)");
+    } else if (data) {
+      attemptStopwatch("(profile found)");
+    } else {
+      attemptStopwatch("(no data)");
+    }
 
     if (error) {
-      console.error("[RTN] waitForProfile Supabase error", error);
+      console.error("[RTN] fetchProfileWithRetries Supabase error", error);
       return null;
     }
 
     if (data) {
-      const missing = [];
-      if (!Number.isFinite(Number(data.credits))) {
-        missing.push("credits");
-      }
-      if (!Number.isFinite(Number(data.carter_cash))) {
-        missing.push("carter_cash");
-      }
-      if (missing.length) {
-        console.warn(
-          `[RTN] waitForProfile profile missing fields [${missing.join(", ")}]`,
-          data
-        );
-      }
-
-      console.info("[RTN] waitForProfile returning profile", data);
       return data;
     }
 
-    console.warn(
-      `[RTN] waitForProfile attempt ${attempt} found no profile row for user ${userId}; retrying after ${interval}ms`
-    );
+    const remaining = deadline - Date.now();
+    if (remaining <= 0 || attempt === attempts) {
+      if (remaining <= 0) {
+        console.warn(
+          `[RTN] fetchProfileWithRetries deadline reached for user ${userId} (timeoutMs=${timeoutMs})`
+        );
+      }
+      break;
+    }
 
-    await new Promise((res) => setTimeout(res, interval));
+    await delay(Math.min(delayMs, Math.max(0, remaining)));
   }
 
-  console.warn(
-    `[RTN] waitForProfile exhausted attempts for user ${userId} without finding a profile`
-  );
+  console.warn(`[RTN] fetchProfileWithRetries exhausted attempts for user ${userId}`);
   return null;
 }
 
@@ -682,7 +705,7 @@ async function handleSignUpFormSubmit(event) {
     if (authEmailInput) {
       authEmailInput.value = email;
     }
-    await setRoute("auth", { replaceHash: true });
+    displayAuthScreen({ replaceHash: true });
   } catch (error) {
     console.error(error);
     const message = error?.message || "Unable to create account";
@@ -972,7 +995,10 @@ async function loadDashboard(force = false) {
     data: { user }
   } = await supabase.auth.getUser();
   if (!user) {
-    await setRoute("auth", { replaceHash: true });
+    forceAuth("dashboard-no-user", {
+      message: "Session required. Please sign in again.",
+      tone: "warning"
+    });
     return;
   }
   currentUser = user;
@@ -992,9 +1018,10 @@ async function loadDashboard(force = false) {
   }
   let resolvedProfile = currentProfile;
   if (!resolvedProfile || force) {
-    resolvedProfile = await waitForProfile(currentUser, {
-      interval: 1000,
-      maxAttempts: 5
+    resolvedProfile = await fetchProfileWithRetries(currentUser.id, {
+      attempts: 5,
+      delayMs: 1000,
+      timeoutMs: 5000
     });
   }
 
@@ -1155,7 +1182,10 @@ async function loadPrizeShop(force = false) {
     data: { user }
   } = await supabase.auth.getUser();
   if (!user) {
-    await setRoute("auth", { replaceHash: true });
+    forceAuth("prize-shop-no-user", {
+      message: "Sign in to access the prize shop.",
+      tone: "warning"
+    });
     return;
   }
   currentUser = user;
@@ -1938,7 +1968,29 @@ function cleanupLeaderboardSubscription() {
   }
 }
 
-function applySignedOutState(reason = "unknown") {
+function displayAuthScreen({ focus = true, replaceHash = false } = {}) {
+  currentRoute = "auth";
+  showAuthView("login");
+  updateAdminVisibility(null);
+
+  if (typeof window !== "undefined") {
+    updateHash("auth", { replace: replaceHash });
+    setTimeout(() => {
+      if (focus && authEmailInput) {
+        authEmailInput.focus();
+      }
+    }, 0);
+  }
+}
+
+function forceAuth(reason, { message, tone = "warning", focus = true } = {}) {
+  if (message) {
+    showToast(message, tone);
+  }
+  applySignedOutState(reason, { focusInput: focus });
+}
+
+function applySignedOutState(reason = "unknown", { focusInput = true } = {}) {
   console.warn(`[RTN] applySignedOutState invoked (reason=${reason})`);
   const clearFn = typeof window !== "undefined" ? window.clearTimeout : clearTimeout;
   lastSyncedBankroll = null;
@@ -2018,29 +2070,17 @@ function applySignedOutState(reason = "unknown") {
     appShell.setAttribute("data-hidden", "true");
   }
 
-  currentRoute = "auth";
-  showAuthView("login");
-  updateAdminVisibility(null);
+  authState.lastUserId = null;
+  authState.manualSignOutRequested = false;
 
-  if (typeof window !== "undefined") {
-    suppressHash = true;
-    window.location.hash = "#/auth";
-    setTimeout(() => {
-      suppressHash = false;
-      if (authEmailInput) {
-        authEmailInput.focus();
-      }
-    }, 0);
-  }
-
-  manualSignOutRequested = false;
+  displayAuthScreen({ focus: focusInput });
 }
 
 async function handleSignOut() {
-  manualSignOutRequested = true;
+  authState.manualSignOutRequested = true;
   const { error } = await supabase.auth.signOut();
   if (error) {
-    manualSignOutRequested = false;
+    authState.manualSignOutRequested = false;
     console.error(error);
     showToast("Unable to sign out", "error");
   }
@@ -2424,7 +2464,6 @@ let resetModalTrigger = null;
 let shippingModalTrigger = null;
 let activeShippingPurchase = null;
 let adminModalTrigger = null;
-let manualSignOutRequested = false;
 let prizeImageTrigger = null;
 
 const MAX_HISTORY_POINTS = 500;
@@ -4237,13 +4276,12 @@ if (showSignUpButton) {
 }
 
 if (showLoginButton) {
-  showLoginButton.addEventListener("click", async () => {
+  showLoginButton.addEventListener("click", () => {
     if (authErrorEl) {
       authErrorEl.hidden = true;
       authErrorEl.textContent = "";
     }
-    await setRoute("auth");
-    authEmailInput?.focus();
+    displayAuthScreen();
   });
 }
 
@@ -4345,33 +4383,39 @@ document.addEventListener("keydown", (event) => {
 
 updateAdminVisibility(currentUser);
 
-supabase.auth.onAuthStateChange(async (event, session) => {
-  console.info(
-    `[RTN] onAuthStateChange event="${event}" sessionUser=${session?.user?.id ?? 'null'}`
-  );
+const AUTH_SUCCESS_EVENTS = new Set(["SIGNED_IN", "TOKEN_REFRESHED", "USER_UPDATED"]);
 
-  if (event === "SIGNED_IN" && session?.user) {
+supabase.auth.onAuthStateChange(async (event, session) => {
+  const user = session?.user ?? null;
+
+  if (AUTH_SUCCESS_EVENTS.has(event)) {
+    if (!user) {
+      forceAuth("missing-session-user", {
+        message: "Authentication issue detected. Please sign in again.",
+        tone: "warning"
+      });
+      return;
+    }
+
     const routeFromHash = getRouteFromHash();
     const targetRoute = AUTH_ROUTES.has(routeFromHash) ? "home" : routeFromHash;
-    const applied = await handleSignedIn(session.user, targetRoute, `onAuthStateChange:${event}`);
+    const applied = await handleSignedIn(user, targetRoute, event === "SIGNED_IN" ? "auth:SIGNED_IN" : `auth:${event}`);
     if (!applied) {
-      showToast("Unable to load profile. Please sign in again.", "error");
-      applySignedOutState("profile-load-failed");
-    } else {
-      manualSignOutRequested = false;
+      forceAuth("profile-load-failed", {
+        message: "Unable to load your profile. Please sign in again.",
+        tone: "error"
+      });
     }
     return;
   }
 
   if (event === "SIGNED_OUT" || event === "USER_DELETED") {
-    if (manualSignOutRequested) {
-      showToast("Signed out", "info");
-    } else {
-      showToast("Session expired. Please sign in again.", "warning");
-    }
-    manualSignOutRequested = false;
-    const reason = event === "SIGNED_OUT" ? "signed-out" : "user-deleted";
-    applySignedOutState(reason);
+    const manual = authState.manualSignOutRequested;
+    const reason = event === "USER_DELETED" ? "user-deleted" : "signed-out";
+    const tone = manual ? "info" : "warning";
+    const message = manual ? "Signed out" : "Session expired. Please sign in again.";
+    forceAuth(reason, { message, tone });
+    return;
   }
 });
 
@@ -4388,7 +4432,10 @@ resetBankrollHistory();
 window.addEventListener("resize", schedulePlayAreaHeightUpdate);
 window.addEventListener("resize", drawBankrollChart);
 
-let lastHandledUserId = null;
+const authState = {
+  lastUserId: null,
+  manualSignOutRequested: false
+};
 
 async function handleSignedIn(user, initialRoute, source = "unknown") {
   if (!user) {
@@ -4396,75 +4443,34 @@ async function handleSignedIn(user, initialRoute, source = "unknown") {
     return false;
   }
 
-  if (lastHandledUserId === user.id && source !== "onAuthStateChange:USER_UPDATED") {
+  if (authState.lastUserId === user.id && source !== "auth:USER_UPDATED") {
     console.info(
       `[RTN] handleSignedIn skipped duplicate for user ${user.id} (source=${source})`
     );
     return true;
   }
-  lastHandledUserId = user.id;
 
+  authState.lastUserId = user.id;
   currentUser = user;
-  manualSignOutRequested = false;
+  authState.manualSignOutRequested = false;
   updateAdminVisibility(currentUser);
 
   if (authEmailInput && currentUser.email) {
     authEmailInput.value = currentUser.email;
   }
 
-  console.info(
-    `[RTN] handleSignedIn fetching profile for user ${currentUser.id} (source=${source})`
+  const profileStopwatch = startStopwatch(
+    `handleSignedIn profile fetch for ${currentUser.id}`
   );
-
-  let profile = null;
-  const profileStart = Date.now();
-  const profileDeadline = profileStart + PROFILE_FETCH_TIMEOUT_MS;
-
-  for (let round = 1; round <= PROFILE_FETCH_ROUNDS && !profile; round++) {
-    console.info(
-      `[RTN] handleSignedIn profile fetch round ${round} of ${PROFILE_FETCH_ROUNDS}`
-    );
-    try {
-      profile = await waitForProfile(currentUser, {
-        interval: 1000,
-        maxAttempts: PROFILE_ATTEMPT_MAX
-      });
-    } catch (error) {
-      console.error("[RTN] handleSignedIn waitForProfile error", error);
-    }
-
-    if (profile) {
-      break;
-    }
-
-    const now = Date.now();
-    if (now >= profileDeadline) {
-      console.warn(
-        `[RTN] handleSignedIn profile fetch exceeded timeout (${PROFILE_FETCH_TIMEOUT_MS}ms); aborting retries`
-      );
-      break;
-    }
-
-    if (round < PROFILE_FETCH_ROUNDS) {
-      const remaining = profileDeadline - now;
-      const delay = Math.min(PROFILE_RETRY_DELAY_MS, Math.max(0, remaining));
-      console.warn(
-        `[RTN] handleSignedIn profile fetch round ${round} failed; retrying after ${delay}ms`
-      );
-      if (delay > 0) {
-        await new Promise((res) => setTimeout(res, delay));
-      }
-    }
-  }
+  const profile = await fetchProfileWithRetries(currentUser.id);
+  profileStopwatch(profile ? "(profile loaded)" : "(no profile)");
 
   if (!profile) {
-    const elapsed = Date.now() - profileStart;
     console.error(
-      `[RTN] handleSignedIn unable to load profile for user ${currentUser.id} after ${elapsed}ms; aborting route application`
+      `[RTN] handleSignedIn unable to load profile for user ${currentUser.id}; aborting route application`
     );
-    if (source === "getSession") {
+    if (source === "bootstrap") {
       try {
-        console.warn("[RTN] handleSignedIn signing out due to profile load failure during bootstrap");
         await supabase.auth.signOut();
       } catch (signOutError) {
         console.error("[RTN] handleSignedIn signOut after profile failure errored", signOutError);
@@ -4496,65 +4502,82 @@ async function handleSignedIn(user, initialRoute, source = "unknown") {
 }
 
 async function bootstrapAuth(initialRoute) {
-  console.info(`[RTN] bootstrapAuth starting (initialRoute=${initialRoute})`);
-
   try {
-    console.info("[RTN] bootstrapAuth requesting session from Supabase");
+    const getSessionStopwatch = startStopwatch("bootstrapAuth getSession");
     const { data, error } = await supabase.auth.getSession();
+    getSessionStopwatch(error ? "(error)" : "(resolved)");
     if (error) {
       console.error("[RTN] bootstrapAuth getSession error", error);
+      return false;
     }
 
     const session = data?.session ?? null;
-    if (session?.user) {
-      console.info(
-        `[RTN] bootstrapAuth getSession returned user ${session.user.id} (email=${session.user.email})`
-      );
-      const applied = await handleSignedIn(session.user, initialRoute, "getSession");
-      console.info(`[RTN] bootstrapAuth applied session from getSession: ${applied}`);
-      return applied;
+    if (!session?.user) {
+      return false;
     }
 
-    console.info("[RTN] bootstrapAuth getSession returned no active session");
-    console.info(
-      "[RTN] bootstrapAuth will show login immediately; awaiting future auth events separately"
-    );
-    return false;
+    const handleSignedInStopwatch = startStopwatch("bootstrapAuth handleSignedIn");
+    return handleSignedIn(session.user, initialRoute, "bootstrap").finally(() => {
+      handleSignedInStopwatch();
+    });
   } catch (error) {
-    console.error("[RTN] bootstrapAuth exception during getSession", error);
+    console.error("[RTN] bootstrapAuth unexpected error", error);
     return false;
   }
 }
 
 async function initializeApp() {
-  console.info("[RTN] initializeApp starting");
   stripSupabaseRedirectHash();
 
   const initialRoute = getRouteFromHash();
-  console.info(`[RTN] initializeApp initial route resolved to "${initialRoute}"`);
-
   let sessionApplied = false;
+  let timedOut = false;
 
-  try {
-    sessionApplied = await bootstrapAuth(initialRoute);
-    console.info(`[RTN] initializeApp bootstrapAuth sessionApplied=${sessionApplied}`);
+  const bootstrapStopwatch = startStopwatch("initializeApp bootstrap race");
 
-    if (!sessionApplied) {
-      console.info("[RTN] initializeApp showing auth view (no session available)");
-      showAuthView("login");
-      updateHash("auth", { replace: true });
+  const bootstrapPromise = bootstrapAuth(initialRoute)
+    .then((applied) => {
+      sessionApplied = Boolean(applied);
+      bootstrapStopwatch(`(resolved=${sessionApplied})`);
+      return sessionApplied;
+    })
+    .catch((error) => {
+      bootstrapStopwatch("(rejected)");
+      console.error("[RTN] initializeApp bootstrap error", error);
+      return false;
+    });
+
+  const result = await Promise.race([
+    bootstrapPromise,
+    (async () => {
+      await delay(BOOTSTRAP_TIMEOUT_MS);
+      timedOut = true;
+      return "timeout";
+    })()
+  ]);
+
+  if (result === "timeout") {
+    console.warn(
+      `[RTN] bootstrapAuth did not resolve within ${BOOTSTRAP_TIMEOUT_MS}ms; forcing auth screen`
+    );
+    bootstrapStopwatch("(timeout)");
+  }
+
+  if (result !== true && !sessionApplied) {
+    try {
+      displayAuthScreen({ focus: false, replaceHash: true });
+    } catch (error) {
+      console.error("[RTN] initializeApp displayAuthScreen error", error);
     }
-  } catch (error) {
-    console.error("[RTN] Error initializing app:", error);
-    console.info("[RTN] initializeApp showing auth view due to initialization error");
-    showAuthView("login");
-    updateHash("auth", { replace: true });
-  } finally {
-    markAppReady();
+  }
+
+  markAppReady();
+
+  if (timedOut) {
+    bootstrapPromise.catch((error) => {
+      console.error("[RTN] bootstrapAuth rejected after timeout", error);
+    });
   }
 }
 
-console.info("[RTN] initializeApp defined");
-
-console.info("[RTN] calling initializeApp()");
 initializeApp();
