@@ -499,6 +499,126 @@ async function fetchProfileWithRetries(
   return null;
 }
 
+function deriveProfileSeedFromUser(user) {
+  const metadata = (user && typeof user === "object" ? user.user_metadata : null) || {};
+  const fullName = typeof metadata.full_name === "string" ? metadata.full_name.trim() : "";
+  const firstName = (metadata.first_name ?? (fullName ? fullName.split(/\s+/)[0] : "")) || "";
+  let lastName = metadata.last_name ?? "";
+
+  if (!lastName && fullName) {
+    const parts = fullName.split(/\s+/).filter(Boolean);
+    if (parts.length > 1) {
+      lastName = parts.slice(1).join(" ");
+    }
+  }
+
+  const emailValue =
+    user && typeof user === "object" && typeof user.email === "string"
+      ? user.email
+      : "";
+  const emailPrefix = emailValue ? emailValue.split("@")[0] : null;
+
+  const usernameCandidates = [
+    metadata.username,
+    metadata.preferred_username,
+    typeof metadata.full_name === "string"
+      ? metadata.full_name.replace(/\s+/g, "").toLowerCase()
+      : null,
+    emailPrefix
+  ];
+
+  const fallbackUsername = `player-${(user?.id || "").slice(0, 8)}`;
+  const sanitizeUsername = (value) => {
+    if (!value) return "";
+    const normalized = String(value)
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9_-]+/g, "-")
+      .replace(/^-+|-+$/g, "");
+    return normalized.slice(0, 32);
+  };
+
+  let username = "";
+  for (const candidate of usernameCandidates) {
+    const sanitized = sanitizeUsername(candidate);
+    if (sanitized) {
+      username = sanitized;
+      break;
+    }
+  }
+  if (!username) {
+    username = sanitizeUsername(fallbackUsername) || `player-${Date.now().toString(36)}`;
+  }
+
+  const normalizeName = (value) => {
+    if (!value) return null;
+    const trimmed = String(value).trim();
+    return trimmed ? trimmed.slice(0, 120) : null;
+  };
+
+  return {
+    username,
+    first_name: normalizeName(firstName),
+    last_name: normalizeName(lastName)
+  };
+}
+
+async function provisionProfileForUser(user) {
+  if (!user?.id) {
+    console.warn("[RTN] provisionProfileForUser called without valid user");
+    return null;
+  }
+
+  const seed = deriveProfileSeedFromUser(user);
+  const profileInsert = {
+    id: user.id,
+    credits: INITIAL_BANKROLL,
+    carter_cash: 0,
+    carter_cash_progress: 0,
+    username: seed.username,
+    first_name: seed.first_name,
+    last_name: seed.last_name
+  };
+
+  const provisionStopwatch = startStopwatch(
+    `provisionProfileForUser insert for ${user.id}`
+  );
+
+  try {
+    const { data, error } = await supabase
+      .from("profiles")
+      .insert([profileInsert])
+      .select(
+        "id, username, credits, carter_cash, carter_cash_progress, first_name, last_name"
+      )
+      .maybeSingle();
+
+    if (error) {
+      if (error.code === "23505") {
+        provisionStopwatch("(duplicate)");
+        console.warn(
+          `[RTN] provisionProfileForUser detected existing profile for ${user.id}; refetching`
+        );
+        return await fetchProfileWithRetries(user.id, {
+          attempts: PROFILE_ATTEMPT_MAX,
+          delayMs: PROFILE_RETRY_DELAY_MS,
+          timeoutMs: PROFILE_FETCH_TIMEOUT_MS
+        });
+      }
+      provisionStopwatch("(error)");
+      console.error("[RTN] provisionProfileForUser insert error", error);
+      return null;
+    }
+
+    provisionStopwatch("(inserted)");
+    return data ?? null;
+  } catch (error) {
+    provisionStopwatch("(exception)");
+    console.error("[RTN] provisionProfileForUser exception", error);
+    return null;
+  }
+}
+
 async function ensureProfileSynced({ force = false } = {}) {
   if (!currentUser) {
     return null;
@@ -1977,6 +2097,10 @@ function displayAuthScreen({ focus = true, replaceHash = false } = {}) {
   currentRoute = "auth";
   showAuthView("login");
   updateAdminVisibility(null);
+
+  if (typeof document !== "undefined" && document.body) {
+    document.body.dataset.appState = "auth";
+  }
 
   if (typeof window !== "undefined") {
     updateHash("auth", { replace: replaceHash });
@@ -4468,25 +4592,23 @@ async function handleSignedIn(user, initialRoute, source = "unknown") {
     authEmailInput.value = currentUser.email;
   }
 
-  if (appShell) {
-    appShell.removeAttribute("data-hidden");
-  }
-
-  const resolvedRoute = !initialRoute || AUTH_ROUTES.has(initialRoute)
-    ? "home"
-    : initialRoute;
-
-  console.info(
-    `[RTN] handleSignedIn routing to "${resolvedRoute}" for user ${currentUser.id} (source=${source})`
-  );
-
-  const routePromise = setRoute(resolvedRoute, { replaceHash: true });
-
   const profileStopwatch = startStopwatch(
     `handleSignedIn profile fetch for ${currentUser.id}`
   );
-  const profile = await fetchProfileWithRetries(currentUser.id);
+  let profile = await fetchProfileWithRetries(currentUser.id, {
+    attempts: PROFILE_ATTEMPT_MAX,
+    delayMs: PROFILE_RETRY_DELAY_MS,
+    timeoutMs: PROFILE_FETCH_TIMEOUT_MS
+  });
   profileStopwatch(profile ? "(profile loaded)" : "(no profile)");
+
+  if (!profile) {
+    const provisionStopwatch = startStopwatch(
+      `handleSignedIn profile provision for ${currentUser.id}`
+    );
+    profile = await provisionProfileForUser(currentUser);
+    provisionStopwatch(profile ? "(created)" : "(failed)");
+  }
 
   if (!profile) {
     console.error(
@@ -4508,7 +4630,23 @@ async function handleSignedIn(user, initialRoute, source = "unknown") {
   ensureLeaderboardSubscription();
   scheduleLeaderboardRefresh();
 
-  await routePromise;
+  const resolvedRoute = !initialRoute || AUTH_ROUTES.has(initialRoute)
+    ? "home"
+    : initialRoute;
+
+  console.info(
+    `[RTN] handleSignedIn routing to "${resolvedRoute}" for user ${currentUser.id} (source=${source})`
+  );
+
+  if (appShell) {
+    appShell.removeAttribute("data-hidden");
+  }
+
+  await setRoute(resolvedRoute, { replaceHash: true });
+
+  if (typeof document !== "undefined" && document.body) {
+    document.body.dataset.appState = "ready";
+  }
 
   return true;
 }
