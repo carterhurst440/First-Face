@@ -109,7 +109,7 @@ const PROFILE_FETCH_ROUNDS = 2;
 const PROFILE_RETRY_DELAY_MS = 1200;
 const PROFILE_ATTEMPT_MAX = 5;
 const PROFILE_FETCH_TIMEOUT_MS = 10000;
-const BOOTSTRAP_TIMEOUT_MS = 6000;
+const BOOTSTRAP_TIMEOUT_MS = 12000;
 const SUITS = [
   { symbol: "♠", color: "black", name: "Spades" },
   { symbol: "♥", color: "red", name: "Hearts" },
@@ -4443,7 +4443,11 @@ async function handleSignedIn(user, initialRoute, source = "unknown") {
     return false;
   }
 
-  if (authState.lastUserId === user.id && source !== "auth:USER_UPDATED") {
+  const isOnAuthScreen =
+    (typeof window !== "undefined" && (window.location.hash || "").startsWith("#/auth")) ||
+    (typeof document !== "undefined" && document.body?.dataset?.appState === "auth");
+
+  if (authState.lastUserId === user.id && source !== "auth:USER_UPDATED" && !isOnAuthScreen) {
     console.info(
       `[RTN] handleSignedIn skipped duplicate for user ${user.id} (source=${source})`
     );
