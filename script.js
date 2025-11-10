@@ -460,6 +460,11 @@ async function fetchProfileWithRetries(
       .eq("id", userId)
       .maybeSingle();
 
+    console.log(
+      `[RTN] fetchProfileWithRetries attempt ${attempt}/${attempts} for ${userId}`,
+      { data, error }
+    );
+
     if (error) {
       attemptStopwatch("(error)");
     } else if (data) {
@@ -4463,6 +4468,20 @@ async function handleSignedIn(user, initialRoute, source = "unknown") {
     authEmailInput.value = currentUser.email;
   }
 
+  if (appShell) {
+    appShell.removeAttribute("data-hidden");
+  }
+
+  const resolvedRoute = !initialRoute || AUTH_ROUTES.has(initialRoute)
+    ? "home"
+    : initialRoute;
+
+  console.info(
+    `[RTN] handleSignedIn routing to "${resolvedRoute}" for user ${currentUser.id} (source=${source})`
+  );
+
+  const routePromise = setRoute(resolvedRoute, { replaceHash: true });
+
   const profileStopwatch = startStopwatch(
     `handleSignedIn profile fetch for ${currentUser.id}`
   );
@@ -4480,6 +4499,7 @@ async function handleSignedIn(user, initialRoute, source = "unknown") {
         console.error("[RTN] handleSignedIn signOut after profile failure errored", signOutError);
       }
     }
+    await routePromise;
     return false;
   }
 
@@ -4488,19 +4508,7 @@ async function handleSignedIn(user, initialRoute, source = "unknown") {
   ensureLeaderboardSubscription();
   scheduleLeaderboardRefresh();
 
-  if (appShell) {
-    appShell.removeAttribute("data-hidden");
-  }
-
-  const resolvedRoute = !initialRoute || AUTH_ROUTES.has(initialRoute)
-    ? "home"
-    : initialRoute;
-
-  console.info(
-    `[RTN] handleSignedIn routing to "${resolvedRoute}" for user ${currentUser.id} (source=${source})`
-  );
-
-  await setRoute(resolvedRoute, { replaceHash: true });
+  await routePromise;
 
   return true;
 }
@@ -4521,9 +4529,19 @@ async function bootstrapAuth(initialRoute) {
     }
 
     const handleSignedInStopwatch = startStopwatch("bootstrapAuth handleSignedIn");
-    return handleSignedIn(session.user, initialRoute, "bootstrap").finally(() => {
-      handleSignedInStopwatch();
-    });
+    const signedInPromise = handleSignedIn(session.user, initialRoute, "bootstrap");
+    signedInPromise
+      .then((applied) => {
+        handleSignedInStopwatch(`(resolved=${applied})`);
+        if (!applied) {
+          console.warn("[RTN] bootstrapAuth handleSignedIn returned false");
+        }
+      })
+      .catch((signedInError) => {
+        handleSignedInStopwatch("(error)");
+        console.error("[RTN] bootstrapAuth handleSignedIn error", signedInError);
+      });
+    return true;
   } catch (error) {
     console.error("[RTN] bootstrapAuth unexpected error", error);
     return false;
