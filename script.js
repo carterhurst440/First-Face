@@ -4621,6 +4621,7 @@ async function handleSignedIn(user, initialRoute, source = "unknown") {
         console.error("[RTN] handleSignedIn signOut after profile failure errored", signOutError);
       }
     }
+    await routePromise;
     return false;
   }
 
