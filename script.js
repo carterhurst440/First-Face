@@ -110,8 +110,6 @@ const PROFILE_RETRY_DELAY_MS = 1200;
 const PROFILE_ATTEMPT_MAX = 5;
 const PROFILE_FETCH_TIMEOUT_MS = 10000;
 const BOOTSTRAP_TIMEOUT_MS = 12000;
-const PROFILE_SELECT_POLICY = "profiles_select_authenticated";
-const PROFILE_INSERT_POLICY = "profiles_insert_authenticated";
 const SUITS = [
   { symbol: "♠", color: "black", name: "Spades" },
   { symbol: "♥", color: "red", name: "Hearts" },
@@ -517,19 +515,7 @@ async function fetchProfileWithRetries(
     }
 
     if (error) {
-      if (error.code === "PGRST301" || error.code === "42501") {
-        console.error(
-          `[RTN] fetchProfileWithRetries RLS blocked profile read for ${userId}. Check Supabase policy "${PROFILE_SELECT_POLICY}" on table "profiles".`,
-          error
-        );
-      } else if (error.code === "PGRST116" || error.code === "PGRST204") {
-        console.warn(
-          `[RTN] fetchProfileWithRetries row missing for ${userId}—will attempt provisioning if Supabase policy "${PROFILE_INSERT_POLICY}" allows inserts.`,
-          error
-        );
-      } else {
-        console.error("[RTN] fetchProfileWithRetries Supabase error", error);
-      }
+      console.error("[RTN] fetchProfileWithRetries Supabase error", error);
       return null;
     }
 
@@ -537,16 +523,14 @@ async function fetchProfileWithRetries(
       return data;
     }
 
-    console.warn(
-      `[RTN] fetchProfileWithRetries no profile row returned for ${userId}; row missing—will attempt provisioning if allowed by Supabase policy "${PROFILE_INSERT_POLICY}".`
-    );
-
     const remaining = deadline - Date.now();
     if (remaining <= 0 || attempt === attempts) {
       if (remaining <= 0) {
         console.warn(
           `[RTN] fetchProfileWithRetries deadline reached for user ${userId} (timeoutMs=${timeoutMs})`
         );
+      } else {
+        console.error("[RTN] fetchProfileWithRetries Supabase error", error);
       }
       break;
     }
@@ -556,6 +540,126 @@ async function fetchProfileWithRetries(
 
   console.warn(`[RTN] fetchProfileWithRetries exhausted attempts for user ${userId}`);
   return null;
+}
+
+function deriveProfileSeedFromUser(user) {
+  const metadata = (user && typeof user === "object" ? user.user_metadata : null) || {};
+  const fullName = typeof metadata.full_name === "string" ? metadata.full_name.trim() : "";
+  const firstName = (metadata.first_name ?? (fullName ? fullName.split(/\s+/)[0] : "")) || "";
+  let lastName = metadata.last_name ?? "";
+
+  if (!lastName && fullName) {
+    const parts = fullName.split(/\s+/).filter(Boolean);
+    if (parts.length > 1) {
+      lastName = parts.slice(1).join(" ");
+    }
+  }
+
+  const emailValue =
+    user && typeof user === "object" && typeof user.email === "string"
+      ? user.email
+      : "";
+  const emailPrefix = emailValue ? emailValue.split("@")[0] : null;
+
+  const usernameCandidates = [
+    metadata.username,
+    metadata.preferred_username,
+    typeof metadata.full_name === "string"
+      ? metadata.full_name.replace(/\s+/g, "").toLowerCase()
+      : null,
+    emailPrefix
+  ];
+
+  const fallbackUsername = `player-${(user?.id || "").slice(0, 8)}`;
+  const sanitizeUsername = (value) => {
+    if (!value) return "";
+    const normalized = String(value)
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9_-]+/g, "-")
+      .replace(/^-+|-+$/g, "");
+    return normalized.slice(0, 32);
+  };
+
+  let username = "";
+  for (const candidate of usernameCandidates) {
+    const sanitized = sanitizeUsername(candidate);
+    if (sanitized) {
+      username = sanitized;
+      break;
+    }
+  }
+  if (!username) {
+    username = sanitizeUsername(fallbackUsername) || `player-${Date.now().toString(36)}`;
+  }
+
+  const normalizeName = (value) => {
+    if (!value) return null;
+    const trimmed = String(value).trim();
+    return trimmed ? trimmed.slice(0, 120) : null;
+  };
+
+  return {
+    username,
+    first_name: normalizeName(firstName),
+    last_name: normalizeName(lastName)
+  };
+}
+
+async function provisionProfileForUser(user) {
+  if (!user?.id) {
+    console.warn("[RTN] provisionProfileForUser called without valid user");
+    return null;
+  }
+
+  const seed = deriveProfileSeedFromUser(user);
+  const profileInsert = {
+    id: user.id,
+    credits: INITIAL_BANKROLL,
+    carter_cash: 0,
+    carter_cash_progress: 0,
+    username: seed.username,
+    first_name: seed.first_name,
+    last_name: seed.last_name
+  };
+
+  const provisionStopwatch = startStopwatch(
+    `provisionProfileForUser insert for ${user.id}`
+  );
+
+  try {
+    const { data, error } = await supabase
+      .from("profiles")
+      .insert([profileInsert])
+      .select(
+        "id, username, credits, carter_cash, carter_cash_progress, first_name, last_name"
+      )
+      .maybeSingle();
+
+    if (error) {
+      if (error.code === "23505") {
+        provisionStopwatch("(duplicate)");
+        console.warn(
+          `[RTN] provisionProfileForUser detected existing profile for ${user.id}; refetching`
+        );
+        return await fetchProfileWithRetries(user.id, {
+          attempts: PROFILE_ATTEMPT_MAX,
+          delayMs: PROFILE_RETRY_DELAY_MS,
+          timeoutMs: PROFILE_FETCH_TIMEOUT_MS
+        });
+      }
+      provisionStopwatch("(error)");
+      console.error("[RTN] provisionProfileForUser insert error", error);
+      return null;
+    }
+
+    provisionStopwatch("(inserted)");
+    return data ?? null;
+  } catch (error) {
+    provisionStopwatch("(exception)");
+    console.error("[RTN] provisionProfileForUser exception", error);
+    return null;
+  }
 }
 
 function deriveProfileSeedFromUser(user) {
@@ -2007,10 +2111,17 @@ async function loadAdminPrizeList(force = false) {
   }
 }
 
+function takeLeaderboardLimit(list) {
+  if (!Number.isFinite(LEADERBOARD_LIMIT)) {
+    return list;
+  }
+  return list.slice(0, LEADERBOARD_LIMIT);
+}
+
 function mergeCurrentUserIntoLeaderboard(entries = []) {
   const list = Array.isArray(entries) ? entries.slice() : [];
   if (!currentUser) {
-    return list.slice(0, LEADERBOARD_LIMIT);
+    return takeLeaderboardLimit(list);
   }
 
   const metadata = currentUser.user_metadata || {};
@@ -2049,7 +2160,7 @@ function mergeCurrentUserIntoLeaderboard(entries = []) {
     return safeB - safeA;
   });
 
-  return list.slice(0, LEADERBOARD_LIMIT);
+  return takeLeaderboardLimit(list);
 }
 
 function renderLeaderboard(entries = []) {
@@ -2098,17 +2209,17 @@ function renderLeaderboard(entries = []) {
 
 async function refreshLeaderboard() {
   if (!leaderboardList) return;
-  if (!currentUser) {
-    renderLeaderboard([]);
-    return;
-  }
-
   try {
-    const { data, error } = await supabase
+    let query = supabase
       .from("profiles")
       .select("id, first_name, last_name, username, credits")
-      .order("credits", { ascending: false })
-      .limit(LEADERBOARD_LIMIT);
+      .order("credits", { ascending: false });
+
+    if (Number.isFinite(LEADERBOARD_LIMIT)) {
+      query = query.limit(LEADERBOARD_LIMIT);
+    }
+
+    const { data, error } = await query;
     if (error) {
       throw error;
     }
@@ -2674,7 +2785,7 @@ let adminModalTrigger = null;
 let prizeImageTrigger = null;
 
 const MAX_HISTORY_POINTS = 500;
-const LEADERBOARD_LIMIT = 20;
+const LEADERBOARD_LIMIT = null;
 const PROFILE_SYNC_INTERVAL = 15000;
 
 let bankrollInitialized = false;
@@ -4612,12 +4723,8 @@ supabase.auth.onAuthStateChange(async (event, session) => {
 
     const routeFromHash = getRouteFromHash();
     const targetRoute = AUTH_ROUTES.has(routeFromHash) ? "home" : routeFromHash;
-    const applied = await handleSignedIn(
-      user,
-      targetRoute,
-      event === "SIGNED_IN" ? "auth:SIGNED_IN" : `auth:${event}`
-    );
-    if (!applied && !authState.profileLoadFailed) {
+    const applied = await handleSignedIn(user, targetRoute, event === "SIGNED_IN" ? "auth:SIGNED_IN" : `auth:${event}`);
+    if (!applied) {
       forceAuth("profile-load-failed", {
         message: "Unable to load your profile. Please sign in again.",
         tone: "error"
@@ -4651,10 +4758,7 @@ window.addEventListener("resize", drawBankrollChart);
 
 const authState = {
   lastUserId: null,
-  manualSignOutRequested: false,
-  profileLoadFailed: false,
-  profileRetryInProgress: false,
-  failedRoute: null
+  manualSignOutRequested: false
 };
 
 async function handleSignedIn(user, initialRoute, source = "unknown") {
@@ -4667,13 +4771,7 @@ async function handleSignedIn(user, initialRoute, source = "unknown") {
     (typeof window !== "undefined" && (window.location.hash || "").startsWith("#/auth")) ||
     (typeof document !== "undefined" && document.body?.dataset?.appState === "auth");
 
-  const duplicateAttempt =
-    authState.lastUserId === user.id &&
-    source !== "auth:USER_UPDATED" &&
-    !isOnAuthScreen &&
-    !authState.profileLoadFailed;
-
-  if (duplicateAttempt) {
+  if (authState.lastUserId === user.id && source !== "auth:USER_UPDATED" && !isOnAuthScreen) {
     console.info(
       `[RTN] handleSignedIn skipped duplicate for user ${user.id} (source=${source})`
     );
@@ -4683,7 +4781,6 @@ async function handleSignedIn(user, initialRoute, source = "unknown") {
   authState.lastUserId = user.id;
   currentUser = user;
   authState.manualSignOutRequested = false;
-  authState.failedRoute = initialRoute ?? authState.failedRoute;
   updateAdminVisibility(currentUser);
 
   if (authEmailInput && currentUser.email) {
@@ -4712,16 +4809,12 @@ async function handleSignedIn(user, initialRoute, source = "unknown") {
     console.error(
       `[RTN] handleSignedIn unable to load profile for user ${currentUser.id}; aborting route application`
     );
-    authState.profileLoadFailed = true;
-    authState.failedRoute = initialRoute ?? authState.failedRoute;
-    authState.lastUserId = null;
-    currentProfile = null;
-    showProfileRetryPrompt(
-      "We couldn't load your profile. Your session is still active—please try again."
-    );
-    setProfileRetryLoading(false);
-    if (typeof document !== "undefined" && document.body) {
-      document.body.dataset.appState = "ready";
+    if (source === "bootstrap") {
+      try {
+        await supabase.auth.signOut();
+      } catch (signOutError) {
+        console.error("[RTN] handleSignedIn signOut after profile failure errored", signOutError);
+      }
     }
     showToast("Unable to load your profile. Please try again.", "error");
     await routePromise;
@@ -4756,59 +4849,6 @@ async function handleSignedIn(user, initialRoute, source = "unknown") {
   }
 
   return true;
-}
-
-async function retryProfileLoad(source = "profile-retry") {
-  if (!currentUser) {
-    console.warn(`[RTN] retryProfileLoad called without active user (source=${source})`);
-    showToast("Session unavailable. Please sign in again.", "warning");
-    hideProfileRetryPrompt();
-    forceAuth("missing-session-user", {
-      message: "Session unavailable. Please sign in again.",
-      tone: "warning"
-    });
-    return false;
-  }
-
-  if (authState.profileRetryInProgress) {
-    return false;
-  }
-
-  authState.profileRetryInProgress = true;
-  setProfileRetryLoading(true);
-
-  try {
-    const hashRoute = getRouteFromHash();
-    const fallbackRoute = authState.failedRoute ?? hashRoute;
-    authState.failedRoute = fallbackRoute;
-    const targetRoute = !fallbackRoute || AUTH_ROUTES.has(fallbackRoute)
-      ? "home"
-      : fallbackRoute;
-    const applied = await handleSignedIn(currentUser, targetRoute, source);
-    if (applied) {
-      showToast("Profile synchronized successfully.", "success");
-      return true;
-    }
-
-    showProfileRetryPrompt(
-      "We still can't reach your profile. Please try again in a moment."
-    );
-    return false;
-  } catch (error) {
-    console.error("[RTN] retryProfileLoad error", error);
-    showToast("Retry failed. Please try again.", "error");
-    showProfileRetryPrompt(
-      "Retry failed. Your session is still active—please try again shortly."
-    );
-    return false;
-  } finally {
-    authState.profileRetryInProgress = false;
-    if (authState.profileLoadFailed) {
-      setProfileRetryLoading(false);
-    } else {
-      hideProfileRetryPrompt();
-    }
-  }
 }
 
 async function bootstrapAuth(initialRoute) {
