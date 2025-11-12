@@ -146,6 +146,47 @@ function showToast(message, tone = "info") {
   }, 3200);
 }
 
+function showProfileRetryPrompt(message) {
+  if (!profileRetryBanner) {
+    return;
+  }
+
+  if (message && profileRetryMessage) {
+    profileRetryMessage.textContent = message;
+  }
+
+  profileRetryBanner.hidden = false;
+  profileRetryBanner.setAttribute("data-visible", "true");
+}
+
+function hideProfileRetryPrompt() {
+  if (!profileRetryBanner) {
+    return;
+  }
+
+  profileRetryBanner.hidden = true;
+  profileRetryBanner.removeAttribute("data-visible");
+
+  if (profileRetryButton) {
+    profileRetryButton.disabled = false;
+    profileRetryButton.textContent = profileRetryButtonDefaultLabel;
+  }
+}
+
+function setProfileRetryLoading(isLoading) {
+  if (!profileRetryButton) {
+    return;
+  }
+
+  if (isLoading) {
+    profileRetryButton.disabled = true;
+    profileRetryButton.textContent = "Retrying…";
+  } else {
+    profileRetryButton.disabled = false;
+    profileRetryButton.textContent = profileRetryButtonDefaultLabel;
+  }
+}
+
 function createPrizeImagePath(originalName = "image") {
   const baseName = typeof originalName === "string" ? originalName : "image";
   const extensionMatch = baseName.match(/\.([a-zA-Z0-9]+)$/);
@@ -2126,6 +2167,12 @@ function applySignedOutState(reason = "unknown", { focusInput = true } = {}) {
   bankrollInitialized = false;
   currentUser = null;
   currentProfile = null;
+  authState.lastUserId = null;
+  authState.profileLoadFailed = false;
+  authState.profileRetryInProgress = false;
+  authState.failedRoute = null;
+  setProfileRetryLoading(false);
+  hideProfileRetryPrompt();
   dashboardLoaded = false;
   prizesLoaded = false;
   adminPrizesLoaded = false;
@@ -2469,6 +2516,12 @@ const resetCancelButton = document.getElementById("reset-cancel");
 const resetCloseButton = document.getElementById("reset-close");
 const activePaytableNameEl = document.getElementById("active-paytable-name");
 const activePaytableStepsEl = document.getElementById("active-paytable-steps");
+const profileRetryBanner = document.getElementById("profile-retry-banner");
+const profileRetryMessage = document.getElementById("profile-retry-message");
+const profileRetryButton = document.getElementById("profile-retry-button");
+const profileRetryButtonDefaultLabel = profileRetryButton
+  ? profileRetryButton.textContent.trim()
+  : "Retry loading profile";
 const toastContainer = document.getElementById("toast-container");
 const authView = document.getElementById("auth-view");
 const authForm = document.getElementById("auth-form");
@@ -4176,6 +4229,12 @@ if (resetAccountButton) {
   });
 }
 
+if (profileRetryButton) {
+  profileRetryButton.addEventListener("click", () => {
+    void retryProfileLoad("profile-retry:manual");
+  });
+}
+
 function openDrawer(panel, toggle) {
   if (!panel || !panelScrim) return;
   if (panel === openDrawerPanel) return;
@@ -4528,8 +4587,12 @@ supabase.auth.onAuthStateChange(async (event, session) => {
 
     const routeFromHash = getRouteFromHash();
     const targetRoute = AUTH_ROUTES.has(routeFromHash) ? "home" : routeFromHash;
-    const applied = await handleSignedIn(user, targetRoute, event === "SIGNED_IN" ? "auth:SIGNED_IN" : `auth:${event}`);
-    if (!applied) {
+    const applied = await handleSignedIn(
+      user,
+      targetRoute,
+      event === "SIGNED_IN" ? "auth:SIGNED_IN" : `auth:${event}`
+    );
+    if (!applied && !authState.profileLoadFailed) {
       forceAuth("profile-load-failed", {
         message: "Unable to load your profile. Please sign in again.",
         tone: "error"
@@ -4563,7 +4626,10 @@ window.addEventListener("resize", drawBankrollChart);
 
 const authState = {
   lastUserId: null,
-  manualSignOutRequested: false
+  manualSignOutRequested: false,
+  profileLoadFailed: false,
+  profileRetryInProgress: false,
+  failedRoute: null
 };
 
 async function handleSignedIn(user, initialRoute, source = "unknown") {
@@ -4576,7 +4642,13 @@ async function handleSignedIn(user, initialRoute, source = "unknown") {
     (typeof window !== "undefined" && (window.location.hash || "").startsWith("#/auth")) ||
     (typeof document !== "undefined" && document.body?.dataset?.appState === "auth");
 
-  if (authState.lastUserId === user.id && source !== "auth:USER_UPDATED" && !isOnAuthScreen) {
+  const duplicateAttempt =
+    authState.lastUserId === user.id &&
+    source !== "auth:USER_UPDATED" &&
+    !isOnAuthScreen &&
+    !authState.profileLoadFailed;
+
+  if (duplicateAttempt) {
     console.info(
       `[RTN] handleSignedIn skipped duplicate for user ${user.id} (source=${source})`
     );
@@ -4586,6 +4658,7 @@ async function handleSignedIn(user, initialRoute, source = "unknown") {
   authState.lastUserId = user.id;
   currentUser = user;
   authState.manualSignOutRequested = false;
+  authState.failedRoute = initialRoute ?? authState.failedRoute;
   updateAdminVisibility(currentUser);
 
   if (authEmailInput && currentUser.email) {
@@ -4614,16 +4687,25 @@ async function handleSignedIn(user, initialRoute, source = "unknown") {
     console.error(
       `[RTN] handleSignedIn unable to load profile for user ${currentUser.id}; aborting route application`
     );
-    if (source === "bootstrap") {
-      try {
-        await supabase.auth.signOut();
-      } catch (signOutError) {
-        console.error("[RTN] handleSignedIn signOut after profile failure errored", signOutError);
-      }
+    authState.profileLoadFailed = true;
+    authState.failedRoute = initialRoute ?? authState.failedRoute;
+    authState.lastUserId = null;
+    currentProfile = null;
+    showProfileRetryPrompt(
+      "We couldn't load your profile. Your session is still active—please try again."
+    );
+    setProfileRetryLoading(false);
+    if (typeof document !== "undefined" && document.body) {
+      document.body.dataset.appState = "ready";
     }
+    showToast("Unable to load your profile. Please try again.", "error");
     await routePromise;
     return false;
   }
+
+  authState.profileLoadFailed = false;
+  authState.failedRoute = null;
+  hideProfileRetryPrompt();
 
   applyProfileCredits(profile, { resetHistory: !bankrollInitialized });
 
@@ -4649,6 +4731,59 @@ async function handleSignedIn(user, initialRoute, source = "unknown") {
   }
 
   return true;
+}
+
+async function retryProfileLoad(source = "profile-retry") {
+  if (!currentUser) {
+    console.warn(`[RTN] retryProfileLoad called without active user (source=${source})`);
+    showToast("Session unavailable. Please sign in again.", "warning");
+    hideProfileRetryPrompt();
+    forceAuth("missing-session-user", {
+      message: "Session unavailable. Please sign in again.",
+      tone: "warning"
+    });
+    return false;
+  }
+
+  if (authState.profileRetryInProgress) {
+    return false;
+  }
+
+  authState.profileRetryInProgress = true;
+  setProfileRetryLoading(true);
+
+  try {
+    const hashRoute = getRouteFromHash();
+    const fallbackRoute = authState.failedRoute ?? hashRoute;
+    authState.failedRoute = fallbackRoute;
+    const targetRoute = !fallbackRoute || AUTH_ROUTES.has(fallbackRoute)
+      ? "home"
+      : fallbackRoute;
+    const applied = await handleSignedIn(currentUser, targetRoute, source);
+    if (applied) {
+      showToast("Profile synchronized successfully.", "success");
+      return true;
+    }
+
+    showProfileRetryPrompt(
+      "We still can't reach your profile. Please try again in a moment."
+    );
+    return false;
+  } catch (error) {
+    console.error("[RTN] retryProfileLoad error", error);
+    showToast("Retry failed. Please try again.", "error");
+    showProfileRetryPrompt(
+      "Retry failed. Your session is still active—please try again shortly."
+    );
+    return false;
+  } finally {
+    authState.profileRetryInProgress = false;
+    if (authState.profileLoadFailed) {
+      setProfileRetryLoading(false);
+    } else {
+      hideProfileRetryPrompt();
+    }
+  }
 }
 
 async function bootstrapAuth(initialRoute) {
