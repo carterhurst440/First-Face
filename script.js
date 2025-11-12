@@ -110,6 +110,8 @@ const PROFILE_RETRY_DELAY_MS = 1200;
 const PROFILE_ATTEMPT_MAX = 5;
 const PROFILE_FETCH_TIMEOUT_MS = 10000;
 const BOOTSTRAP_TIMEOUT_MS = 12000;
+const PROFILE_SELECT_POLICY = "profiles_select_authenticated";
+const PROFILE_INSERT_POLICY = "profiles_insert_authenticated";
 const SUITS = [
   { symbol: "♠", color: "black", name: "Spades" },
   { symbol: "♥", color: "red", name: "Hearts" },
@@ -474,13 +476,29 @@ async function fetchProfileWithRetries(
     }
 
     if (error) {
-      console.error("[RTN] fetchProfileWithRetries Supabase error", error);
+      if (error.code === "PGRST301" || error.code === "42501") {
+        console.error(
+          `[RTN] fetchProfileWithRetries RLS blocked profile read for ${userId}. Check Supabase policy "${PROFILE_SELECT_POLICY}" on table "profiles".`,
+          error
+        );
+      } else if (error.code === "PGRST116" || error.code === "PGRST204") {
+        console.warn(
+          `[RTN] fetchProfileWithRetries row missing for ${userId}—will attempt provisioning if Supabase policy "${PROFILE_INSERT_POLICY}" allows inserts.`,
+          error
+        );
+      } else {
+        console.error("[RTN] fetchProfileWithRetries Supabase error", error);
+      }
       return null;
     }
 
     if (data) {
       return data;
     }
+
+    console.warn(
+      `[RTN] fetchProfileWithRetries no profile row returned for ${userId}; row missing—will attempt provisioning if allowed by Supabase policy "${PROFILE_INSERT_POLICY}".`
+    );
 
     const remaining = deadline - Date.now();
     if (remaining <= 0 || attempt === attempts) {
@@ -604,6 +622,13 @@ async function provisionProfileForUser(user) {
           delayMs: PROFILE_RETRY_DELAY_MS,
           timeoutMs: PROFILE_FETCH_TIMEOUT_MS
         });
+      } else if (error.code === "PGRST301" || error.code === "42501") {
+        provisionStopwatch("(rls)");
+        console.error(
+          `[RTN] provisionProfileForUser RLS blocked profile insert for ${user.id}. Check Supabase policy "${PROFILE_INSERT_POLICY}" on table "profiles".`,
+          error
+        );
+        return null;
       }
       provisionStopwatch("(error)");
       console.error("[RTN] provisionProfileForUser insert error", error);
