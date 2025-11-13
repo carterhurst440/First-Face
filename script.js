@@ -9,6 +9,18 @@ if (typeof document !== "undefined" && document.body) {
 
 let appReady = false;
 
+const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+function startStopwatch(label) {
+  const startedAt = Date.now();
+  console.info(`[RTN] ${label} started`);
+  return (details = "") => {
+    const duration = Date.now() - startedAt;
+    const suffix = details ? ` ${details}` : "";
+    console.info(`[RTN] ${label} finished in ${duration}ms${suffix}`);
+  };
+}
+
 if (typeof window !== "undefined") {
   window.addEventListener("error", (event) => {
     const detail = event?.error ?? event?.message ?? "Unknown error";
@@ -97,6 +109,7 @@ const PROFILE_FETCH_ROUNDS = 2;
 const PROFILE_RETRY_DELAY_MS = 1200;
 const PROFILE_ATTEMPT_MAX = 5;
 const PROFILE_FETCH_TIMEOUT_MS = 10000;
+const BOOTSTRAP_TIMEOUT_MS = 12000;
 const SUITS = [
   { symbol: "♠", color: "black", name: "Spades" },
   { symbol: "♥", color: "red", name: "Hearts" },
@@ -388,34 +401,57 @@ function handleHashChange() {
 }
 
 async function refreshCurrentUser() {
-  const { data, error } = await supabase.auth.getUser();
-  if (error) {
-    console.error(error);
-    currentUser = null;
-    await setRoute("auth", { replaceHash: true });
+  try {
+    const { data, error } = await supabase.auth.getUser();
+    if (error) {
+      console.error("[RTN] refreshCurrentUser getUser error", error);
+      forceAuth("refresh-user-error", {
+        message: "Session error. Please sign in again.",
+        tone: "warning"
+      });
+      return null;
+    }
+
+    const nextUser = data?.user ?? null;
+    if (!nextUser) {
+      forceAuth("refresh-user-missing", {
+        message: "Please sign in to continue.",
+        tone: "warning"
+      });
+      return null;
+    }
+
+    currentUser = nextUser;
+    return currentUser;
+  } catch (error) {
+    console.error("[RTN] refreshCurrentUser exception", error);
+    forceAuth("refresh-user-exception", {
+      message: "Authentication failed. Please sign in again.",
+      tone: "error"
+    });
     return null;
   }
-  currentUser = data?.user ?? null;
-  if (!currentUser) {
-    await setRoute("auth", { replaceHash: true });
-  }
-  return currentUser;
 }
 
-async function waitForProfile(user, options = {}) {
-  const { interval = 1000, maxAttempts = 10 } = options;
-
-  const userId = user?.id;
+async function fetchProfileWithRetries(
+  userId,
+  {
+    attempts = PROFILE_FETCH_ROUNDS * PROFILE_ATTEMPT_MAX,
+    delayMs = PROFILE_RETRY_DELAY_MS,
+    timeoutMs = PROFILE_FETCH_TIMEOUT_MS
+  } = {}
+) {
   if (!userId) {
-    console.warn("[RTN] waitForProfile called without user id");
+    console.warn("[RTN] fetchProfileWithRetries called without user id");
     return null;
   }
 
-  console.info(
-    `[RTN] waitForProfile starting for user ${userId} (interval=${interval}ms, maxAttempts=${maxAttempts})`
-  );
+  const deadline = Number.isFinite(timeoutMs) ? Date.now() + timeoutMs : Infinity;
 
-  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    const attemptStopwatch = startStopwatch(
+      `fetchProfileWithRetries attempt ${attempt}/${attempts} for ${userId}`
+    );
     const { data, error } = await supabase
       .from("profiles")
       .select(
@@ -424,51 +460,163 @@ async function waitForProfile(user, options = {}) {
       .eq("id", userId)
       .maybeSingle();
 
-    const dataSummary = data
-      ? `credits=${data.credits ?? "null"}, carter_cash=${data.carter_cash ?? "null"}, first_name=${data.first_name ? "yes" : "no"}, last_name=${data.last_name ? "yes" : "no"}`
-      : "null";
-    const errorSummary = error
-      ? `${error.message ?? error}`
-      : "null";
-    console.info(
-      `[RTN] waitForProfile attempt ${attempt} for user ${userId} -> data(${dataSummary}) error(${errorSummary})`
+    console.log(
+      `[RTN] fetchProfileWithRetries attempt ${attempt}/${attempts} for ${userId}`,
+      { data, error }
     );
 
     if (error) {
-      console.error("[RTN] waitForProfile Supabase error", error);
+      attemptStopwatch("(error)");
+    } else if (data) {
+      attemptStopwatch("(profile found)");
+    } else {
+      attemptStopwatch("(no data)");
+    }
+
+    if (error) {
+      console.error("[RTN] fetchProfileWithRetries Supabase error", error);
       return null;
     }
 
     if (data) {
-      const missing = [];
-      if (!Number.isFinite(Number(data.credits))) {
-        missing.push("credits");
-      }
-      if (!Number.isFinite(Number(data.carter_cash))) {
-        missing.push("carter_cash");
-      }
-      if (missing.length) {
-        console.warn(
-          `[RTN] waitForProfile profile missing fields [${missing.join(", ")}]`,
-          data
-        );
-      }
-
-      console.info("[RTN] waitForProfile returning profile", data);
       return data;
     }
 
-    console.warn(
-      `[RTN] waitForProfile attempt ${attempt} found no profile row for user ${userId}; retrying after ${interval}ms`
-    );
+    const remaining = deadline - Date.now();
+    if (remaining <= 0 || attempt === attempts) {
+      if (remaining <= 0) {
+        console.warn(
+          `[RTN] fetchProfileWithRetries deadline reached for user ${userId} (timeoutMs=${timeoutMs})`
+        );
+      }
+      break;
+    }
 
-    await new Promise((res) => setTimeout(res, interval));
+    await delay(Math.min(delayMs, Math.max(0, remaining)));
   }
 
-  console.warn(
-    `[RTN] waitForProfile exhausted attempts for user ${userId} without finding a profile`
-  );
+  console.warn(`[RTN] fetchProfileWithRetries exhausted attempts for user ${userId}`);
   return null;
+}
+
+function deriveProfileSeedFromUser(user) {
+  const metadata = (user && typeof user === "object" ? user.user_metadata : null) || {};
+  const fullName = typeof metadata.full_name === "string" ? metadata.full_name.trim() : "";
+  const firstName = (metadata.first_name ?? (fullName ? fullName.split(/\s+/)[0] : "")) || "";
+  let lastName = metadata.last_name ?? "";
+
+  if (!lastName && fullName) {
+    const parts = fullName.split(/\s+/).filter(Boolean);
+    if (parts.length > 1) {
+      lastName = parts.slice(1).join(" ");
+    }
+  }
+
+  const emailValue =
+    user && typeof user === "object" && typeof user.email === "string"
+      ? user.email
+      : "";
+  const emailPrefix = emailValue ? emailValue.split("@")[0] : null;
+
+  const usernameCandidates = [
+    metadata.username,
+    metadata.preferred_username,
+    typeof metadata.full_name === "string"
+      ? metadata.full_name.replace(/\s+/g, "").toLowerCase()
+      : null,
+    emailPrefix
+  ];
+
+  const fallbackUsername = `player-${(user?.id || "").slice(0, 8)}`;
+  const sanitizeUsername = (value) => {
+    if (!value) return "";
+    const normalized = String(value)
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9_-]+/g, "-")
+      .replace(/^-+|-+$/g, "");
+    return normalized.slice(0, 32);
+  };
+
+  let username = "";
+  for (const candidate of usernameCandidates) {
+    const sanitized = sanitizeUsername(candidate);
+    if (sanitized) {
+      username = sanitized;
+      break;
+    }
+  }
+  if (!username) {
+    username = sanitizeUsername(fallbackUsername) || `player-${Date.now().toString(36)}`;
+  }
+
+  const normalizeName = (value) => {
+    if (!value) return null;
+    const trimmed = String(value).trim();
+    return trimmed ? trimmed.slice(0, 120) : null;
+  };
+
+  return {
+    username,
+    first_name: normalizeName(firstName),
+    last_name: normalizeName(lastName)
+  };
+}
+
+async function provisionProfileForUser(user) {
+  if (!user?.id) {
+    console.warn("[RTN] provisionProfileForUser called without valid user");
+    return null;
+  }
+
+  const seed = deriveProfileSeedFromUser(user);
+  const profileInsert = {
+    id: user.id,
+    credits: INITIAL_BANKROLL,
+    carter_cash: 0,
+    carter_cash_progress: 0,
+    username: seed.username,
+    first_name: seed.first_name,
+    last_name: seed.last_name
+  };
+
+  const provisionStopwatch = startStopwatch(
+    `provisionProfileForUser insert for ${user.id}`
+  );
+
+  try {
+    const { data, error } = await supabase
+      .from("profiles")
+      .insert([profileInsert])
+      .select(
+        "id, username, credits, carter_cash, carter_cash_progress, first_name, last_name"
+      )
+      .maybeSingle();
+
+    if (error) {
+      if (error.code === "23505") {
+        provisionStopwatch("(duplicate)");
+        console.warn(
+          `[RTN] provisionProfileForUser detected existing profile for ${user.id}; refetching`
+        );
+        return await fetchProfileWithRetries(user.id, {
+          attempts: PROFILE_ATTEMPT_MAX,
+          delayMs: PROFILE_RETRY_DELAY_MS,
+          timeoutMs: PROFILE_FETCH_TIMEOUT_MS
+        });
+      }
+      provisionStopwatch("(error)");
+      console.error("[RTN] provisionProfileForUser insert error", error);
+      return null;
+    }
+
+    provisionStopwatch("(inserted)");
+    return data ?? null;
+  } catch (error) {
+    provisionStopwatch("(exception)");
+    console.error("[RTN] provisionProfileForUser exception", error);
+    return null;
+  }
 }
 
 async function ensureProfileSynced({ force = false } = {}) {
@@ -682,7 +830,7 @@ async function handleSignUpFormSubmit(event) {
     if (authEmailInput) {
       authEmailInput.value = email;
     }
-    await setRoute("auth", { replaceHash: true });
+    displayAuthScreen({ replaceHash: true });
   } catch (error) {
     console.error(error);
     const message = error?.message || "Unable to create account";
@@ -972,7 +1120,10 @@ async function loadDashboard(force = false) {
     data: { user }
   } = await supabase.auth.getUser();
   if (!user) {
-    await setRoute("auth", { replaceHash: true });
+    forceAuth("dashboard-no-user", {
+      message: "Session required. Please sign in again.",
+      tone: "warning"
+    });
     return;
   }
   currentUser = user;
@@ -992,9 +1143,10 @@ async function loadDashboard(force = false) {
   }
   let resolvedProfile = currentProfile;
   if (!resolvedProfile || force) {
-    resolvedProfile = await waitForProfile(currentUser, {
-      interval: 1000,
-      maxAttempts: 5
+    resolvedProfile = await fetchProfileWithRetries(currentUser.id, {
+      attempts: 5,
+      delayMs: 1000,
+      timeoutMs: 5000
     });
   }
 
@@ -1155,7 +1307,10 @@ async function loadPrizeShop(force = false) {
     data: { user }
   } = await supabase.auth.getUser();
   if (!user) {
-    await setRoute("auth", { replaceHash: true });
+    forceAuth("prize-shop-no-user", {
+      message: "Sign in to access the prize shop.",
+      tone: "warning"
+    });
     return;
   }
   currentUser = user;
@@ -1786,159 +1941,33 @@ async function loadAdminPrizeList(force = false) {
   }
 }
 
-function mergeCurrentUserIntoLeaderboard(entries = []) {
-  const list = Array.isArray(entries) ? entries.slice() : [];
-  if (!currentUser) {
-    return list.slice(0, LEADERBOARD_LIMIT);
+function displayAuthScreen({ focus = true, replaceHash = false } = {}) {
+  currentRoute = "auth";
+  showAuthView("login");
+  updateAdminVisibility(null);
+
+  if (typeof document !== "undefined" && document.body) {
+    document.body.dataset.appState = "auth";
   }
 
-  const metadata = currentUser.user_metadata || {};
-  const firstName = (currentProfile?.first_name ?? metadata.first_name ?? "").toString().trim();
-  const lastName = (currentProfile?.last_name ?? metadata.last_name ?? "").toString().trim();
-  const username = (currentProfile?.username ?? currentUser.email ?? "").toString().trim();
-  const profileCredits = Number(currentProfile?.credits);
-  const sessionBankroll = Number(bankroll);
-  const creditSource = Number.isFinite(profileCredits)
-    ? profileCredits
-    : Number.isFinite(sessionBankroll)
-    ? sessionBankroll
-    : 0;
-  const credits = Number.isFinite(creditSource) ? Math.round(creditSource) : 0;
-
-  const selfEntry = {
-    id: currentUser.id,
-    first_name: firstName,
-    last_name: lastName,
-    username,
-    credits
-  };
-
-  const existingIndex = list.findIndex((entry) => entry?.id === currentUser.id);
-  if (existingIndex >= 0) {
-    list[existingIndex] = { ...list[existingIndex], ...selfEntry };
-  } else {
-    list.push(selfEntry);
-  }
-
-  list.sort((a, b) => {
-    const bCredits = Number(b?.credits);
-    const aCredits = Number(a?.credits);
-    const safeB = Number.isFinite(bCredits) ? bCredits : 0;
-    const safeA = Number.isFinite(aCredits) ? aCredits : 0;
-    return safeB - safeA;
-  });
-
-  return list.slice(0, LEADERBOARD_LIMIT);
-}
-
-function renderLeaderboard(entries = []) {
-  if (!leaderboardList) return;
-
-  leaderboardList.innerHTML = "";
-
-  if (!entries.length) {
-    const item = document.createElement("li");
-    item.className = "leaderboard-item";
-    item.innerHTML =
-      '<span class="leaderboard-rank">–</span><span class="leaderboard-name">No leaderboard data yet.</span><span class="leaderboard-balance">0</span>';
-    leaderboardList.appendChild(item);
-    return;
-  }
-
-  entries.forEach((entry, index) => {
-    const item = document.createElement("li");
-    item.className = "leaderboard-item";
-
-    const rank = document.createElement("span");
-    rank.className = "leaderboard-rank";
-    rank.textContent = `${index + 1}`;
-
-    const name = document.createElement("span");
-    name.className = "leaderboard-name";
-    const first = typeof entry.first_name === "string" ? entry.first_name.trim() : "";
-    const last = typeof entry.last_name === "string" ? entry.last_name.trim() : "";
-    const username = typeof entry.username === "string" ? entry.username.trim() : "";
-    const displayName = [first, last].filter(Boolean).join(" ") || username || "Player";
-    name.textContent = displayName;
-
-    const balance = document.createElement("span");
-    balance.className = "leaderboard-balance";
-    const credits = Number(entry.credits);
-    balance.textContent = formatCurrency(Number.isFinite(credits) ? Math.max(0, Math.round(credits)) : 0);
-
-    if (currentUser && entry.id === currentUser.id) {
-      item.classList.add("is-self");
-    }
-
-    item.append(rank, name, balance);
-    leaderboardList.appendChild(item);
-  });
-}
-
-async function refreshLeaderboard() {
-  if (!leaderboardList) return;
-  if (!currentUser) {
-    renderLeaderboard([]);
-    return;
-  }
-
-  try {
-    const { data, error } = await supabase
-      .from("profiles")
-      .select("id, first_name, last_name, username, credits")
-      .order("credits", { ascending: false })
-      .limit(LEADERBOARD_LIMIT);
-    if (error) {
-      throw error;
-    }
-    const merged = mergeCurrentUserIntoLeaderboard(Array.isArray(data) ? data : []);
-    renderLeaderboard(merged);
-  } catch (error) {
-    console.error("Unable to load leaderboard", error);
-    const fallback = mergeCurrentUserIntoLeaderboard([]);
-    renderLeaderboard(fallback);
+  if (typeof window !== "undefined") {
+    updateHash("auth", { replace: replaceHash });
+    setTimeout(() => {
+      if (focus && authEmailInput) {
+        authEmailInput.focus();
+      }
+    }, 0);
   }
 }
 
-function scheduleLeaderboardRefresh() {
-  if (!leaderboardList) return;
-  if (leaderboardRefreshTimeout !== null) return;
-  const timeoutFn = typeof window !== "undefined" ? window.setTimeout : setTimeout;
-  leaderboardRefreshTimeout = timeoutFn(async () => {
-    leaderboardRefreshTimeout = null;
-    await refreshLeaderboard();
-  }, 400);
+function forceAuth(reason, { message, tone = "warning", focus = true } = {}) {
+  if (message) {
+    showToast(message, tone);
+  }
+  applySignedOutState(reason, { focusInput: focus });
 }
 
-function ensureLeaderboardSubscription() {
-  if (leaderboardSubscription) return;
-  if (!supabase || typeof supabase.channel !== "function") return;
-  leaderboardSubscription = supabase
-    .channel("leaderboard-updates")
-    .on(
-      "postgres_changes",
-      { event: "*", schema: "public", table: "profiles" },
-      () => scheduleLeaderboardRefresh()
-    )
-    .subscribe();
-}
-
-function cleanupLeaderboardSubscription() {
-  const clearFn = typeof window !== "undefined" ? window.clearTimeout : clearTimeout;
-  if (leaderboardRefreshTimeout !== null) {
-    clearFn(leaderboardRefreshTimeout);
-    leaderboardRefreshTimeout = null;
-  }
-  if (leaderboardSubscription) {
-    supabase.removeChannel(leaderboardSubscription);
-    leaderboardSubscription = null;
-  }
-  if (leaderboardList) {
-    leaderboardList.innerHTML = "";
-  }
-}
-
-function applySignedOutState(reason = "unknown") {
+function applySignedOutState(reason = "unknown", { focusInput = true } = {}) {
   console.warn(`[RTN] applySignedOutState invoked (reason=${reason})`);
   const clearFn = typeof window !== "undefined" ? window.clearTimeout : clearTimeout;
   lastSyncedBankroll = null;
@@ -1979,8 +2008,6 @@ function applySignedOutState(reason = "unknown") {
   resetBankrollHistory();
   stopBankrollAnimation();
 
-  cleanupLeaderboardSubscription();
-
   if (adminPrizeListEl) {
     adminPrizeListEl.innerHTML = "";
   }
@@ -2018,29 +2045,17 @@ function applySignedOutState(reason = "unknown") {
     appShell.setAttribute("data-hidden", "true");
   }
 
-  currentRoute = "auth";
-  showAuthView("login");
-  updateAdminVisibility(null);
+  authState.lastUserId = null;
+  authState.manualSignOutRequested = false;
 
-  if (typeof window !== "undefined") {
-    suppressHash = true;
-    window.location.hash = "#/auth";
-    setTimeout(() => {
-      suppressHash = false;
-      if (authEmailInput) {
-        authEmailInput.focus();
-      }
-    }, 0);
-  }
-
-  manualSignOutRequested = false;
+  displayAuthScreen({ focus: focusInput });
 }
 
 async function handleSignOut() {
-  manualSignOutRequested = true;
+  authState.manualSignOutRequested = true;
   const { error } = await supabase.auth.signOut();
   if (error) {
-    manualSignOutRequested = false;
+    authState.manualSignOutRequested = false;
     console.error(error);
     showToast("Unable to sign out", "error");
   }
@@ -2270,10 +2285,6 @@ const themeSelect = document.getElementById("theme-select");
 const graphToggle = document.getElementById("graph-toggle");
 const chartPanel = document.getElementById("chart-panel");
 const chartClose = document.getElementById("chart-close");
-const leaderboardToggle = document.getElementById("leaderboard-toggle");
-const leaderboardPanel = document.getElementById("leaderboard-panel");
-const leaderboardClose = document.getElementById("leaderboard-close");
-const leaderboardList = document.getElementById("leaderboard-list");
 const panelScrim = document.getElementById("panel-scrim");
 const bankrollChartCanvas = document.getElementById("bankroll-chart");
 const bankrollChartWrapper = document.getElementById("bankroll-chart-wrapper");
@@ -2417,18 +2428,14 @@ let adminPrizeCache = [];
 let currentProfile = null;
 let suppressHash = false;
 let dashboardProfileRetryTimer = null;
-let leaderboardRefreshTimeout = null;
-let leaderboardSubscription = null;
 let resetModalTrigger = null;
 
 let shippingModalTrigger = null;
 let activeShippingPurchase = null;
 let adminModalTrigger = null;
-let manualSignOutRequested = false;
 let prizeImageTrigger = null;
 
 const MAX_HISTORY_POINTS = 500;
-const LEADERBOARD_LIMIT = 20;
 const PROFILE_SYNC_INTERVAL = 15000;
 
 let bankrollInitialized = false;
@@ -4024,9 +4031,6 @@ function openDrawer(panel, toggle) {
     requestAnimationFrame(() => {
       drawBankrollChart();
     });
-  } else if (panel === leaderboardPanel) {
-    scheduleLeaderboardRefresh();
-    void refreshLeaderboard();
   }
 }
 
@@ -4139,23 +4143,6 @@ if (graphToggle && chartPanel && chartClose) {
   });
 }
 
-if (leaderboardToggle && leaderboardPanel && leaderboardClose) {
-  leaderboardToggle.addEventListener("click", () => {
-    const isOpen = leaderboardPanel.classList.contains("is-open");
-    if (isOpen) {
-      closeDrawer(leaderboardPanel, leaderboardToggle);
-    } else {
-      openDrawer(leaderboardPanel, leaderboardToggle);
-      scheduleLeaderboardRefresh();
-      void refreshLeaderboard();
-    }
-  });
-
-  leaderboardClose.addEventListener("click", () => {
-    closeDrawer(leaderboardPanel, leaderboardToggle);
-  });
-}
-
 if (authForm) {
   authForm.addEventListener("submit", handleAuthFormSubmit);
 }
@@ -4237,13 +4224,12 @@ if (showSignUpButton) {
 }
 
 if (showLoginButton) {
-  showLoginButton.addEventListener("click", async () => {
+  showLoginButton.addEventListener("click", () => {
     if (authErrorEl) {
       authErrorEl.hidden = true;
       authErrorEl.textContent = "";
     }
-    await setRoute("auth");
-    authEmailInput?.focus();
+    displayAuthScreen();
   });
 }
 
@@ -4345,33 +4331,39 @@ document.addEventListener("keydown", (event) => {
 
 updateAdminVisibility(currentUser);
 
-supabase.auth.onAuthStateChange(async (event, session) => {
-  console.info(
-    `[RTN] onAuthStateChange event="${event}" sessionUser=${session?.user?.id ?? 'null'}`
-  );
+const AUTH_SUCCESS_EVENTS = new Set(["SIGNED_IN", "TOKEN_REFRESHED", "USER_UPDATED"]);
 
-  if (event === "SIGNED_IN" && session?.user) {
+supabase.auth.onAuthStateChange(async (event, session) => {
+  const user = session?.user ?? null;
+
+  if (AUTH_SUCCESS_EVENTS.has(event)) {
+    if (!user) {
+      forceAuth("missing-session-user", {
+        message: "Authentication issue detected. Please sign in again.",
+        tone: "warning"
+      });
+      return;
+    }
+
     const routeFromHash = getRouteFromHash();
     const targetRoute = AUTH_ROUTES.has(routeFromHash) ? "home" : routeFromHash;
-    const applied = await handleSignedIn(session.user, targetRoute, `onAuthStateChange:${event}`);
+    const applied = await handleSignedIn(user, targetRoute, event === "SIGNED_IN" ? "auth:SIGNED_IN" : `auth:${event}`);
     if (!applied) {
-      showToast("Unable to load profile. Please sign in again.", "error");
-      applySignedOutState("profile-load-failed");
-    } else {
-      manualSignOutRequested = false;
+      forceAuth("profile-load-failed", {
+        message: "Unable to load your profile. Please sign in again.",
+        tone: "error"
+      });
     }
     return;
   }
 
   if (event === "SIGNED_OUT" || event === "USER_DELETED") {
-    if (manualSignOutRequested) {
-      showToast("Signed out", "info");
-    } else {
-      showToast("Session expired. Please sign in again.", "warning");
-    }
-    manualSignOutRequested = false;
-    const reason = event === "SIGNED_OUT" ? "signed-out" : "user-deleted";
-    applySignedOutState(reason);
+    const manual = authState.manualSignOutRequested;
+    const reason = event === "USER_DELETED" ? "user-deleted" : "signed-out";
+    const tone = manual ? "info" : "warning";
+    const message = manual ? "Signed out" : "Session expired. Please sign in again.";
+    forceAuth(reason, { message, tone });
+    return;
   }
 });
 
@@ -4388,7 +4380,10 @@ resetBankrollHistory();
 window.addEventListener("resize", schedulePlayAreaHeightUpdate);
 window.addEventListener("resize", drawBankrollChart);
 
-let lastHandledUserId = null;
+const authState = {
+  lastUserId: null,
+  manualSignOutRequested: false
+};
 
 async function handleSignedIn(user, initialRoute, source = "unknown") {
   if (!user) {
@@ -4396,75 +4391,50 @@ async function handleSignedIn(user, initialRoute, source = "unknown") {
     return false;
   }
 
-  if (lastHandledUserId === user.id && source !== "onAuthStateChange:USER_UPDATED") {
+  const isOnAuthScreen =
+    (typeof window !== "undefined" && (window.location.hash || "").startsWith("#/auth")) ||
+    (typeof document !== "undefined" && document.body?.dataset?.appState === "auth");
+
+  if (authState.lastUserId === user.id && source !== "auth:USER_UPDATED" && !isOnAuthScreen) {
     console.info(
       `[RTN] handleSignedIn skipped duplicate for user ${user.id} (source=${source})`
     );
     return true;
   }
-  lastHandledUserId = user.id;
 
+  authState.lastUserId = user.id;
   currentUser = user;
-  manualSignOutRequested = false;
+  authState.manualSignOutRequested = false;
   updateAdminVisibility(currentUser);
 
   if (authEmailInput && currentUser.email) {
     authEmailInput.value = currentUser.email;
   }
 
-  console.info(
-    `[RTN] handleSignedIn fetching profile for user ${currentUser.id} (source=${source})`
+  const profileStopwatch = startStopwatch(
+    `handleSignedIn profile fetch for ${currentUser.id}`
   );
+  let profile = await fetchProfileWithRetries(currentUser.id, {
+    attempts: PROFILE_ATTEMPT_MAX,
+    delayMs: PROFILE_RETRY_DELAY_MS,
+    timeoutMs: PROFILE_FETCH_TIMEOUT_MS
+  });
+  profileStopwatch(profile ? "(profile loaded)" : "(no profile)");
 
-  let profile = null;
-  const profileStart = Date.now();
-  const profileDeadline = profileStart + PROFILE_FETCH_TIMEOUT_MS;
-
-  for (let round = 1; round <= PROFILE_FETCH_ROUNDS && !profile; round++) {
-    console.info(
-      `[RTN] handleSignedIn profile fetch round ${round} of ${PROFILE_FETCH_ROUNDS}`
+  if (!profile) {
+    const provisionStopwatch = startStopwatch(
+      `handleSignedIn profile provision for ${currentUser.id}`
     );
-    try {
-      profile = await waitForProfile(currentUser, {
-        interval: 1000,
-        maxAttempts: PROFILE_ATTEMPT_MAX
-      });
-    } catch (error) {
-      console.error("[RTN] handleSignedIn waitForProfile error", error);
-    }
-
-    if (profile) {
-      break;
-    }
-
-    const now = Date.now();
-    if (now >= profileDeadline) {
-      console.warn(
-        `[RTN] handleSignedIn profile fetch exceeded timeout (${PROFILE_FETCH_TIMEOUT_MS}ms); aborting retries`
-      );
-      break;
-    }
-
-    if (round < PROFILE_FETCH_ROUNDS) {
-      const remaining = profileDeadline - now;
-      const delay = Math.min(PROFILE_RETRY_DELAY_MS, Math.max(0, remaining));
-      console.warn(
-        `[RTN] handleSignedIn profile fetch round ${round} failed; retrying after ${delay}ms`
-      );
-      if (delay > 0) {
-        await new Promise((res) => setTimeout(res, delay));
-      }
-    }
+    profile = await provisionProfileForUser(currentUser);
+    provisionStopwatch(profile ? "(created)" : "(failed)");
   }
 
   if (!profile) {
-    const elapsed = Date.now() - profileStart;
     console.error(
-      `[RTN] handleSignedIn unable to load profile for user ${currentUser.id} after ${elapsed}ms; aborting route application`
+      `[RTN] handleSignedIn unable to load profile for user ${currentUser.id}; aborting route application`
     );
-    if (source === "getSession") {
+    if (source === "bootstrap") {
       try {
-        console.warn("[RTN] handleSignedIn signing out due to profile load failure during bootstrap");
         await supabase.auth.signOut();
       } catch (signOutError) {
         console.error("[RTN] handleSignedIn signOut after profile failure errored", signOutError);
@@ -4475,13 +4445,6 @@ async function handleSignedIn(user, initialRoute, source = "unknown") {
 
   applyProfileCredits(profile, { resetHistory: !bankrollInitialized });
 
-  ensureLeaderboardSubscription();
-  scheduleLeaderboardRefresh();
-
-  if (appShell) {
-    appShell.removeAttribute("data-hidden");
-  }
-
   const resolvedRoute = !initialRoute || AUTH_ROUTES.has(initialRoute)
     ? "home"
     : initialRoute;
@@ -4490,71 +4453,106 @@ async function handleSignedIn(user, initialRoute, source = "unknown") {
     `[RTN] handleSignedIn routing to "${resolvedRoute}" for user ${currentUser.id} (source=${source})`
   );
 
+  if (appShell) {
+    appShell.removeAttribute("data-hidden");
+  }
+
   await setRoute(resolvedRoute, { replaceHash: true });
+
+  if (typeof document !== "undefined" && document.body) {
+    document.body.dataset.appState = "ready";
+  }
 
   return true;
 }
 
 async function bootstrapAuth(initialRoute) {
-  console.info(`[RTN] bootstrapAuth starting (initialRoute=${initialRoute})`);
-
   try {
-    console.info("[RTN] bootstrapAuth requesting session from Supabase");
+    const getSessionStopwatch = startStopwatch("bootstrapAuth getSession");
     const { data, error } = await supabase.auth.getSession();
+    getSessionStopwatch(error ? "(error)" : "(resolved)");
     if (error) {
       console.error("[RTN] bootstrapAuth getSession error", error);
+      return false;
     }
 
     const session = data?.session ?? null;
-    if (session?.user) {
-      console.info(
-        `[RTN] bootstrapAuth getSession returned user ${session.user.id} (email=${session.user.email})`
-      );
-      const applied = await handleSignedIn(session.user, initialRoute, "getSession");
-      console.info(`[RTN] bootstrapAuth applied session from getSession: ${applied}`);
-      return applied;
+    if (!session?.user) {
+      return false;
     }
 
-    console.info("[RTN] bootstrapAuth getSession returned no active session");
-    console.info(
-      "[RTN] bootstrapAuth will show login immediately; awaiting future auth events separately"
-    );
-    return false;
+    const handleSignedInStopwatch = startStopwatch("bootstrapAuth handleSignedIn");
+    const signedInPromise = handleSignedIn(session.user, initialRoute, "bootstrap");
+    signedInPromise
+      .then((applied) => {
+        handleSignedInStopwatch(`(resolved=${applied})`);
+        if (!applied) {
+          console.warn("[RTN] bootstrapAuth handleSignedIn returned false");
+        }
+      })
+      .catch((signedInError) => {
+        handleSignedInStopwatch("(error)");
+        console.error("[RTN] bootstrapAuth handleSignedIn error", signedInError);
+      });
+    return true;
   } catch (error) {
-    console.error("[RTN] bootstrapAuth exception during getSession", error);
+    console.error("[RTN] bootstrapAuth unexpected error", error);
     return false;
   }
 }
 
 async function initializeApp() {
-  console.info("[RTN] initializeApp starting");
   stripSupabaseRedirectHash();
 
   const initialRoute = getRouteFromHash();
-  console.info(`[RTN] initializeApp initial route resolved to "${initialRoute}"`);
-
   let sessionApplied = false;
+  let timedOut = false;
 
-  try {
-    sessionApplied = await bootstrapAuth(initialRoute);
-    console.info(`[RTN] initializeApp bootstrapAuth sessionApplied=${sessionApplied}`);
+  const bootstrapStopwatch = startStopwatch("initializeApp bootstrap race");
 
-    if (!sessionApplied) {
-      console.info("[RTN] initializeApp showing auth view (no session available)");
-      showAuthView("login");
-      updateHash("auth", { replace: true });
+  const bootstrapPromise = bootstrapAuth(initialRoute)
+    .then((applied) => {
+      sessionApplied = Boolean(applied);
+      bootstrapStopwatch(`(resolved=${sessionApplied})`);
+      return sessionApplied;
+    })
+    .catch((error) => {
+      bootstrapStopwatch("(rejected)");
+      console.error("[RTN] initializeApp bootstrap error", error);
+      return false;
+    });
+
+  const result = await Promise.race([
+    bootstrapPromise,
+    (async () => {
+      await delay(BOOTSTRAP_TIMEOUT_MS);
+      timedOut = true;
+      return "timeout";
+    })()
+  ]);
+
+  if (result === "timeout") {
+    console.warn(
+      `[RTN] bootstrapAuth did not resolve within ${BOOTSTRAP_TIMEOUT_MS}ms; forcing auth screen`
+    );
+    bootstrapStopwatch("(timeout)");
+  }
+
+  if (result !== true && !sessionApplied) {
+    try {
+      displayAuthScreen({ focus: false, replaceHash: true });
+    } catch (error) {
+      console.error("[RTN] initializeApp displayAuthScreen error", error);
     }
-  } catch (error) {
-    console.error("[RTN] Error initializing app:", error);
-    console.info("[RTN] initializeApp showing auth view due to initialization error");
-    showAuthView("login");
-    updateHash("auth", { replace: true });
-  } finally {
-    markAppReady();
+  }
+
+  markAppReady();
+
+  if (timedOut) {
+    bootstrapPromise.catch((error) => {
+      console.error("[RTN] bootstrapAuth rejected after timeout", error);
+    });
   }
 }
 
-console.info("[RTN] initializeApp defined");
-
-console.info("[RTN] calling initializeApp()");
 initializeApp();
