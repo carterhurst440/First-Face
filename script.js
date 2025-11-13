@@ -3748,10 +3748,16 @@ function renderDraw(card) {
 function settleAdvancedBets(stopperCard, context = {}) {
   const nonStopperCount = context.nonStopperCount ?? 0;
   const totalCards = context.totalCards ?? nonStopperCount;
-  bets.forEach((bet) => {
-    if (bet.type === "number") return;
+
+  for (const bet of bets) {
+    if (bet.type === "number") {
+      continue;
+    }
+
     const definition = getBetDefinition(bet.key);
-    if (!definition) return;
+    if (!definition) {
+      continue;
+    }
 
     let payout = 0;
     const { metadata } = definition;
@@ -3795,7 +3801,7 @@ function settleAdvancedBets(stopperCard, context = {}) {
       bankroll += totalReturn;
       handleBankrollChanged();
     }
-  });
+  }
 }
 
 function applyPlaythrough(amount) {
@@ -4535,10 +4541,6 @@ async function handleSignedIn(user, initialRoute, source = "unknown") {
     await routePromise;
     return false;
   }
-
-  authState.profileLoadFailed = false;
-  authState.failedRoute = null;
-  hideProfileRetryPrompt();
 
   applyProfileCredits(profile, { resetHistory: !bankrollInitialized });
 
