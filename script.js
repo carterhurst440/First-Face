@@ -683,7 +683,9 @@ async function ensureProfileSynced({ force = false } = {}) {
     try {
       const { data, error } = await supabase
         .from("profiles")
-        .select("*")
+        .select(
+          "id, username, credits, carter_cash, carter_cash_progress, first_name, last_name"
+        )
         .eq("id", currentUser.id)
         .maybeSingle();
 
@@ -2717,9 +2719,6 @@ function handleCarterCashChanged() {
   if (currentProfile) {
     currentProfile.carter_cash = carterCash;
   }
-  if (currentUser) {
-    scheduleLeaderboardRefresh();
-  }
 }
 
 function deductCarterCash(amount) {
@@ -2838,9 +2837,6 @@ function handleBankrollChanged() {
   updateDashboardCreditsDisplay(bankroll);
   if (currentProfile) {
     currentProfile.credits = bankroll;
-  }
-  if (currentUser) {
-    scheduleLeaderboardRefresh();
   }
 }
 
