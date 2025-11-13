@@ -614,33 +614,6 @@ async function provisionProfileForUser(user) {
     console.warn("[RTN] provisionProfileForUser called without valid user");
     return null;
   }
-  if (!username) {
-    username = sanitizeUsername(fallbackUsername) || `player-${Date.now().toString(36)}`;
-  }
-
-  const normalizeName = (value) => {
-    if (!value) return null;
-    const trimmed = String(value).trim();
-    return trimmed ? trimmed.slice(0, 120) : null;
-  };
-
-  return {
-    username,
-    first_name: normalizeName(firstName),
-    last_name: normalizeName(lastName)
-  };
-}
-
-  const seed = deriveProfileSeedFromUser(user);
-  const profileInsert = {
-    id: user.id,
-    credits: INITIAL_BANKROLL,
-    carter_cash: 0,
-    carter_cash_progress: 0,
-    username: seed.username,
-    first_name: seed.first_name,
-    last_name: seed.last_name
-  };
 
   const seed = deriveProfileSeedFromUser(user);
   const profileInsert = {
@@ -805,11 +778,13 @@ async function handleAuthFormSubmit(event) {
     if (data?.user) {
       currentUser = data.user;
     } else {
-      const {
-        data: { user }
-      } = await supabase.auth.getUser();
-      if (user) {
-        currentUser = user;
+      const { data: userResponse, error: getUserError } = await supabase.auth.getUser();
+      if (getUserError) {
+        console.error("[RTN] handleAuthFormSubmit getUser error", getUserError);
+      }
+      const fetchedUser = userResponse?.user ?? null;
+      if (fetchedUser) {
+        currentUser = fetchedUser;
       }
     }
 
@@ -1189,17 +1164,19 @@ async function handleShippingSubmit(event) {
 }
 
 async function loadDashboard(force = false) {
-  const {
-    data: { user }
-  } = await supabase.auth.getUser();
-  if (!user) {
+  const { data: userResponse, error: dashboardUserError } = await supabase.auth.getUser();
+  if (dashboardUserError) {
+    console.error("[RTN] loadDashboard getUser error", dashboardUserError);
+  }
+  const sessionUser = userResponse?.user ?? null;
+  if (!sessionUser) {
     forceAuth("dashboard-no-user", {
       message: "Session required. Please sign in again.",
       tone: "warning"
     });
     return;
   }
-  currentUser = user;
+  currentUser = sessionUser;
   if (dashboardLoaded && !force) {
     if (dashboardEmailEl) {
       dashboardEmailEl.textContent = currentUser.email || "";
@@ -1376,17 +1353,19 @@ function renderPrize(prize) {
 }
 
 async function loadPrizeShop(force = false) {
-  const {
-    data: { user }
-  } = await supabase.auth.getUser();
-  if (!user) {
+  const { data: userResponse, error: prizeShopUserError } = await supabase.auth.getUser();
+  if (prizeShopUserError) {
+    console.error("[RTN] loadPrizeShop getUser error", prizeShopUserError);
+  }
+  const sessionUser = userResponse?.user ?? null;
+  if (!sessionUser) {
     forceAuth("prize-shop-no-user", {
       message: "Sign in to access the prize shop.",
       tone: "warning"
     });
     return;
   }
-  currentUser = user;
+  currentUser = sessionUser;
   await ensureProfileSynced({ force: force || !currentProfile });
   if (prizesLoaded && !force) return;
   prizesLoaded = true;
@@ -2141,14 +2120,16 @@ async function handleSignOut() {
 }
 
 export async function logGameRun(score, metadata = {}) {
-  const {
-    data: { user }
-  } = await supabase.auth.getUser();
-  if (!user) {
+  const { data: userResponse, error: logRunUserError } = await supabase.auth.getUser();
+  if (logRunUserError) {
+    console.error("[RTN] logGameRun getUser error", logRunUserError);
+  }
+  const sessionUser = userResponse?.user ?? null;
+  if (!sessionUser) {
     throw new Error("User not logged in");
   }
   await supabase.from("game_runs").insert({
-    user_id: user.id,
+    user_id: sessionUser.id,
     score,
     metadata
   });
@@ -2156,11 +2137,13 @@ export async function logGameRun(score, metadata = {}) {
 
 async function logHandAndBets(stopperCard, context, betSnapshots, netThisHand) {
   try {
-    const {
-      data: { user }
-    } = await supabase.auth.getUser();
+    const { data: userResponse, error: logHandUserError } = await supabase.auth.getUser();
+    if (logHandUserError) {
+      console.error("[RTN] logHandAndBets getUser error", logHandUserError);
+    }
+    const sessionUser = userResponse?.user ?? null;
 
-    if (!user) {
+    if (!sessionUser) {
       return;
     }
 
@@ -2170,7 +2153,7 @@ async function logHandAndBets(stopperCard, context, betSnapshots, netThisHand) {
     const totalPaid = safeBets.reduce((sum, bet) => sum + (bet.paid ?? 0), 0);
 
     const handPayload = {
-      user_id: user.id,
+      user_id: sessionUser.id,
       stopper_label: stopperCard?.label ?? null,
       stopper_suit: stopperCard?.suitName ?? null,
       total_cards: context?.totalCards ?? null,
@@ -4431,10 +4414,10 @@ updateAdminVisibility(currentUser);
 const AUTH_SUCCESS_EVENTS = new Set(["SIGNED_IN", "TOKEN_REFRESHED", "USER_UPDATED"]);
 
 supabase.auth.onAuthStateChange(async (event, session) => {
-  const user = session?.user ?? null;
+  const sessionUser = session?.user ?? null;
 
   if (AUTH_SUCCESS_EVENTS.has(event)) {
-    if (!user) {
+    if (!sessionUser) {
       forceAuth("missing-session-user", {
         message: "Authentication issue detected. Please sign in again.",
         tone: "warning"
@@ -4444,7 +4427,11 @@ supabase.auth.onAuthStateChange(async (event, session) => {
 
     const routeFromHash = getRouteFromHash();
     const targetRoute = AUTH_ROUTES.has(routeFromHash) ? "home" : routeFromHash;
-    const applied = await handleSignedIn(user, targetRoute, event === "SIGNED_IN" ? "auth:SIGNED_IN" : `auth:${event}`);
+    const applied = await handleSignedIn(
+      sessionUser,
+      targetRoute,
+      event === "SIGNED_IN" ? "auth:SIGNED_IN" : `auth:${event}`
+    );
     if (!applied) {
       forceAuth("profile-load-failed", {
         message: "Unable to load your profile. Please sign in again.",
