@@ -529,8 +529,11 @@ async function fetchProfileWithRetries(
         console.warn(
           `[RTN] fetchProfileWithRetries deadline reached for user ${userId} (timeoutMs=${timeoutMs})`
         );
-      } else {
-        console.error("[RTN] fetchProfileWithRetries Supabase error", error);
+        return await fetchProfileWithRetries(user.id, {
+          attempts: PROFILE_ATTEMPT_MAX,
+          delayMs: PROFILE_RETRY_DELAY_MS,
+          timeoutMs: PROFILE_FETCH_TIMEOUT_MS
+        });
       }
       break;
     }
@@ -611,104 +614,6 @@ async function provisionProfileForUser(user) {
     console.warn("[RTN] provisionProfileForUser called without valid user");
     return null;
   }
-
-  const seed = deriveProfileSeedFromUser(user);
-  const profileInsert = {
-    id: user.id,
-    credits: INITIAL_BANKROLL,
-    carter_cash: 0,
-    carter_cash_progress: 0,
-    username: seed.username,
-    first_name: seed.first_name,
-    last_name: seed.last_name
-  };
-
-  const provisionStopwatch = startStopwatch(
-    `provisionProfileForUser insert for ${user.id}`
-  );
-
-  try {
-    const { data, error } = await supabase
-      .from("profiles")
-      .insert([profileInsert])
-      .select(
-        "id, username, credits, carter_cash, carter_cash_progress, first_name, last_name"
-      )
-      .maybeSingle();
-
-    if (error) {
-      if (error.code === "23505") {
-        provisionStopwatch("(duplicate)");
-        console.warn(
-          `[RTN] provisionProfileForUser detected existing profile for ${user.id}; refetching`
-        );
-        return await fetchProfileWithRetries(user.id, {
-          attempts: PROFILE_ATTEMPT_MAX,
-          delayMs: PROFILE_RETRY_DELAY_MS,
-          timeoutMs: PROFILE_FETCH_TIMEOUT_MS
-        });
-      }
-      provisionStopwatch("(error)");
-      console.error("[RTN] provisionProfileForUser insert error", error);
-      return null;
-    }
-
-    provisionStopwatch("(inserted)");
-    return data ?? null;
-  } catch (error) {
-    provisionStopwatch("(exception)");
-    console.error("[RTN] provisionProfileForUser exception", error);
-    return null;
-  }
-}
-
-function deriveProfileSeedFromUser(user) {
-  const metadata = (user && typeof user === "object" ? user.user_metadata : null) || {};
-  const fullName = typeof metadata.full_name === "string" ? metadata.full_name.trim() : "";
-  const firstName = (metadata.first_name ?? (fullName ? fullName.split(/\s+/)[0] : "")) || "";
-  let lastName = metadata.last_name ?? "";
-
-  if (!lastName && fullName) {
-    const parts = fullName.split(/\s+/).filter(Boolean);
-    if (parts.length > 1) {
-      lastName = parts.slice(1).join(" ");
-    }
-  }
-
-  const emailValue =
-    user && typeof user === "object" && typeof user.email === "string"
-      ? user.email
-      : "";
-  const emailPrefix = emailValue ? emailValue.split("@")[0] : null;
-
-  const usernameCandidates = [
-    metadata.username,
-    metadata.preferred_username,
-    typeof metadata.full_name === "string"
-      ? metadata.full_name.replace(/\s+/g, "").toLowerCase()
-      : null,
-    emailPrefix
-  ];
-
-  const fallbackUsername = `player-${(user?.id || "").slice(0, 8)}`;
-  const sanitizeUsername = (value) => {
-    if (!value) return "";
-    const normalized = String(value)
-      .trim()
-      .toLowerCase()
-      .replace(/[^a-z0-9_-]+/g, "-")
-      .replace(/^-+|-+$/g, "");
-    return normalized.slice(0, 32);
-  };
-
-  let username = "";
-  for (const candidate of usernameCandidates) {
-    const sanitized = sanitizeUsername(candidate);
-    if (sanitized) {
-      username = sanitized;
-      break;
-    }
-  }
   if (!username) {
     username = sanitizeUsername(fallbackUsername) || `player-${Date.now().toString(36)}`;
   }
@@ -726,12 +631,6 @@ function deriveProfileSeedFromUser(user) {
   };
 }
 
-async function provisionProfileForUser(user) {
-  if (!user?.id) {
-    console.warn("[RTN] provisionProfileForUser called without valid user");
-    return null;
-  }
-
   const seed = deriveProfileSeedFromUser(user);
   const profileInsert = {
     id: user.id,
@@ -767,13 +666,6 @@ async function provisionProfileForUser(user) {
           delayMs: PROFILE_RETRY_DELAY_MS,
           timeoutMs: PROFILE_FETCH_TIMEOUT_MS
         });
-      } else if (error.code === "PGRST301" || error.code === "42501") {
-        provisionStopwatch("(rls)");
-        console.error(
-          `[RTN] provisionProfileForUser RLS blocked profile insert for ${user.id}. Check Supabase policy "${PROFILE_INSERT_POLICY}" on table "profiles".`,
-          error
-        );
-        return null;
       }
       provisionStopwatch("(error)");
       console.error("[RTN] provisionProfileForUser insert error", error);
@@ -2121,7 +2013,7 @@ function takeLeaderboardLimit(list) {
 function mergeCurrentUserIntoLeaderboard(entries = []) {
   const list = Array.isArray(entries) ? entries.slice() : [];
   if (!currentUser) {
-    return takeLeaderboardLimit(list);
+    return Number.isFinite(LEADERBOARD_LIMIT) ? list.slice(0, LEADERBOARD_LIMIT) : list;
   }
 
   const metadata = currentUser.user_metadata || {};
@@ -2160,7 +2052,7 @@ function mergeCurrentUserIntoLeaderboard(entries = []) {
     return safeB - safeA;
   });
 
-  return takeLeaderboardLimit(list);
+  return Number.isFinite(LEADERBOARD_LIMIT) ? list.slice(0, LEADERBOARD_LIMIT) : list;
 }
 
 function renderLeaderboard(entries = []) {
