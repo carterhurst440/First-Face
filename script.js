@@ -642,6 +642,17 @@ async function provisionProfileForUser(user) {
     last_name: seed.last_name
   };
 
+  const seed = deriveProfileSeedFromUser(user);
+  const profileInsert = {
+    id: user.id,
+    credits: INITIAL_BANKROLL,
+    carter_cash: 0,
+    carter_cash_progress: 0,
+    username: seed.username,
+    first_name: seed.first_name,
+    last_name: seed.last_name
+  };
+
   const provisionStopwatch = startStopwatch(
     `provisionProfileForUser insert for ${user.id}`
   );
@@ -2003,165 +2014,6 @@ async function loadAdminPrizeList(force = false) {
   }
 }
 
-function takeLeaderboardLimit(list) {
-  if (!Number.isFinite(LEADERBOARD_LIMIT)) {
-    return list;
-  }
-  return list.slice(0, LEADERBOARD_LIMIT);
-}
-
-function mergeCurrentUserIntoLeaderboard(entries = []) {
-  const list = Array.isArray(entries) ? entries.slice() : [];
-  if (!currentUser) {
-    return Number.isFinite(LEADERBOARD_LIMIT) ? list.slice(0, LEADERBOARD_LIMIT) : list;
-  }
-
-  const metadata = currentUser.user_metadata || {};
-  const firstName = (currentProfile?.first_name ?? metadata.first_name ?? "").toString().trim();
-  const lastName = (currentProfile?.last_name ?? metadata.last_name ?? "").toString().trim();
-  const username = (currentProfile?.username ?? currentUser.email ?? "").toString().trim();
-  const profileCredits = Number(currentProfile?.credits);
-  const sessionBankroll = Number(bankroll);
-  const creditSource = Number.isFinite(profileCredits)
-    ? profileCredits
-    : Number.isFinite(sessionBankroll)
-    ? sessionBankroll
-    : 0;
-  const credits = Number.isFinite(creditSource) ? Math.round(creditSource) : 0;
-
-  const selfEntry = {
-    id: currentUser.id,
-    first_name: firstName,
-    last_name: lastName,
-    username,
-    credits
-  };
-
-  const existingIndex = list.findIndex((entry) => entry?.id === currentUser.id);
-  if (existingIndex >= 0) {
-    list[existingIndex] = { ...list[existingIndex], ...selfEntry };
-  } else {
-    list.push(selfEntry);
-  }
-
-  list.sort((a, b) => {
-    const bCredits = Number(b?.credits);
-    const aCredits = Number(a?.credits);
-    const safeB = Number.isFinite(bCredits) ? bCredits : 0;
-    const safeA = Number.isFinite(aCredits) ? aCredits : 0;
-    return safeB - safeA;
-  });
-
-  return Number.isFinite(LEADERBOARD_LIMIT) ? list.slice(0, LEADERBOARD_LIMIT) : list;
-}
-
-function renderLeaderboard(entries = []) {
-  if (!leaderboardList) return;
-
-  leaderboardList.innerHTML = "";
-
-  if (!entries.length) {
-    const item = document.createElement("li");
-    item.className = "leaderboard-item";
-    item.innerHTML =
-      '<span class="leaderboard-rank">–</span><span class="leaderboard-name">No leaderboard data yet.</span><span class="leaderboard-balance">0</span>';
-    leaderboardList.appendChild(item);
-    return;
-  }
-
-  entries.forEach((entry, index) => {
-    const item = document.createElement("li");
-    item.className = "leaderboard-item";
-
-    const rank = document.createElement("span");
-    rank.className = "leaderboard-rank";
-    rank.textContent = `${index + 1}`;
-
-    const name = document.createElement("span");
-    name.className = "leaderboard-name";
-    const first = typeof entry.first_name === "string" ? entry.first_name.trim() : "";
-    const last = typeof entry.last_name === "string" ? entry.last_name.trim() : "";
-    const username = typeof entry.username === "string" ? entry.username.trim() : "";
-    const displayName = [first, last].filter(Boolean).join(" ") || username || "Player";
-    name.textContent = displayName;
-
-    const balance = document.createElement("span");
-    balance.className = "leaderboard-balance";
-    const credits = Number(entry.credits);
-    balance.textContent = formatCurrency(Number.isFinite(credits) ? Math.max(0, Math.round(credits)) : 0);
-
-    if (currentUser && entry.id === currentUser.id) {
-      item.classList.add("is-self");
-    }
-
-    item.append(rank, name, balance);
-    leaderboardList.appendChild(item);
-  });
-}
-
-async function refreshLeaderboard() {
-  if (!leaderboardList) return;
-  try {
-    let query = supabase
-      .from("profiles")
-      .select("id, first_name, last_name, username, credits")
-      .order("credits", { ascending: false });
-
-    if (Number.isFinite(LEADERBOARD_LIMIT)) {
-      query = query.limit(LEADERBOARD_LIMIT);
-    }
-
-    const { data, error } = await query;
-    if (error) {
-      throw error;
-    }
-    const merged = mergeCurrentUserIntoLeaderboard(Array.isArray(data) ? data : []);
-    renderLeaderboard(merged);
-  } catch (error) {
-    console.error("Unable to load leaderboard", error);
-    const fallback = mergeCurrentUserIntoLeaderboard([]);
-    renderLeaderboard(fallback);
-  }
-}
-
-function scheduleLeaderboardRefresh() {
-  if (!leaderboardList) return;
-  if (leaderboardRefreshTimeout !== null) return;
-  const timeoutFn = typeof window !== "undefined" ? window.setTimeout : setTimeout;
-  leaderboardRefreshTimeout = timeoutFn(async () => {
-    leaderboardRefreshTimeout = null;
-    await refreshLeaderboard();
-  }, 400);
-}
-
-function ensureLeaderboardSubscription() {
-  if (leaderboardSubscription) return;
-  if (!supabase || typeof supabase.channel !== "function") return;
-  leaderboardSubscription = supabase
-    .channel("leaderboard-updates")
-    .on(
-      "postgres_changes",
-      { event: "*", schema: "public", table: "profiles" },
-      () => scheduleLeaderboardRefresh()
-    )
-    .subscribe();
-}
-
-function cleanupLeaderboardSubscription() {
-  const clearFn = typeof window !== "undefined" ? window.clearTimeout : clearTimeout;
-  if (leaderboardRefreshTimeout !== null) {
-    clearFn(leaderboardRefreshTimeout);
-    leaderboardRefreshTimeout = null;
-  }
-  if (leaderboardSubscription) {
-    supabase.removeChannel(leaderboardSubscription);
-    leaderboardSubscription = null;
-  }
-  if (leaderboardList) {
-    leaderboardList.innerHTML = "";
-  }
-}
-
 function displayAuthScreen({ focus = true, replaceHash = false } = {}) {
   currentRoute = "auth";
   showAuthView("login");
@@ -2234,8 +2086,6 @@ function applySignedOutState(reason = "unknown", { focusInput = true } = {}) {
   updateCarterCashDisplay();
   resetBankrollHistory();
   stopBankrollAnimation();
-
-  cleanupLeaderboardSubscription();
 
   if (adminPrizeListEl) {
     adminPrizeListEl.innerHTML = "";
@@ -2514,10 +2364,6 @@ const themeSelect = document.getElementById("theme-select");
 const graphToggle = document.getElementById("graph-toggle");
 const chartPanel = document.getElementById("chart-panel");
 const chartClose = document.getElementById("chart-close");
-const leaderboardToggle = document.getElementById("leaderboard-toggle");
-const leaderboardPanel = document.getElementById("leaderboard-panel");
-const leaderboardClose = document.getElementById("leaderboard-close");
-const leaderboardList = document.getElementById("leaderboard-list");
 const panelScrim = document.getElementById("panel-scrim");
 const bankrollChartCanvas = document.getElementById("bankroll-chart");
 const bankrollChartWrapper = document.getElementById("bankroll-chart-wrapper");
@@ -2667,8 +2513,6 @@ let adminPrizeCache = [];
 let currentProfile = null;
 let suppressHash = false;
 let dashboardProfileRetryTimer = null;
-let leaderboardRefreshTimeout = null;
-let leaderboardSubscription = null;
 let resetModalTrigger = null;
 
 let shippingModalTrigger = null;
@@ -2677,7 +2521,6 @@ let adminModalTrigger = null;
 let prizeImageTrigger = null;
 
 const MAX_HISTORY_POINTS = 500;
-const LEADERBOARD_LIMIT = null;
 const PROFILE_SYNC_INTERVAL = 15000;
 
 let bankrollInitialized = false;
@@ -4279,9 +4122,6 @@ function openDrawer(panel, toggle) {
     requestAnimationFrame(() => {
       drawBankrollChart();
     });
-  } else if (panel === leaderboardPanel) {
-    scheduleLeaderboardRefresh();
-    void refreshLeaderboard();
   }
 }
 
@@ -4391,23 +4231,6 @@ if (graphToggle && chartPanel && chartClose) {
 
   chartClose.addEventListener("click", () => {
     closeDrawer(chartPanel, graphToggle);
-  });
-}
-
-if (leaderboardToggle && leaderboardPanel && leaderboardClose) {
-  leaderboardToggle.addEventListener("click", () => {
-    const isOpen = leaderboardPanel.classList.contains("is-open");
-    if (isOpen) {
-      closeDrawer(leaderboardPanel, leaderboardToggle);
-    } else {
-      openDrawer(leaderboardPanel, leaderboardToggle);
-      scheduleLeaderboardRefresh();
-      void refreshLeaderboard();
-    }
-  });
-
-  leaderboardClose.addEventListener("click", () => {
-    closeDrawer(leaderboardPanel, leaderboardToggle);
   });
 }
 
@@ -4718,9 +4541,6 @@ async function handleSignedIn(user, initialRoute, source = "unknown") {
   hideProfileRetryPrompt();
 
   applyProfileCredits(profile, { resetHistory: !bankrollInitialized });
-
-  ensureLeaderboardSubscription();
-  scheduleLeaderboardRefresh();
 
   const resolvedRoute = !initialRoute || AUTH_ROUTES.has(initialRoute)
     ? "home"
