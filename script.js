@@ -146,6 +146,47 @@ function showToast(message, tone = "info") {
   }, 3200);
 }
 
+function showProfileRetryPrompt(message) {
+  if (!profileRetryBanner) {
+    return;
+  }
+
+  if (message && profileRetryMessage) {
+    profileRetryMessage.textContent = message;
+  }
+
+  profileRetryBanner.hidden = false;
+  profileRetryBanner.setAttribute("data-visible", "true");
+}
+
+function hideProfileRetryPrompt() {
+  if (!profileRetryBanner) {
+    return;
+  }
+
+  profileRetryBanner.hidden = true;
+  profileRetryBanner.removeAttribute("data-visible");
+
+  if (profileRetryButton) {
+    profileRetryButton.disabled = false;
+    profileRetryButton.textContent = profileRetryButtonDefaultLabel;
+  }
+}
+
+function setProfileRetryLoading(isLoading) {
+  if (!profileRetryButton) {
+    return;
+  }
+
+  if (isLoading) {
+    profileRetryButton.disabled = true;
+    profileRetryButton.textContent = "Retrying…";
+  } else {
+    profileRetryButton.disabled = false;
+    profileRetryButton.textContent = profileRetryButtonDefaultLabel;
+  }
+}
+
 function createPrizeImagePath(originalName = "image") {
   const baseName = typeof originalName === "string" ? originalName : "image";
   const extensionMatch = baseName.match(/\.([a-zA-Z0-9]+)$/);
@@ -488,9 +529,15 @@ async function fetchProfileWithRetries(
         console.warn(
           `[RTN] fetchProfileWithRetries deadline reached for user ${userId} (timeoutMs=${timeoutMs})`
         );
+        return await fetchProfileWithRetries(userid, {
+          attempts: PROFILE_ATTEMPT_MAX,
+          delayMs: PROFILE_RETRY_DELAY_MS,
+          timeoutMs: PROFILE_FETCH_TIMEOUT_MS
+        });
       }
       break;
     }
+  }
 
     const nextAttempt = attempt + 1;
     console.log(
@@ -558,6 +605,15 @@ function deriveProfileSeedFromUser(user) {
   if (!username) {
     username = sanitizeUsername(fallbackUsername) || `player-${Date.now().toString(36)}`;
   }
+  if (!username) {
+    username = sanitizeUsername(fallbackUsername) || `player-${Date.now().toString(36)}`;
+  }
+
+  const normalizeName = (value) => {
+    if (!value) return null;
+    const trimmed = String(value).trim();
+    return trimmed ? trimmed.slice(0, 120) : null;
+  };
 
   const normalizeName = (value) => {
     if (!value) return null;
@@ -608,7 +664,7 @@ async function provisionProfileForUser(user) {
         console.warn(
           `[RTN] provisionProfileForUser detected existing profile for ${user.id}; refetching`
         );
-        return await fetchProfileWithRetries(user.id, {
+        return await fetchProfileWithRetries(userid, {
           attempts: PROFILE_ATTEMPT_MAX,
           delayMs: PROFILE_RETRY_DELAY_MS,
           timeoutMs: PROFILE_FETCH_TIMEOUT_MS
@@ -1991,6 +2047,12 @@ function applySignedOutState(reason = "unknown", { focusInput = true } = {}) {
   bankrollInitialized = false;
   currentUser = null;
   currentProfile = null;
+  authState.lastUserId = null;
+  authState.profileLoadFailed = false;
+  authState.profileRetryInProgress = false;
+  authState.failedRoute = null;
+  setProfileRetryLoading(false);
+  hideProfileRetryPrompt();
   dashboardLoaded = false;
   prizesLoaded = false;
   adminPrizesLoaded = false;
@@ -2332,6 +2394,12 @@ const resetCancelButton = document.getElementById("reset-cancel");
 const resetCloseButton = document.getElementById("reset-close");
 const activePaytableNameEl = document.getElementById("active-paytable-name");
 const activePaytableStepsEl = document.getElementById("active-paytable-steps");
+const profileRetryBanner = document.getElementById("profile-retry-banner");
+const profileRetryMessage = document.getElementById("profile-retry-message");
+const profileRetryButton = document.getElementById("profile-retry-button");
+const profileRetryButtonDefaultLabel = profileRetryButton
+  ? profileRetryButton.textContent.trim()
+  : "Retry loading profile";
 const toastContainer = document.getElementById("toast-container");
 const authView = document.getElementById("auth-view");
 const authForm = document.getElementById("auth-form");
@@ -4036,6 +4104,12 @@ if (resetAccountButton) {
   });
 }
 
+if (profileRetryButton) {
+  profileRetryButton.addEventListener("click", () => {
+    void retryProfileLoad("profile-retry:manual");
+  });
+}
+
 function openDrawer(panel, toggle) {
   if (!panel || !panelScrim) return;
   if (panel === openDrawerPanel) return;
@@ -4465,6 +4539,8 @@ async function handleSignedIn(user, initialRoute, source = "unknown") {
         console.error("[RTN] handleSignedIn signOut after profile failure errored", signOutError);
       }
     }
+    showToast("Unable to load your profile. Please try again.", "error");
+    await routePromise;
     return false;
   }
 
