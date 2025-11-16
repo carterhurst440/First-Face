@@ -529,7 +529,7 @@ async function fetchProfileWithRetries(
         console.warn(
           `[RTN] fetchProfileWithRetries deadline reached for user ${userId} (timeoutMs=${timeoutMs})`
         );
-        return await fetchProfileWithRetries(user.id, {
+        return await fetchProfileWithRetries(userid, {
           attempts: PROFILE_ATTEMPT_MAX,
           delayMs: PROFILE_RETRY_DELAY_MS,
           timeoutMs: PROFILE_FETCH_TIMEOUT_MS
@@ -537,7 +537,17 @@ async function fetchProfileWithRetries(
       }
       break;
     }
+  }
 
+    const nextAttempt = attempt + 1;
+    console.log(
+      '[RTN] retrying fetchProfileWithRetries for',
+      userId,
+      'attempt',
+      nextAttempt,
+      'of',
+      attempts
+    );
     await delay(Math.min(delayMs, Math.max(0, remaining)));
   }
 
@@ -595,6 +605,15 @@ function deriveProfileSeedFromUser(user) {
   if (!username) {
     username = sanitizeUsername(fallbackUsername) || `player-${Date.now().toString(36)}`;
   }
+  if (!username) {
+    username = sanitizeUsername(fallbackUsername) || `player-${Date.now().toString(36)}`;
+  }
+
+  const normalizeName = (value) => {
+    if (!value) return null;
+    const trimmed = String(value).trim();
+    return trimmed ? trimmed.slice(0, 120) : null;
+  };
 
   const normalizeName = (value) => {
     if (!value) return null;
@@ -645,7 +664,7 @@ async function provisionProfileForUser(user) {
         console.warn(
           `[RTN] provisionProfileForUser detected existing profile for ${user.id}; refetching`
         );
-        return await fetchProfileWithRetries(user.id, {
+        return await fetchProfileWithRetries(userid, {
           attempts: PROFILE_ATTEMPT_MAX,
           delayMs: PROFILE_RETRY_DELAY_MS,
           timeoutMs: PROFILE_FETCH_TIMEOUT_MS
