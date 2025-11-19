@@ -490,9 +490,8 @@ async function fetchProfileWithRetries(
   const deadline = Number.isFinite(timeoutMs) ? Date.now() + timeoutMs : Infinity;
 
   for (let attempt = 1; attempt <= attempts; attempt++) {
-    const attemptStopwatch = startStopwatch(
-      `fetchProfileWithRetries attempt ${attempt}/${attempts} for ${userId}`
-    );
+    const attemptLabel = `fetchProfileWithRetries attempt ${attempt}/${attempts} for ${userId}`;
+    const attemptStopwatch = startStopwatch(attemptLabel);
     const { data, error } = await supabase
       .from("profiles")
       .select(
@@ -501,10 +500,7 @@ async function fetchProfileWithRetries(
       .eq("id", userId)
       .maybeSingle();
 
-    console.log(
-      `[RTN] fetchProfileWithRetries attempt ${attempt}/${attempts} for ${userId}`,
-      { data, error }
-    );
+    console.log(`[RTN] ${attemptLabel}`, { data, error });
 
     if (error) {
       attemptStopwatch("(error)");
@@ -541,11 +537,11 @@ async function fetchProfileWithRetries(
 
     const nextAttempt = attempt + 1;
     console.log(
-      '[RTN] retrying fetchProfileWithRetries for',
+      "[RTN] retrying fetchProfileWithRetries for",
       userId,
-      'attempt',
+      "attempt",
       nextAttempt,
-      'of',
+      "of",
       attempts
     );
     await delay(Math.min(delayMs, Math.max(0, remaining)));
@@ -605,15 +601,6 @@ function deriveProfileSeedFromUser(user) {
   if (!username) {
     username = sanitizeUsername(fallbackUsername) || `player-${Date.now().toString(36)}`;
   }
-  if (!username) {
-    username = sanitizeUsername(fallbackUsername) || `player-${Date.now().toString(36)}`;
-  }
-
-  const normalizeName = (value) => {
-    if (!value) return null;
-    const trimmed = String(value).trim();
-    return trimmed ? trimmed.slice(0, 120) : null;
-  };
 
   const normalizeName = (value) => {
     if (!value) return null;
@@ -664,7 +651,7 @@ async function provisionProfileForUser(user) {
         console.warn(
           `[RTN] provisionProfileForUser detected existing profile for ${user.id}; refetching`
         );
-        return await fetchProfileWithRetries(userid, {
+        return await fetchProfileWithRetries(user.id, {
           attempts: PROFILE_ATTEMPT_MAX,
           delayMs: PROFILE_RETRY_DELAY_MS,
           timeoutMs: PROFILE_FETCH_TIMEOUT_MS
