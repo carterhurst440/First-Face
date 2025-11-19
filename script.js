@@ -347,31 +347,12 @@ async function setRoute(route, { replaceHash = false } = {}) {
   }
 
   if (!currentUser) {
-    try {
-      const {
-        data: { session }
-      } = await supabase.auth.getSession();
-      if (session?.user) {
-        currentUser = session.user;
-      }
-    } catch (error) {
-      console.error(error);
-    }
+    currentUser = { ...GUEST_USER };
   }
 
   updateAdminVisibility(currentUser);
 
-  if (!currentUser) {
-    const authMode = nextRoute === "signup" ? "signup" : "auth";
-    showAuthView(authMode === "signup" ? "signup" : "login");
-    currentRoute = authMode;
-    updateHash(authMode, { replace: true });
-    return;
-  }
-
-  if (!isAuthRoute) {
-    await ensureProfileSynced({ force: !currentProfile });
-  }
+  await ensureProfileSynced({ force: !currentProfile });
 
   if (!isAuthRoute && nextRoute === "admin" && !isAdmin()) {
     showToast("Admin access only", "error");
@@ -487,57 +468,8 @@ async function fetchProfileWithRetries(
     console.warn("[RTN] fetchProfileWithRetries called without user id");
     return null;
   }
-
-  const deadline = Number.isFinite(timeoutMs) ? Date.now() + timeoutMs : Infinity;
-
-  for (let attempt = 1; attempt <= attempts; attempt++) {
-    const attemptLabel = `fetchProfileWithRetries attempt ${attempt}/${attempts} for ${userId}`;
-    const attemptStopwatch = startStopwatch(attemptLabel);
-
-    const { data, error } = await supabase
-      .from("profiles")
-      .select("id, username, credits, carter_cash, carter_cash_progress, first_name, last_name")
-      .eq("id", userId)
-      .maybeSingle();
-
-    console.log(`[RTN] ${attemptLabel}`, { data, error });
-
-    if (error) {
-      attemptStopwatch("(error)");
-      console.error("[RTN] fetchProfileWithRetries Supabase error", error);
-      return null; // bail on real query errors
-    }
-
-    if (data) {
-      attemptStopwatch("(profile found)");
-      return data; // success
-    }
-
-    attemptStopwatch("(no data)");
-
-    const remaining = deadline - Date.now();
-    if (remaining <= 0 || attempt === attempts) {
-      console.warn(
-        `[RTN] fetchProfileWithRetries exhausted or deadline reached for user ${userId} (timeoutMs=${timeoutMs})`
-      );
-      break; // give up
-    }
-  }
-
-    const nextAttempt = attempt + 1;
-    console.log(
-      "[RTN] retrying fetchProfileWithRetries for",
-      userId,
-      "attempt",
-      nextAttempt,
-      "of",
-      attempts
-    );
-    await delay(Math.min(delayMs, Math.max(0, remaining)));
-  }
-
-  console.warn(`[RTN] fetchProfileWithRetries exhausted attempts for user ${userId}`);
-  return null;
+  console.log(`[RTN] fetchProfileWithRetries returning guest profile for ${userId}`);
+  return { ...GUEST_PROFILE, id: userId };
 }
 
 function deriveProfileSeedFromUser(user) {
@@ -546,11 +478,72 @@ function deriveProfileSeedFromUser(user) {
   const firstName = (metadata.first_name ?? (fullName ? fullName.split(/\s+/)[0] : "")) || "";
   let lastName = metadata.last_name ?? "";
 
-    await delay(Math.min(delayMs, Math.max(0, remaining)));
+  if (!lastName && fullName) {
+    const parts = fullName.split(/\s+/).filter(Boolean);
+    if (parts.length > 1) {
+      lastName = parts.slice(1).join(" ");
+    }
   }
 
-  console.warn(`[RTN] fetchProfileWithRetries exhausted attempts for user ${userId}`);
-  return null;
+  const emailValue =
+    user && typeof user === "object" && typeof user.email === "string"
+      ? user.email
+      : "";
+  const emailPrefix = emailValue ? emailValue.split("@")[0] : null;
+
+  const usernameCandidates = [
+    metadata.username,
+    metadata.preferred_username,
+    typeof metadata.full_name === "string"
+      ? metadata.full_name.replace(/\s+/g, "").toLowerCase()
+      : null,
+    emailPrefix
+  ];
+
+  const fallbackUsername = `player-${(user?.id || "").slice(0, 8)}`;
+  const sanitizeUsername = (value) => {
+    if (!value) return "";
+    const normalized = String(value)
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9_-]+/g, "-")
+      .replace(/^-+|-+$/g, "");
+    return normalized.slice(0, 32);
+  };
+
+  let username = "";
+  for (const candidate of usernameCandidates) {
+    const sanitized = sanitizeUsername(candidate);
+    if (sanitized) {
+      username = sanitized;
+      break;
+    }
+  }
+  if (!username) {
+    username = sanitizeUsername(fallbackUsername) || `player-${Date.now().toString(36)}`;
+  }
+
+  const normalizeName = (value) => {
+    if (!value) return null;
+    const trimmed = String(value).trim();
+    return trimmed ? trimmed.slice(0, 120) : null;
+  };
+
+  return {
+    username,
+    first_name: normalizeName(firstName),
+    last_name: normalizeName(lastName)
+  };
+}
+
+async function provisionProfileForUser(user) {
+  if (!user?.id) {
+    console.warn("[RTN] provisionProfileForUser called without valid user");
+    return null;
+  }
+
+  console.log(`[RTN] provisionProfileForUser returning guest profile for ${user.id}`);
+  return { ...GUEST_PROFILE, id: user.id };
 }
 
 function deriveProfileSeedFromUser(user) {
@@ -675,7 +668,7 @@ async function provisionProfileForUser(user) {
 
 async function ensureProfileSynced({ force = false } = {}) {
   if (!currentUser) {
-    return null;
+    currentUser = { ...GUEST_USER };
   }
 
   const now = Date.now();
@@ -683,44 +676,14 @@ async function ensureProfileSynced({ force = false } = {}) {
     return currentProfile;
   }
 
-  if (profileSyncPromise && !force) {
-    return profileSyncPromise;
-  }
+  currentProfile = {
+    ...GUEST_PROFILE,
+    id: currentUser.id
+  };
 
-  const syncPromise = (async () => {
-    try {
-      const { data, error } = await supabase
-        .from("profiles")
-        .select(
-          "id, username, credits, carter_cash, carter_cash_progress, first_name, last_name"
-        )
-        .eq("id", currentUser.id)
-        .maybeSingle();
-
-      if (error) {
-        throw error;
-      }
-
-      if (data) {
-        console.info(
-          `[RTN] ensureProfileSynced fetched profile for ${currentUser.id}; updating header`
-        );
-        const applied = applyProfileCredits(data);
-        lastProfileSync = Date.now();
-        return applied;
-      }
-
-      return currentProfile;
-    } catch (error) {
-      console.error("Unable to sync profile", error);
-      return currentProfile;
-    } finally {
-      profileSyncPromise = null;
-    }
-  })();
-
-  profileSyncPromise = syncPromise;
-  return syncPromise;
+  const applied = applyProfileCredits(currentProfile);
+  lastProfileSync = Date.now();
+  return applied;
 }
 
 async function handleAuthFormSubmit(event) {
@@ -2030,25 +1993,18 @@ function forceAuth(reason, { message, tone = "warning", focus = true } = {}) {
 }
 
 function applySignedOutState(reason = "unknown", { focusInput = true } = {}) {
-  console.warn(`[RTN] applySignedOutState invoked (reason=${reason})`);
-  const clearFn = typeof window !== "undefined" ? window.clearTimeout : clearTimeout;
-  lastSyncedBankroll = null;
-  bankrollInitialized = false;
-  currentUser = null;
-  currentProfile = null;
-  authState.lastUserId = null;
-  authState.profileLoadFailed = false;
-  authState.profileRetryInProgress = false;
-  authState.failedRoute = null;
-  setProfileRetryLoading(false);
-  hideProfileRetryPrompt();
-  dashboardLoaded = false;
-  prizesLoaded = false;
-  adminPrizesLoaded = false;
-  adminEditingPrizeId = null;
-  adminPrizeCache = [];
-  profileSyncPromise = null;
-  lastProfileSync = 0;
+    console.warn(`[RTN] applySignedOutState invoked (reason=${reason})`);
+    const clearFn = typeof window !== "undefined" ? window.clearTimeout : clearTimeout;
+    lastSyncedBankroll = null;
+    bankrollInitialized = false;
+    currentUser = { ...GUEST_USER };
+    currentProfile = { ...GUEST_PROFILE };
+    dashboardLoaded = false;
+    prizesLoaded = false;
+    adminPrizesLoaded = false;
+    adminEditingPrizeId = null;
+    adminPrizeCache = [];
+    lastProfileSync = Date.now();
 
   if (dashboardProfileRetryTimer) {
     clearFn(dashboardProfileRetryTimer);
@@ -2477,30 +2433,53 @@ let stats = {
   paid: 0
 };
 let lastBetLayout = [];
-let currentOpeningLayout = [];
-let bankrollAnimating = false;
-let bankrollAnimationFrame = null;
-let bankrollDeltaTimeout = null;
-let bankrollHistory = [];
-let carterCash = 0;
-let carterCashProgress = 0;
-let carterCashAnimating = false;
-let carterCashDeltaTimeout = null;
-let lastSyncedCarterCash = 0;
-let lastSyncedCarterProgress = 0;
-let advancedMode = false;
-let handPaused = false;
-let pauseResolvers = [];
-let currentHandContext = null;
-let activePaytable = PAYTABLES[0];
-let pendingPaytableId = activePaytable.id;
-let openDrawerPanel = null;
-let openDrawerToggle = null;
-let currentTheme = "blue";
-let currentUser = null;
-let currentRoute = "home";
-let dashboardLoaded = false;
-let prizesLoaded = false;
+  let currentOpeningLayout = [];
+  let bankrollAnimating = false;
+  let bankrollAnimationFrame = null;
+  let bankrollDeltaTimeout = null;
+  let bankrollHistory = [];
+  let carterCash = 0;
+  let carterCashProgress = 0;
+  let carterCashAnimating = false;
+  let carterCashDeltaTimeout = null;
+  let lastSyncedCarterCash = 0;
+  let lastSyncedCarterProgress = 0;
+  let advancedMode = false;
+  let handPaused = false;
+  let pauseResolvers = [];
+  let currentHandContext = null;
+  let activePaytable = PAYTABLES[0];
+  let pendingPaytableId = activePaytable.id;
+  let openDrawerPanel = null;
+  let openDrawerToggle = null;
+  let currentTheme = "blue";
+  const GUEST_USER = {
+    id: "guest-user",
+    email: "guest@example.com",
+    user_metadata: {
+      full_name: "Guest Player",
+      first_name: "Guest",
+      last_name: "Player"
+    }
+  };
+
+  const GUEST_PROFILE = {
+    id: GUEST_USER.id,
+    username: "Guest",
+    credits: INITIAL_BANKROLL,
+    carter_cash: 0,
+    carter_cash_progress: 0,
+    first_name: "Guest",
+    last_name: "Player"
+  };
+  let currentUser = null;
+  let currentRoute = "home";
+  const authState = {
+    lastUserId: null,
+    manualSignOutRequested: false
+  };
+  let dashboardLoaded = false;
+  let prizesLoaded = false;
 let adminPrizesLoaded = false;
 let adminEditingPrizeId = null;
 let adminPrizeCache = [];
@@ -2519,8 +2498,7 @@ const PROFILE_SYNC_INTERVAL = 15000;
 
 let bankrollInitialized = false;
 let lastSyncedBankroll = null;
-let profileSyncPromise = null;
-let lastProfileSync = 0;
+  let lastProfileSync = 0;
 
 let playAreaUpdateFrame = null;
 
@@ -4414,47 +4392,7 @@ document.addEventListener("keydown", (event) => {
   }
 });
 
-updateAdminVisibility(currentUser);
-
-const AUTH_SUCCESS_EVENTS = new Set(["SIGNED_IN", "TOKEN_REFRESHED", "USER_UPDATED"]);
-
-supabase.auth.onAuthStateChange(async (event, session) => {
-  const sessionUser = session?.user ?? null;
-
-  if (AUTH_SUCCESS_EVENTS.has(event)) {
-    if (!sessionUser) {
-      forceAuth("missing-session-user", {
-        message: "Authentication issue detected. Please sign in again.",
-        tone: "warning"
-      });
-      return;
-    }
-
-    const routeFromHash = getRouteFromHash();
-    const targetRoute = AUTH_ROUTES.has(routeFromHash) ? "home" : routeFromHash;
-    const applied = await handleSignedIn(
-      sessionUser,
-      targetRoute,
-      event === "SIGNED_IN" ? "auth:SIGNED_IN" : `auth:${event}`
-    );
-    if (!applied) {
-      forceAuth("profile-load-failed", {
-        message: "Unable to load your profile. Please sign in again.",
-        tone: "error"
-      });
-    }
-    return;
-  }
-
-  if (event === "SIGNED_OUT" || event === "USER_DELETED") {
-    const manual = authState.manualSignOutRequested;
-    const reason = event === "USER_DELETED" ? "user-deleted" : "signed-out";
-    const tone = manual ? "info" : "warning";
-    const message = manual ? "Signed out" : "Session expired. Please sign in again.";
-    forceAuth(reason, { message, tone });
-    return;
-  }
-});
+  updateAdminVisibility(currentUser);
 
 initTheme();
 setActivePaytable(activePaytable.id, { announce: false });
@@ -4465,229 +4403,23 @@ updateBankroll();
 updateCarterCashDisplay();
 resetTable();
 updateStatsUI();
-resetBankrollHistory();
-window.addEventListener("resize", schedulePlayAreaHeightUpdate);
-window.addEventListener("resize", drawBankrollChart);
+  resetBankrollHistory();
+  window.addEventListener("resize", schedulePlayAreaHeightUpdate);
+  window.addEventListener("resize", drawBankrollChart);
 
-const authState = {
-  lastUserId: null,
-  manualSignOutRequested: false
-};
+async function initializeApp() {
+  stripSupabaseRedirectHash();
 
-async function handleSignedIn(user, initialRoute, source = "unknown") {
-  if (!user) {
-    console.warn(`[RTN] handleSignedIn called without user (source=${source})`);
-    return false;
-  }
-
-  const isOnAuthScreen =
-    (typeof window !== "undefined" && (window.location.hash || "").startsWith("#/auth")) ||
-    (typeof document !== "undefined" && document.body?.dataset?.appState === "auth");
-
-  if (authState.lastUserId === user.id && source !== "auth:USER_UPDATED" && !isOnAuthScreen) {
-    console.info(
-      `[RTN] handleSignedIn skipped duplicate for user ${user.id} (source=${source})`
-    );
-    return true;
-  }
-
-  authState.lastUserId = user.id;
-  currentUser = user;
-  authState.manualSignOutRequested = false;
-  updateAdminVisibility(currentUser);
-
-  if (authEmailInput && currentUser.email) {
-    authEmailInput.value = currentUser.email;
-  }
-
-  const profileStopwatch = startStopwatch(
-    `handleSignedIn profile fetch for ${currentUser.id}`
-  );
-  let profile = await fetchProfileWithRetries(currentUser.id, {
-    attempts: PROFILE_ATTEMPT_MAX,
-    delayMs: PROFILE_RETRY_DELAY_MS,
-    timeoutMs: PROFILE_FETCH_TIMEOUT_MS
-  });
-  profileStopwatch(profile ? "(profile loaded)" : "(no profile)");
-
-  if (!profile) {
-    const provisionStopwatch = startStopwatch(
-      `handleSignedIn profile provision for ${currentUser.id}`
-    );
-    profile = await provisionProfileForUser(currentUser);
-    provisionStopwatch(profile ? "(created)" : "(failed)");
-  }
-
-  if (!profile) {
-    console.error(
-      `[RTN] handleSignedIn unable to load profile for user ${currentUser.id}; aborting route application`
-    );
-    if (source === "bootstrap") {
-      forceAuth("profile-load-failed", {
-        message: "Unable to load your profile. Please sign in again.",
-        tone: "error"
-      });
-      try {
-        await supabase.auth.signOut();
-      } catch (signOutError) {
-        console.error("[RTN] handleSignedIn signOut after profile failure errored", signOutError);
-      }
-    }
-    showToast("Unable to load your profile. Please try again.", "error");
-    await routePromise;
-    return false;
-  }
-
-  applyProfileCredits(profile, { resetHistory: !bankrollInitialized });
-
-  const resolvedRoute = !initialRoute || AUTH_ROUTES.has(initialRoute)
-    ? "home"
-    : initialRoute;
-
-  console.info(
-    `[RTN] handleSignedIn routing to "${resolvedRoute}" for user ${currentUser.id} (source=${source})`
-  );
+  currentUser = { ...GUEST_USER };
+  await ensureProfileSynced({ force: true });
 
   if (appShell) {
     appShell.removeAttribute("data-hidden");
   }
 
-  await setRoute(resolvedRoute, { replaceHash: true });
-
-  if (typeof document !== "undefined" && document.body) {
-    document.body.dataset.appState = "ready";
-  }
-
-  return true;
-}
-
-async function bootstrapAuth(initialRoute) {
-  try {
-    const getSessionStopwatch = startStopwatch("bootstrapAuth getSession");
-    const { data, error } = await supabase.auth.getSession();
-    getSessionStopwatch(error ? "(error)" : "(resolved)");
-    if (error) {
-      console.error("[RTN] bootstrapAuth getSession error", error);
-      return false;
-    }
-
-    const session = data?.session ?? null;
-    if (!session?.user) {
-      return false;
-    }
-
-    const handleSignedInStopwatch = startStopwatch("bootstrapAuth handleSignedIn");
-    const signedInPromise = handleSignedIn(session.user, initialRoute, "bootstrap");
-    signedInPromise
-      .then((applied) => {
-        handleSignedInStopwatch(`(resolved=${applied})`);
-        if (!applied) {
-          console.warn("[RTN] bootstrapAuth handleSignedIn returned false");
-        }
-      })
-      .catch((signedInError) => {
-        handleSignedInStopwatch("(error)");
-        console.error("[RTN] bootstrapAuth handleSignedIn error", signedInError);
-      });
-    return true;
-  } catch (error) {
-    console.error("[RTN] bootstrapAuth unexpected error", error);
-    return false;
-  }
-}
-
-async function initializeApp() {
-  stripSupabaseRedirectHash();
-
   const initialRoute = getRouteFromHash();
-  let sessionApplied = false;
-  let timedOut = false;
-  let authFallbackTimer = null;
-
-  const scheduleFallbackAuthScreen = () => {
-    const timerFn = typeof window !== "undefined" ? window.setTimeout : setTimeout;
-    if (authFallbackTimer !== null || typeof timerFn !== "function") {
-      return;
-    }
-    authFallbackTimer = timerFn(() => {
-      if (sessionApplied) {
-        return;
-      }
-      console.warn(
-        `[RTN] bootstrapAuth still pending after ${AUTH_FALLBACK_DELAY_MS}ms; showing auth screen`
-      );
-      try {
-        displayAuthScreen({ focus: false, replaceHash: true });
-      } catch (error) {
-        console.error("[RTN] initializeApp fallback displayAuthScreen error", error);
-      }
-    }, AUTH_FALLBACK_DELAY_MS);
-  };
-
-  const clearFallbackAuthScreen = () => {
-    const clearFn = typeof window !== "undefined" ? window.clearTimeout : clearTimeout;
-    if (authFallbackTimer === null) {
-      return;
-    }
-    clearFn(authFallbackTimer);
-    authFallbackTimer = null;
-  };
-
-  scheduleFallbackAuthScreen();
-
-  const bootstrapStopwatch = startStopwatch("initializeApp bootstrap race");
-
-  const bootstrapPromise = bootstrapAuth(initialRoute)
-    .then((applied) => {
-      sessionApplied = Boolean(applied);
-      bootstrapStopwatch(`(resolved=${sessionApplied})`);
-      if (sessionApplied) {
-        clearFallbackAuthScreen();
-      }
-      return sessionApplied;
-    })
-    .catch((error) => {
-      bootstrapStopwatch("(rejected)");
-      console.error("[RTN] initializeApp bootstrap error", error);
-      return false;
-    });
-
-  const result = await Promise.race([
-    bootstrapPromise,
-    (async () => {
-      await delay(BOOTSTRAP_TIMEOUT_MS);
-      timedOut = true;
-      clearFallbackAuthScreen();
-      return "timeout";
-    })()
-  ]);
-
-  if (result !== true) {
-    clearFallbackAuthScreen();
-  }
-
-  if (result === "timeout") {
-    console.warn(
-      `[RTN] bootstrapAuth did not resolve within ${BOOTSTRAP_TIMEOUT_MS}ms; forcing auth screen`
-    );
-    bootstrapStopwatch("(timeout)");
-  }
-
-  if (result !== true && !sessionApplied) {
-    try {
-      displayAuthScreen({ focus: false, replaceHash: true });
-    } catch (error) {
-      console.error("[RTN] initializeApp displayAuthScreen error", error);
-    }
-  }
-
+  await setRoute(initialRoute, { replaceHash: true });
   markAppReady();
-
-  if (timedOut) {
-    bootstrapPromise.catch((error) => {
-      console.error("[RTN] bootstrapAuth rejected after timeout", error);
-    });
-  }
 }
 
 initializeApp();
