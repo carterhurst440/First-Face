@@ -4418,8 +4418,27 @@ async function initializeApp() {
   }
 
   const initialRoute = getRouteFromHash();
-  await setRoute(initialRoute, { replaceHash: true });
-  markAppReady();
+  console.info(`[RTN] initializeApp initial route resolved to "${initialRoute}"`);
+
+  let sessionApplied = false;
+
+  try {
+    sessionApplied = await bootstrapAuth(initialRoute);
+    console.info(`[RTN] initializeApp bootstrapAuth sessionApplied=${sessionApplied}`);
+
+    if (!sessionApplied) {
+      console.info("[RTN] initializeApp showing auth view (no session available; Supabase auth enabled)");
+      showAuthView("login");
+      updateHash("auth", { replace: true });
+    }
+  } catch (error) {
+    console.error("[RTN] Error initializing app:", error);
+    console.info("[RTN] initializeApp showing auth view due to initialization error");
+    showAuthView("login");
+    updateHash("auth", { replace: true });
+  } finally {
+    markAppReady();
+  }
 }
 
 initializeApp();
