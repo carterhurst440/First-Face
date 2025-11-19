@@ -493,11 +493,10 @@ async function fetchProfileWithRetries(
   for (let attempt = 1; attempt <= attempts; attempt++) {
     const attemptLabel = `fetchProfileWithRetries attempt ${attempt}/${attempts} for ${userId}`;
     const attemptStopwatch = startStopwatch(attemptLabel);
+
     const { data, error } = await supabase
       .from("profiles")
-      .select(
-        "id, username, credits, carter_cash, carter_cash_progress, first_name, last_name"
-      )
+      .select("id, username, credits, carter_cash, carter_cash_progress, first_name, last_name")
       .eq("id", userId)
       .maybeSingle();
 
@@ -505,34 +504,23 @@ async function fetchProfileWithRetries(
 
     if (error) {
       attemptStopwatch("(error)");
-    } else if (data) {
-      attemptStopwatch("(profile found)");
-    } else {
-      attemptStopwatch("(no data)");
-    }
-
-    if (error) {
       console.error("[RTN] fetchProfileWithRetries Supabase error", error);
-      return null;
+      return null; // bail on real query errors
     }
 
     if (data) {
-      return data;
+      attemptStopwatch("(profile found)");
+      return data; // success
     }
+
+    attemptStopwatch("(no data)");
 
     const remaining = deadline - Date.now();
     if (remaining <= 0 || attempt === attempts) {
-      if (remaining <= 0) {
-        console.warn(
-          `[RTN] fetchProfileWithRetries deadline reached for user ${userId} (timeoutMs=${timeoutMs})`
-        );
-        return await fetchProfileWithRetries(userid, {
-          attempts: PROFILE_ATTEMPT_MAX,
-          delayMs: PROFILE_RETRY_DELAY_MS,
-          timeoutMs: PROFILE_FETCH_TIMEOUT_MS
-        });
-      }
-      break;
+      console.warn(
+        `[RTN] fetchProfileWithRetries exhausted or deadline reached for user ${userId} (timeoutMs=${timeoutMs})`
+      );
+      break; // give up
     }
   }
 
@@ -545,6 +533,19 @@ async function fetchProfileWithRetries(
       "of",
       attempts
     );
+    await delay(Math.min(delayMs, Math.max(0, remaining)));
+  }
+
+  console.warn(`[RTN] fetchProfileWithRetries exhausted attempts for user ${userId}`);
+  return null;
+}
+
+function deriveProfileSeedFromUser(user) {
+  const metadata = (user && typeof user === "object" ? user.user_metadata : null) || {};
+  const fullName = typeof metadata.full_name === "string" ? metadata.full_name.trim() : "";
+  const firstName = (metadata.first_name ?? (fullName ? fullName.split(/\s+/)[0] : "")) || "";
+  let lastName = metadata.last_name ?? "";
+
     await delay(Math.min(delayMs, Math.max(0, remaining)));
   }
 
