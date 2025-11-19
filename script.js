@@ -110,6 +110,7 @@ const PROFILE_RETRY_DELAY_MS = 1200;
 const PROFILE_ATTEMPT_MAX = 5;
 const PROFILE_FETCH_TIMEOUT_MS = 10000;
 const BOOTSTRAP_TIMEOUT_MS = 12000;
+const AUTH_FALLBACK_DELAY_MS = 2000;
 const SUITS = [
   { symbol: "♠", color: "black", name: "Spades" },
   { symbol: "♥", color: "red", name: "Hearts" },
@@ -4599,6 +4600,38 @@ async function initializeApp() {
   const initialRoute = getRouteFromHash();
   let sessionApplied = false;
   let timedOut = false;
+  let authFallbackTimer = null;
+
+  const scheduleFallbackAuthScreen = () => {
+    const timerFn = typeof window !== "undefined" ? window.setTimeout : setTimeout;
+    if (authFallbackTimer !== null || typeof timerFn !== "function") {
+      return;
+    }
+    authFallbackTimer = timerFn(() => {
+      if (sessionApplied) {
+        return;
+      }
+      console.warn(
+        `[RTN] bootstrapAuth still pending after ${AUTH_FALLBACK_DELAY_MS}ms; showing auth screen`
+      );
+      try {
+        displayAuthScreen({ focus: false, replaceHash: true });
+      } catch (error) {
+        console.error("[RTN] initializeApp fallback displayAuthScreen error", error);
+      }
+    }, AUTH_FALLBACK_DELAY_MS);
+  };
+
+  const clearFallbackAuthScreen = () => {
+    const clearFn = typeof window !== "undefined" ? window.clearTimeout : clearTimeout;
+    if (authFallbackTimer === null) {
+      return;
+    }
+    clearFn(authFallbackTimer);
+    authFallbackTimer = null;
+  };
+
+  scheduleFallbackAuthScreen();
 
   const bootstrapStopwatch = startStopwatch("initializeApp bootstrap race");
 
@@ -4606,6 +4639,9 @@ async function initializeApp() {
     .then((applied) => {
       sessionApplied = Boolean(applied);
       bootstrapStopwatch(`(resolved=${sessionApplied})`);
+      if (sessionApplied) {
+        clearFallbackAuthScreen();
+      }
       return sessionApplied;
     })
     .catch((error) => {
@@ -4619,9 +4655,14 @@ async function initializeApp() {
     (async () => {
       await delay(BOOTSTRAP_TIMEOUT_MS);
       timedOut = true;
+      clearFallbackAuthScreen();
       return "timeout";
     })()
   ]);
+
+  if (result !== true) {
+    clearFallbackAuthScreen();
+  }
 
   if (result === "timeout") {
     console.warn(
