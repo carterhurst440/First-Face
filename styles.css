@@ -26,6 +26,7 @@
   --icon-button-border-hover: rgba(114, 254, 255, 0.96);
   --icon-button-shadow-hover: 0 12px 26px rgba(63, 240, 255, 0.32);
   --icon-graph-gradient: linear-gradient(135deg, #3ff0ff, #8c6dff);
+  --icon-leaderboard-gradient: linear-gradient(135deg, #7dff8a, #3ff0ff);
   --reset-border-color: rgba(63, 240, 255, 0.64);
   --reset-bg: linear-gradient(135deg, rgba(63, 240, 255, 0.2), rgba(8, 36, 102, 0.56));
   --reset-border-hover: rgba(114, 254, 255, 0.94);
@@ -189,6 +190,7 @@ body.theme-pink {
   --icon-button-border-hover: rgba(255, 190, 244, 0.94);
   --icon-button-shadow-hover: 0 12px 26px rgba(255, 121, 222, 0.32);
   --icon-graph-gradient: linear-gradient(135deg, #ff76df, #b78bff);
+  --icon-leaderboard-gradient: linear-gradient(135deg, #ffd6ff, #ff76df);
   --reset-border-color: rgba(255, 121, 222, 0.64);
   --reset-bg: linear-gradient(135deg, rgba(255, 121, 222, 0.24), rgba(82, 16, 86, 0.54));
   --reset-border-hover: rgba(255, 190, 244, 0.94);
@@ -316,6 +318,7 @@ body.theme-orange {
   --icon-button-border-hover: rgba(255, 214, 140, 0.94);
   --icon-button-shadow-hover: 0 12px 26px rgba(255, 173, 94, 0.32);
   --icon-graph-gradient: linear-gradient(135deg, #ffb45c, #ff8235);
+  --icon-leaderboard-gradient: linear-gradient(135deg, #ffe187, #ff9f4a);
   --reset-border-color: rgba(255, 173, 94, 0.66);
   --reset-bg: linear-gradient(135deg, rgba(255, 173, 94, 0.24), rgba(92, 30, 0, 0.56));
   --reset-border-hover: rgba(255, 214, 140, 0.94);
@@ -1171,6 +1174,28 @@ body[data-app-state="loading"] #app-shell {
     82% 46%,
     96% 46%,
     96% 42%
+  );
+}
+
+.icon.icon-leaderboard::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 3px;
+  background: var(--icon-leaderboard-gradient);
+  clip-path: polygon(
+    8% 100%,
+    8% 62%,
+    28% 62%,
+    28% 100%,
+    44% 100%,
+    44% 30%,
+    56% 30%,
+    56% 100%,
+    72% 100%,
+    72% 76%,
+    92% 76%,
+    92% 100%
   );
 }
 
@@ -2627,6 +2652,59 @@ button:disabled {
   max-width: none;
 }
 
+.leaderboard-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+}
+
+.leaderboard-item {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.65rem 0.85rem;
+  border-radius: 14px;
+  background: linear-gradient(135deg, rgba(6, 22, 48, 0.86), rgba(8, 18, 34, 0.9));
+  border: 1px solid rgba(63, 240, 255, 0.32);
+  box-shadow: inset 0 0 24px rgba(63, 240, 255, 0.18);
+}
+
+.leaderboard-item.is-self {
+  border-color: rgba(125, 255, 138, 0.6);
+  box-shadow:
+    inset 0 0 26px rgba(125, 255, 138, 0.28),
+    0 0 22px rgba(125, 255, 138, 0.18);
+}
+
+.leaderboard-item.is-self .leaderboard-name {
+  color: var(--carter-green);
+}
+
+.leaderboard-rank {
+  width: 2.1ch;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--neon-cyan);
+  text-shadow: 0 0 8px rgba(63, 240, 255, 0.45);
+}
+
+.leaderboard-name {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text-light);
+}
+
+.leaderboard-balance {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--carter-green);
+  text-shadow: 0 0 10px var(--carter-green-glow);
+}
+
 .card {
   width: var(--card-width);
   height: var(--card-height);
@@ -2933,6 +3011,10 @@ button:disabled {
 
 .chart-panel {
   width: min(460px, 92vw);
+}
+
+.leaderboard-panel {
+  width: min(420px, 90vw);
 }
 
 .drawer-header {

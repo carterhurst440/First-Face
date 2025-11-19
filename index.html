@@ -154,6 +154,16 @@
             </button>
             <button
               type="button"
+              id="leaderboard-toggle"
+              class="icon-button"
+              aria-label="Open leaderboard"
+              aria-expanded="false"
+              aria-controls="leaderboard-panel"
+            >
+              <span aria-hidden="true" class="icon icon-leaderboard"></span>
+            </button>
+            <button
+              type="button"
               id="graph-toggle"
               class="icon-button"
               aria-label="Open bankroll history and analytics"
@@ -197,6 +207,9 @@
             <button type="button" data-route-target="home" class="drawer-link">Home</button>
             <button type="button" data-route-target="play" class="drawer-link">Play</button>
             <button type="button" data-route-target="store" class="drawer-link">Store</button>
+            <button type="button" data-route-target="admin" class="drawer-link" id="admin-nav" hidden>
+              Admin
+            </button>
             <button type="button" data-action="sign-out" class="drawer-link">Sign out</button>
           </div>
         </section>
@@ -287,6 +300,25 @@
               <span id="house-edge" class="value">0%</span>
             </div>
           </div>
+        </section>
+      </aside>
+
+      <aside
+        class="drawer leaderboard-panel"
+        id="leaderboard-panel"
+        aria-hidden="true"
+        aria-labelledby="leaderboard-title"
+      >
+        <div class="drawer-header">
+          <h2 id="leaderboard-title">Leaderboard</h2>
+          <button type="button" class="drawer-close" id="leaderboard-close">
+            <span class="sr-only">Close leaderboard</span>
+            <span aria-hidden="true">×</span>
+          </button>
+        </div>
+        <section class="drawer-section" aria-label="Top bankrolls">
+          <p class="drawer-subhead">Sorted by units balance in descending order.</p>
+          <ol id="leaderboard-list" class="leaderboard-list"></ol>
         </section>
       </aside>
 
@@ -983,9 +1015,98 @@
           </div>
         </section>
 
+        <section id="admin-view" class="route-view app-page admin-view" hidden aria-labelledby="admin-title">
+          <div class="route-shell">
+            <header class="route-header">
+              <div>
+                <h1 id="admin-title">Admin</h1>
+                <p class="route-subheading">Create and manage prize listings.</p>
+              </div>
+              <div class="route-actions">
+                <button type="button" data-route-target="home" class="link-button">Back to home</button>
+              </div>
+            </header>
+            <section class="route-section admin-list-section">
+              <div class="admin-listing-header">
+                <h2>Active prize listings</h2>
+                <button type="button" class="primary" id="admin-add-button">Add new listing</button>
+              </div>
+              <ul id="admin-prize-list" class="admin-prize-list" aria-live="polite"></ul>
+            </section>
+          </div>
+        </section>
       </main>
     </div>
     </section>
+
+    <div
+      class="modal"
+      id="admin-prize-modal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="admin-modal-title"
+      hidden
+    >
+      <div class="modal-content admin-modal">
+        <div class="modal-header">
+          <h2 id="admin-modal-title">Create listing</h2>
+          <button
+            type="button"
+            class="modal-close"
+            id="admin-modal-close"
+            aria-label="Close admin form"
+          >
+            ×
+          </button>
+        </div>
+        <form id="admin-prize-form" class="admin-form">
+          <label class="admin-field">
+            <span>Name</span>
+            <input type="text" name="name" required />
+          </label>
+          <label class="admin-field">
+            <span>Description</span>
+            <textarea name="description" rows="3" placeholder="Optional"></textarea>
+          </label>
+          <label class="admin-field">
+            <span>Upload image</span>
+            <input type="file" id="prize-image-file" name="imageFile" accept="image/*" />
+            <span class="admin-hint">Upload to fill the image URL automatically.</span>
+          </label>
+          <label class="admin-field">
+            <span>Image URL</span>
+            <input
+              type="url"
+              id="prize-image-url"
+              name="imageUrl"
+              placeholder="https://example.com/prize.jpg"
+            />
+          </label>
+          <div class="admin-row">
+            <label class="admin-field">
+              <span>Cost currency</span>
+              <select name="currency" required>
+                <option value="units">Units</option>
+                <option value="carter_cash">Carter Cash</option>
+              </select>
+            </label>
+            <label class="admin-field">
+              <span>Cost</span>
+              <input type="number" name="cost" min="0" step="1" required />
+            </label>
+            <label class="admin-checkbox">
+              <input type="checkbox" name="active" checked />
+              <span>Active</span>
+            </label>
+          </div>
+          <div class="modal-actions admin-form-actions">
+            <button type="button" class="secondary" id="admin-modal-cancel">Cancel</button>
+            <button type="submit" class="primary" id="admin-save-button">Create listing</button>
+          </div>
+          <p id="admin-prize-message" class="admin-message" role="status" aria-live="polite"></p>
+        </form>
+      </div>
+    </div>
 
     <div
       class="modal"
