@@ -109,6 +109,8 @@ const PROFILE_FETCH_ROUNDS = 2;
 const PROFILE_RETRY_DELAY_MS = 1200;
 const PROFILE_ATTEMPT_MAX = 5;
 const PROFILE_FETCH_TIMEOUT_MS = 10000;
+const BOOTSTRAP_TIMEOUT_MS = 12000;
+const AUTH_FALLBACK_DELAY_MS = 2000;
 const SUITS = [
   { symbol: "♠", color: "black", name: "Spades" },
   { symbol: "♥", color: "red", name: "Hearts" },
@@ -143,6 +145,47 @@ function showToast(message, tone = "info") {
       toast.remove();
     }, 300);
   }, 3200);
+}
+
+function showProfileRetryPrompt(message) {
+  if (!profileRetryBanner) {
+    return;
+  }
+
+  if (message && profileRetryMessage) {
+    profileRetryMessage.textContent = message;
+  }
+
+  profileRetryBanner.hidden = false;
+  profileRetryBanner.setAttribute("data-visible", "true");
+}
+
+function hideProfileRetryPrompt() {
+  if (!profileRetryBanner) {
+    return;
+  }
+
+  profileRetryBanner.hidden = true;
+  profileRetryBanner.removeAttribute("data-visible");
+
+  if (profileRetryButton) {
+    profileRetryButton.disabled = false;
+    profileRetryButton.textContent = profileRetryButtonDefaultLabel;
+  }
+}
+
+function setProfileRetryLoading(isLoading) {
+  if (!profileRetryButton) {
+    return;
+  }
+
+  if (isLoading) {
+    profileRetryButton.disabled = true;
+    profileRetryButton.textContent = "Retrying…";
+  } else {
+    profileRetryButton.disabled = false;
+    profileRetryButton.textContent = profileRetryButtonDefaultLabel;
+  }
 }
 
 function createPrizeImagePath(originalName = "image") {
@@ -501,6 +544,126 @@ async function provisionProfileForUser(user) {
 
   console.log(`[RTN] provisionProfileForUser returning guest profile for ${user.id}`);
   return { ...GUEST_PROFILE, id: user.id };
+}
+
+function deriveProfileSeedFromUser(user) {
+  const metadata = (user && typeof user === "object" ? user.user_metadata : null) || {};
+  const fullName = typeof metadata.full_name === "string" ? metadata.full_name.trim() : "";
+  const firstName = (metadata.first_name ?? (fullName ? fullName.split(/\s+/)[0] : "")) || "";
+  let lastName = metadata.last_name ?? "";
+
+  if (!lastName && fullName) {
+    const parts = fullName.split(/\s+/).filter(Boolean);
+    if (parts.length > 1) {
+      lastName = parts.slice(1).join(" ");
+    }
+  }
+
+  const emailValue =
+    user && typeof user === "object" && typeof user.email === "string"
+      ? user.email
+      : "";
+  const emailPrefix = emailValue ? emailValue.split("@")[0] : null;
+
+  const usernameCandidates = [
+    metadata.username,
+    metadata.preferred_username,
+    typeof metadata.full_name === "string"
+      ? metadata.full_name.replace(/\s+/g, "").toLowerCase()
+      : null,
+    emailPrefix
+  ];
+
+  const fallbackUsername = `player-${(user?.id || "").slice(0, 8)}`;
+  const sanitizeUsername = (value) => {
+    if (!value) return "";
+    const normalized = String(value)
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9_-]+/g, "-")
+      .replace(/^-+|-+$/g, "");
+    return normalized.slice(0, 32);
+  };
+
+  let username = "";
+  for (const candidate of usernameCandidates) {
+    const sanitized = sanitizeUsername(candidate);
+    if (sanitized) {
+      username = sanitized;
+      break;
+    }
+  }
+  if (!username) {
+    username = sanitizeUsername(fallbackUsername) || `player-${Date.now().toString(36)}`;
+  }
+
+  const normalizeName = (value) => {
+    if (!value) return null;
+    const trimmed = String(value).trim();
+    return trimmed ? trimmed.slice(0, 120) : null;
+  };
+
+  return {
+    username,
+    first_name: normalizeName(firstName),
+    last_name: normalizeName(lastName)
+  };
+}
+
+async function provisionProfileForUser(user) {
+  if (!user?.id) {
+    console.warn("[RTN] provisionProfileForUser called without valid user");
+    return null;
+  }
+
+  const seed = deriveProfileSeedFromUser(user);
+  const profileInsert = {
+    id: user.id,
+    credits: INITIAL_BANKROLL,
+    carter_cash: 0,
+    carter_cash_progress: 0,
+    username: seed.username,
+    first_name: seed.first_name,
+    last_name: seed.last_name
+  };
+
+  const provisionStopwatch = startStopwatch(
+    `provisionProfileForUser insert for ${user.id}`
+  );
+
+  try {
+    const { data, error } = await supabase
+      .from("profiles")
+      .insert([profileInsert])
+      .select(
+        "id, username, credits, carter_cash, carter_cash_progress, first_name, last_name"
+      )
+      .maybeSingle();
+
+    if (error) {
+      if (error.code === "23505") {
+        provisionStopwatch("(duplicate)");
+        console.warn(
+          `[RTN] provisionProfileForUser detected existing profile for ${user.id}; refetching`
+        );
+        return await fetchProfileWithRetries(user.id, {
+          attempts: PROFILE_ATTEMPT_MAX,
+          delayMs: PROFILE_RETRY_DELAY_MS,
+          timeoutMs: PROFILE_FETCH_TIMEOUT_MS
+        });
+      }
+      provisionStopwatch("(error)");
+      console.error("[RTN] provisionProfileForUser insert error", error);
+      return null;
+    }
+
+    provisionStopwatch("(inserted)");
+    return data ?? null;
+  } catch (error) {
+    provisionStopwatch("(exception)");
+    console.error("[RTN] provisionProfileForUser exception", error);
+    return null;
+  }
 }
 
 async function ensureProfileSynced({ force = false } = {}) {
@@ -2177,6 +2340,12 @@ const resetCancelButton = document.getElementById("reset-cancel");
 const resetCloseButton = document.getElementById("reset-close");
 const activePaytableNameEl = document.getElementById("active-paytable-name");
 const activePaytableStepsEl = document.getElementById("active-paytable-steps");
+const profileRetryBanner = document.getElementById("profile-retry-banner");
+const profileRetryMessage = document.getElementById("profile-retry-message");
+const profileRetryButton = document.getElementById("profile-retry-button");
+const profileRetryButtonDefaultLabel = profileRetryButton
+  ? profileRetryButton.textContent.trim()
+  : "Retry loading profile";
 const toastContainer = document.getElementById("toast-container");
 const authView = document.getElementById("auth-view");
 const authForm = document.getElementById("auth-form");
@@ -3900,6 +4069,12 @@ if (resetAccountButton) {
   resetAccountButton.addEventListener("click", () => {
     if (dealing) return;
     openResetModal();
+  });
+}
+
+if (profileRetryButton) {
+  profileRetryButton.addEventListener("click", () => {
+    void retryProfileLoad("profile-retry:manual");
   });
 }
 
