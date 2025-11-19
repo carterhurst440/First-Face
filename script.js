@@ -2194,7 +2194,7 @@ async function logHandAndBets(stopperCard, context, betSnapshots, netThisHand) {
       const outcome = amountPaid > 0 ? "W" : "L";
 
       return {
-        user_id: user.id,
+        user_id: sessionUser.id,
         hand_id: hand.id,
         bet_key: bet.key,
         amount_wagered: amountWagered,
@@ -2213,6 +2213,7 @@ async function logHandAndBets(stopperCard, context, betSnapshots, netThisHand) {
   } catch (error) {
     console.error("Failed to log hand and bets", error);
   }
+  // end logHandAndBets
 }
 
 function applyTheme(theme) {
