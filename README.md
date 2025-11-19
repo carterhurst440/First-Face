@@ -29,17 +29,6 @@ Run the Numbers is a web-based simulator for the updated First Face ruleset. Sta
 
 The simulator always uses a freshly shuffled 53-card deck for each hand with only J/Q/K and the Joker stopping play, matching the latest rule changes.
 
-## Supabase connectivity
+## Offline mode (no auth or backend)
 
-The simulator talks directly to your Supabase project from the browser using the anon key and row-level security.
-
-* `supabaseClient.js` loads the browser-friendly `@supabase/supabase-js` build from the CDN and instantiates a client with the project URL and anon key that ship in the repo. Swap those values for your own project before deploying.
-* Authentication uses email + password with distinct flows. The Log In form calls `supabase.auth.signInWithPassword`, surfaces unconfirmed email and invalid credential errors, and redirects to the shell on success. The Create Account form posts to `supabase.auth.signUp`, stores the player’s name metadata, and instructs them to verify the Supabase email before returning to log in. Background profile polling continues until the trigger-created row arrives.
-* Routing is handled client-side with hash fragments. The dashboard and prize shop check `supabase.auth.getUser()` before loading. If the user is missing, the login view is shown.
-* The dashboard queries the current profile and the 10 most recent `game_runs` for the signed-in user. The prize shop lists every prize (active items first) with imagery and currency badges, verifies whether you have enough Units or Carter Cash, and then calls the `purchase_prize` RPC. Successful redeems deduct the correct currency, refresh your balances, open the shipping form, and trigger an Edge Function to email the administrator; errors such as “Not enough credits” surface as inline toasts.
-* Bankroll changes and Carter Cash progress persist to Supabase. Every wager adjustment schedules a sync to the `profiles` row so credits, lifetime playthrough progress, and Carter Cash remain intact across refreshes.
-* A realtime leaderboard subscription listens for `profiles` updates and refreshes the top balances drawer whenever any player’s credits change.
-* Every completed hand calls the exported `logGameRun(score, metadata?)` helper. It looks up the current user, inserts a row into `game_runs`, and bubbles an error toast if the player is not logged in.
-* Use the combined bankroll/analytics drawer or the new header navigation to move between the play table, dashboard, and prize shop. The sign-out option clears cached state and returns you to the login form.
-* Administrators—currently gated client-side by email (`carterwarrenhurst@gmail.com`) and protected in Supabase via row-level security—see an **Admin** entry in the hamburger menu. The `/#/admin` view lets you upload a prize image, auto-fills the public URL, and captures name, optional description, currency (Units or Carter Cash), cost, and active flag before inserting the row and refreshing the shop.
-* Image uploads rely on a Supabase Storage bucket named `prize-images`. Create that bucket (public read access) inside your project; when an admin chooses a file the app pushes it to Storage, grabs the public URL, and populates the form so the prize record stores a simple link.
+Supabase calls are now stubbed locally so the experience is always available as a guest. Authentication screens remain hidden, sign-in/out actions are disabled, and all profile, prize, and run data live only in memory for the current session. Reloading the page resets you to a fresh 1,000-unit bankroll and zeroes Carter Cash and history.

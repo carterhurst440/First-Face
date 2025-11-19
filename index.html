@@ -22,6 +22,18 @@
       </div>
       <p class="loading-text">Synchronizing retro systems…</p>
     </div>
+    <div id="profile-retry-banner" class="profile-retry-banner" role="alert" hidden>
+      <div class="profile-retry-content">
+        <p id="profile-retry-message">
+          We couldn't load your profile. Your session is still active.
+        </p>
+        <div class="profile-retry-actions">
+          <button type="button" id="profile-retry-button" class="profile-retry-button">
+            Retry loading profile
+          </button>
+        </div>
+      </div>
+    </div>
     <div id="toast-container" class="toast-container" role="status" aria-live="polite"></div>
     <div
       id="hand-toast-container"
@@ -151,16 +163,6 @@
               data-route-target="home"
             >
               <span aria-hidden="true" class="icon icon-home"></span>
-            </button>
-            <button
-              type="button"
-              id="leaderboard-toggle"
-              class="icon-button"
-              aria-label="Open leaderboard"
-              aria-expanded="false"
-              aria-controls="leaderboard-panel"
-            >
-              <span aria-hidden="true" class="icon icon-leaderboard"></span>
             </button>
             <button
               type="button"
@@ -300,25 +302,6 @@
               <span id="house-edge" class="value">0%</span>
             </div>
           </div>
-        </section>
-      </aside>
-
-      <aside
-        class="drawer leaderboard-panel"
-        id="leaderboard-panel"
-        aria-hidden="true"
-        aria-labelledby="leaderboard-title"
-      >
-        <div class="drawer-header">
-          <h2 id="leaderboard-title">Leaderboard</h2>
-          <button type="button" class="drawer-close" id="leaderboard-close">
-            <span class="sr-only">Close leaderboard</span>
-            <span aria-hidden="true">×</span>
-          </button>
-        </div>
-        <section class="drawer-section" aria-label="Top bankrolls">
-          <p class="drawer-subhead">Sorted by units balance in descending order.</p>
-          <ol id="leaderboard-list" class="leaderboard-list"></ol>
         </section>
       </aside>
 
