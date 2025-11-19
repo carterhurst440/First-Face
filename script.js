@@ -4520,6 +4520,10 @@ async function handleSignedIn(user, initialRoute, source = "unknown") {
       `[RTN] handleSignedIn unable to load profile for user ${currentUser.id}; aborting route application`
     );
     if (source === "bootstrap") {
+      forceAuth("profile-load-failed", {
+        message: "Unable to load your profile. Please sign in again.",
+        tone: "error"
+      });
       try {
         await supabase.auth.signOut();
       } catch (signOutError) {
