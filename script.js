@@ -468,84 +468,45 @@ async function fetchProfileWithRetries(
     console.warn("[RTN] fetchProfileWithRetries called without user id");
     return null;
   }
-  console.log(`[RTN] fetchProfileWithRetries returning guest profile for ${userId}`);
-  return { ...GUEST_PROFILE, id: userId };
-}
 
-function deriveProfileSeedFromUser(user) {
-  const metadata = (user && typeof user === "object" ? user.user_metadata : null) || {};
-  const fullName = typeof metadata.full_name === "string" ? metadata.full_name.trim() : "";
-  const firstName = (metadata.first_name ?? (fullName ? fullName.split(/\s+/)[0] : "")) || "";
-  let lastName = metadata.last_name ?? "";
+  let lastError = null;
+  for (let attempt = 1; attempt <= Math.max(1, attempts); attempt++) {
+    try {
+      const fetchPromise = supabase
+        .from("profiles")
+        .select("id, username, credits, carter_cash, carter_cash_progress, first_name, last_name")
+        .eq("id", userId)
+        .maybeSingle();
 
-  if (!lastName && fullName) {
-    const parts = fullName.split(/\s+/).filter(Boolean);
-    if (parts.length > 1) {
-      lastName = parts.slice(1).join(" ");
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error("Profile fetch timeout")), Math.max(100, timeoutMs))
+      );
+
+      const { data, error } = await Promise.race([fetchPromise, timeoutPromise]);
+
+      if (error) {
+        lastError = error;
+        console.warn(`[RTN] fetchProfileWithRetries attempt ${attempt} error`, error);
+      } else if (data) {
+        return data;
+      } else {
+        // no profile found
+        return null;
+      }
+    } catch (err) {
+      lastError = err;
+      console.warn(`[RTN] fetchProfileWithRetries attempt ${attempt} exception`, err);
+    }
+
+    // delay before retrying
+    if (attempt < attempts) {
+      await delay(delayMs);
     }
   }
 
-  const emailValue =
-    user && typeof user === "object" && typeof user.email === "string"
-      ? user.email
-      : "";
-  const emailPrefix = emailValue ? emailValue.split("@")[0] : null;
-
-  const usernameCandidates = [
-    metadata.username,
-    metadata.preferred_username,
-    typeof metadata.full_name === "string"
-      ? metadata.full_name.replace(/\s+/g, "").toLowerCase()
-      : null,
-    emailPrefix
-  ];
-
-  const fallbackUsername = `player-${(user?.id || "").slice(0, 8)}`;
-  const sanitizeUsername = (value) => {
-    if (!value) return "";
-    const normalized = String(value)
-      .trim()
-      .toLowerCase()
-      .replace(/[^a-z0-9_-]+/g, "-")
-      .replace(/^-+|-+$/g, "");
-    return normalized.slice(0, 32);
-  };
-
-  let username = "";
-  for (const candidate of usernameCandidates) {
-    const sanitized = sanitizeUsername(candidate);
-    if (sanitized) {
-      username = sanitized;
-      break;
-    }
-  }
-  if (!username) {
-    username = sanitizeUsername(fallbackUsername) || `player-${Date.now().toString(36)}`;
-  }
-
-  const normalizeName = (value) => {
-    if (!value) return null;
-    const trimmed = String(value).trim();
-    return trimmed ? trimmed.slice(0, 120) : null;
-  };
-
-  return {
-    username,
-    first_name: normalizeName(firstName),
-    last_name: normalizeName(lastName)
-  };
+  console.error("[RTN] fetchProfileWithRetries failed after attempts", lastError);
+  return null;
 }
-
-async function provisionProfileForUser(user) {
-  if (!user?.id) {
-    console.warn("[RTN] provisionProfileForUser called without valid user");
-    return null;
-  }
-
-  console.log(`[RTN] provisionProfileForUser returning guest profile for ${user.id}`);
-  return { ...GUEST_PROFILE, id: user.id };
-}
-
 function deriveProfileSeedFromUser(user) {
   const metadata = (user && typeof user === "object" ? user.user_metadata : null) || {};
   const fullName = typeof metadata.full_name === "string" ? metadata.full_name.trim() : "";
@@ -670,20 +631,37 @@ async function ensureProfileSynced({ force = false } = {}) {
   if (!currentUser) {
     currentUser = { ...GUEST_USER };
   }
-
   const now = Date.now();
   if (!force && currentProfile && now - lastProfileSync < PROFILE_SYNC_INTERVAL) {
     return currentProfile;
   }
 
-  currentProfile = {
-    ...GUEST_PROFILE,
-    id: currentUser.id
-  };
+  // Always fetch the profile for a real user
+  let resolvedProfile = null;
+  if (currentUser && currentUser.id && currentUser.id !== GUEST_USER.id) {
+    resolvedProfile = await fetchProfileWithRetries(currentUser.id, {
+      attempts: PROFILE_FETCH_ROUNDS * PROFILE_ATTEMPT_MAX,
+      delayMs: PROFILE_RETRY_DELAY_MS,
+      timeoutMs: PROFILE_FETCH_TIMEOUT_MS
+    });
+    if (!resolvedProfile) {
+      // Create a profile if none exists yet
+      resolvedProfile = await provisionProfileForUser(currentUser);
+    }
+  }
 
-  const applied = applyProfileCredits(currentProfile);
+  if (resolvedProfile && resolvedProfile.credits !== undefined) {
+    currentProfile = resolvedProfile;
+    const applied = applyProfileCredits(resolvedProfile, { resetHistory: !bankrollInitialized });
+    lastProfileSync = Date.now();
+    return applied;
+  }
+
+  // fallback to guest profile only if not logged in or fetch fails
+  currentProfile = { ...GUEST_PROFILE, id: currentUser.id || GUEST_USER.id };
+  const appliedFallback = applyProfileCredits(currentProfile, { resetHistory: !bankrollInitialized });
   lastProfileSync = Date.now();
-  return applied;
+  return appliedFallback;
 }
 
 async function handleAuthFormSubmit(event) {
@@ -4407,11 +4385,43 @@ updateStatsUI();
   window.addEventListener("resize", schedulePlayAreaHeightUpdate);
   window.addEventListener("resize", drawBankrollChart);
 
+async function bootstrapAuth(initialRoute) {
+  try {
+    const { data: userResponse, error: getUserError } = await supabase.auth.getUser();
+    if (getUserError) {
+      console.error("[RTN] bootstrapAuth getUser error", getUserError);
+      return false;
+    }
+    const sessionUser = userResponse?.user ?? null;
+    if (!sessionUser) {
+      return false;
+    }
+
+    currentUser = sessionUser;
+    updateAdminVisibility(currentUser);
+
+    // Ensure profile is loaded and applied
+    await ensureProfileSynced({ force: true });
+
+    // If the initial route is an auth route, send them to home instead
+    const route = AUTH_ROUTES.has(initialRoute) ? "home" : initialRoute;
+    try {
+      await setRoute(route, { replaceHash: true });
+    } catch (err) {
+      console.warn("[RTN] bootstrapAuth setRoute warning", err);
+    }
+
+    return true;
+  } catch (error) {
+    console.error("[RTN] bootstrapAuth exception", error);
+    return false;
+  }
+}
+
 async function initializeApp() {
   stripSupabaseRedirectHash();
-
+  // start with a guest user until we determine session state
   currentUser = { ...GUEST_USER };
-  await ensureProfileSynced({ force: true });
 
   if (appShell) {
     appShell.removeAttribute("data-hidden");

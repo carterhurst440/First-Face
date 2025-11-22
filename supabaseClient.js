@@ -1,3 +1,38 @@
+// supabaseClient.js
+// This file will create a real Supabase client when `window.SUPABASE_URL` and
+// `window.SUPABASE_ANON_KEY` are provided (set them in `index.html` before
+// loading the app), otherwise it falls back to a local offline stub for
+// development.
+
+let liveClient = null;
+
+const SUPABASE_URL = typeof window !== "undefined" ? window.SUPABASE_URL || null : null;
+const SUPABASE_ANON_KEY = typeof window !== "undefined" ? window.SUPABASE_ANON_KEY || null : null;
+
+async function createRealClient(url, key) {
+  try {
+    const module = await import("https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm");
+    const { createClient } = module;
+    return createClient(url, key);
+  } catch (err) {
+    console.error("[RTN] Failed to load Supabase client from CDN", err);
+    return null;
+  }
+}
+
+if (SUPABASE_URL && SUPABASE_ANON_KEY) {
+  // attempt to create a live client
+  (async () => {
+    const client = await createRealClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    if (client) {
+      liveClient = client;
+      console.info("[RTN] Supabase client initialized (live mode)");
+    }
+  })();
+}
+
+// Offline stub fallback (synchronous) — used while live client loads or when
+// credentials are not provided.
 const mockUser = {
   id: "guest-user",
   email: "guest@example.com",
@@ -90,22 +125,21 @@ function createQuery(table) {
   return query;
 }
 
-export const supabase = {
+const offlineStub = {
   auth: {
     async getSession() {
-      return { data: { session: { user: mockUser } }, error: null };
+      return { data: { session: null }, error: null };
     },
     async getUser() {
-      return { data: { user: mockUser }, error: null };
+      return { data: { user: null }, error: null };
     },
     onAuthStateChange(callback) {
       const subscription = { unsubscribe() {} };
-      if (typeof callback === "function") {
-        setTimeout(() => callback("SIGNED_IN", { user: mockUser }), 0);
-      }
       return { data: { subscription }, error: null };
     },
     async signInWithPassword() {
+      // In live mode this will be handled by Supabase. For offline mode,
+      // return the mock user to allow UI testing when desired.
       return { data: { user: mockUser }, error: null };
     },
     async signUp() {
@@ -140,4 +174,21 @@ export const supabase = {
   }
 };
 
-console.info("[RTN] Supabase client stub initialized (offline mode)");
+// Export a proxy that forwards to the live client when ready, otherwise uses
+// the offline stub. This lets the rest of the app import `supabase` and use
+// it synchronously.
+export const supabase = new Proxy(
+  {},
+  {
+    get(_, prop) {
+      if (liveClient) return liveClient[prop];
+      return offlineStub[prop];
+    },
+    apply(_, thisArg, args) {
+      if (typeof liveClient === "function") return liveClient.apply(thisArg, args);
+      return undefined;
+    }
+  }
+);
+
+console.info("[RTN] Supabase client module loaded (live will be used if credentials provided)");
